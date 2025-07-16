@@ -1,0 +1,67 @@
+{
+  "name": "playswag",
+  "version": "0.2.0",
+  "description": "OpenAPI/Swagger coverage tool for Playwright API tests",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist",
+    "dev": "tsc --watch",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "prepublishOnly": "npm run clean && npm run lint && npm run test && npm run build",
+    "test": "playwright test test",
+    "test:unit": "playwright test test --grep \"Unit|should\"",
+    "test:integration": "playwright test test/integration.test.ts",
+    "test:coverage": "playwright test test --reporter=html",
+    "test:examples": "cd examples && npm install && npm test",
+    "example": "playwright test examples",
+    "docs": "typedoc --out docs src/index.ts"
+  },
+  "keywords": [
+    "openapi",
+    "swagger",
+    "playwright",
+    "api",
+    "testing",
+    "coverage",
+    "test",
+    "api-testing"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "@playwright/test": "^1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^18.15.0",
+    "@typescript-eslint/eslint-plugin": "^5.54.0",
+    "@typescript-eslint/parser": "^5.54.0",
+    "eslint": "^8.35.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "prettier": "^2.8.0",
+    "rimraf": "^4.4.0",
+    "typedoc": "^0.23.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "homepage": "https://github.com/yourusername/playswag",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/playswag.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/playswag/issues"
+  }
+}

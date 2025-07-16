@@ -1,0 +1,73 @@
+{
+  "summary": {
+    "totalRequests": 9,
+    "uniqueEndpoints": 7,
+    "successRate": 77.78,
+    "averageDuration": 122.11,
+    "timestamp": "2025-07-16T09:26:49.382Z"
+  },
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://api.demo.com/users",
+      "timestamp": 1752658009313,
+      "duration": 24
+    },
+    {
+      "method": "GET",
+      "url": "https://api.demo.com/users",
+      "timestamp": 1752658004337,
+      "status": 200,
+      "duration": 150
+    },
+    {
+      "method": "GET",
+      "url": "https://api.demo.com/users",
+      "timestamp": 1752658005337,
+      "status": 200,
+      "duration": 120
+    },
+    {
+      "method": "GET",
+      "url": "https://api.demo.com/users/123",
+      "timestamp": 1752658006337,
+      "status": 200,
+      "duration": 95
+    },
+    {
+      "method": "POST",
+      "url": "https://api.demo.com/users",
+      "timestamp": 1752658007337,
+      "status": 201,
+      "duration": 250
+    },
+    {
+      "method": "GET",
+      "url": "https://api.demo.com/posts",
+      "timestamp": 1752658008337,
+      "status": 200,
+      "duration": 180
+    },
+    {
+      "method": "GET",
+      "url": "https://api.demo.com/users/999",
+      "timestamp": 1752658008837,
+      "status": 404,
+      "duration": 50
+    },
+    {
+      "method": "PUT",
+      "url": "https://api.demo.com/users/123",
+      "timestamp": 1752658009137,
+      "status": 200,
+      "duration": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.demo.com/health",
+      "timestamp": 1752658009237,
+      "status": 200,
+      "duration": 30
+    }
+  ]
+}

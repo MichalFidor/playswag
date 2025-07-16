@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Enhanced Demo API Tests" tests="9" failures="1" time="1.099">
+  <testcase name="GET /users" time="0.024" classname="API.GET" />
+  <testcase name="GET /users" time="0.15" classname="API.GET" />
+  <testcase name="GET /users" time="0.12" classname="API.GET" />
+  <testcase name="GET /users/123" time="0.095" classname="API.GET" />
+  <testcase name="POST /users" time="0.25" classname="API.POST" />
+  <testcase name="GET /posts" time="0.18" classname="API.GET" />
+  <testcase name="GET /users/999" time="0.05" classname="API.GET">
+    <failure message="HTTP 404" type="HttpError">Request failed with status 404</failure>
+  </testcase>
+  <testcase name="PUT /users/123" time="0.2" classname="API.PUT" />
+  <testcase name="GET /health" time="0.03" classname="API.GET" />
+</testsuite>

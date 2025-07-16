@@ -1,0 +1,185 @@
+{
+  "metadata": {
+    "generatedAt": "2025-07-16T09:26:49.388Z",
+    "generatedBy": "PlaySwag",
+    "version": "1.0.0",
+    "sessionDuration": 5
+  },
+  "coverage": {
+    "totalEndpoints": 8,
+    "coveredEndpoints": 5,
+    "coveragePercentage": 62.5,
+    "uncoveredEndpoints": [
+      {
+        "path": "/users/{id}",
+        "method": "DELETE",
+        "operationId": "deleteUser",
+        "summary": "Delete user",
+        "tags": [
+          "users",
+          "admin"
+        ]
+      },
+      {
+        "path": "/posts",
+        "method": "POST",
+        "operationId": "createPost",
+        "summary": "Create a new post",
+        "tags": [
+          "posts",
+          "user"
+        ]
+      },
+      {
+        "path": "/admin/stats",
+        "method": "GET",
+        "operationId": "getStats",
+        "summary": "Get system statistics",
+        "tags": [
+          "admin",
+          "system"
+        ]
+      }
+    ],
+    "extraEndpoints": [
+      "GET /health"
+    ],
+    "requestSummary": {
+      "totalRequests": 9,
+      "uniqueEndpoints": 7,
+      "methodDistribution": {
+        "GET": 7,
+        "POST": 1,
+        "PUT": 1
+      },
+      "statusDistribution": {
+        "2xx": 7,
+        "4xx": 1
+      }
+    }
+  },
+  "requestSummary": {
+    "totalRequests": 9,
+    "uniqueEndpoints": 7,
+    "timeRange": {
+      "start": "2025-07-16T09:26:44.337Z",
+      "end": "2025-07-16T09:26:49.313Z"
+    },
+    "methodDistribution": {
+      "GET": 7,
+      "POST": 1,
+      "PUT": 1
+    },
+    "statusDistribution": {
+      "2xx": 7,
+      "4xx": 1
+    }
+  },
+  "endpointUsage": [
+    {
+      "endpoint": "GET https://api.demo.com/users",
+      "callCount": 3,
+      "totalDuration": 294,
+      "averageDuration": 98,
+      "statusCodes": [
+        200
+      ],
+      "firstCalled": 1752658009313,
+      "lastCalled": 1752658009313
+    },
+    {
+      "endpoint": "GET https://api.demo.com/users/123",
+      "callCount": 1,
+      "totalDuration": 95,
+      "averageDuration": 95,
+      "statusCodes": [
+        200
+      ],
+      "firstCalled": 1752658006337,
+      "lastCalled": 1752658006337
+    },
+    {
+      "endpoint": "POST https://api.demo.com/users",
+      "callCount": 1,
+      "totalDuration": 250,
+      "averageDuration": 250,
+      "statusCodes": [
+        201
+      ],
+      "firstCalled": 1752658007337,
+      "lastCalled": 1752658007337
+    },
+    {
+      "endpoint": "GET https://api.demo.com/posts",
+      "callCount": 1,
+      "totalDuration": 180,
+      "averageDuration": 180,
+      "statusCodes": [
+        200
+      ],
+      "firstCalled": 1752658008337,
+      "lastCalled": 1752658008337
+    },
+    {
+      "endpoint": "GET https://api.demo.com/users/999",
+      "callCount": 1,
+      "totalDuration": 50,
+      "averageDuration": 50,
+      "statusCodes": [
+        404
+      ],
+      "firstCalled": 1752658008837,
+      "lastCalled": 1752658008837
+    },
+    {
+      "endpoint": "PUT https://api.demo.com/users/123",
+      "callCount": 1,
+      "totalDuration": 200,
+      "averageDuration": 200,
+      "statusCodes": [
+        200
+      ],
+      "firstCalled": 1752658009137,
+      "lastCalled": 1752658009137
+    },
+    {
+      "endpoint": "GET https://api.demo.com/health",
+      "callCount": 1,
+      "totalDuration": 30,
+      "averageDuration": 30,
+      "statusCodes": [
+        200
+      ],
+      "firstCalled": 1752658009237,
+      "lastCalled": 1752658009237
+    }
+  ],
+  "performanceMetrics": {
+    "averageResponseTime": 122,
+    "minResponseTime": 24,
+    "maxResponseTime": 250,
+    "p95ResponseTime": 250,
+    "p99ResponseTime": 250
+  },
+  "errorAnalysis": {
+    "totalErrors": 1,
+    "errorRate": 11.11,
+    "errorsByStatus": {
+      "404": 1
+    },
+    "mostCommonErrors": [
+      {
+        "status": "404",
+        "count": 1,
+        "percentage": 100
+      }
+    ]
+  },
+  "recommendations": [
+    "Good coverage achieved. Focus on edge cases and error scenarios for remaining endpoints.",
+    "High error rate (11.11%). Review failing endpoints and fix underlying issues.",
+    "1 endpoints are not documented in OpenAPI spec. Consider updating documentation.",
+    "2 critical endpoints (POST/PUT/DELETE) are untested. Prioritize testing these operations.",
+    "2 admin endpoints are untested. Ensure admin functionality is properly tested."
+  ]
+}

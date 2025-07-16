@@ -1,0 +1,18 @@
+{
+  "name": "playswag-examples",
+  "version": "1.0.0",
+  "description": "Examples showing how to use PlaySwag for API testing coverage",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:basic": "playwright test basic-usage.test.ts",
+    "test:advanced": "playwright test advanced-usage.test.ts",
+    "test:petstore": "playwright test petstore-api.test.ts",
+    "test:jsonplaceholder": "playwright test jsonplaceholder-api.test.ts",
+    "test:coverage": "playwright test coverage-reporting.test.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1",
+    "playswag": "file:.."
+  }
+}
