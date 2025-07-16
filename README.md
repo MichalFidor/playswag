@@ -2,6 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/playswag.svg)](https://www.npmjs.com/package/playswag)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![GitHub](https://img.shields.io/github/stars/MichalFidor/playswag?style=social)](https://github.com/MichalFidor/playswag)
 
 PlaySwag is a comprehensive API test coverage tool for Playwright that integrates seamlessly with OpenAPI/Swagger specifications. It helps you track, analyze, and improve your API test coverage.
 
