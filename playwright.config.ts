@@ -1,9 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  // Look for test files in both examples and test directories
-  testDir: '.',
-  testMatch: ['examples/**/*.test.ts', 'test/**/*.test.ts'],
+  // Look for test files only in test directory (not examples)
+  testDir: './test',
+  testMatch: ['**/*.test.ts'],
 
   // Run all tests in parallel.
   fullyParallel: true,

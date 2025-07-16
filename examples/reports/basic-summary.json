@@ -3,69 +3,69 @@
     "totalRequests": 9,
     "uniqueEndpoints": 7,
     "successRate": 77.78,
-    "averageDuration": 122.11,
-    "timestamp": "2025-07-16T09:26:49.382Z"
+    "averageDuration": 123.22,
+    "timestamp": "2025-07-16T09:33:55.522Z"
   },
   "requests": [
     {
       "method": "GET",
       "url": "https://api.demo.com/users",
-      "timestamp": 1752658009313,
-      "duration": 24
+      "timestamp": 1752658435464,
+      "duration": 34
     },
     {
       "method": "GET",
       "url": "https://api.demo.com/users",
-      "timestamp": 1752658004337,
+      "timestamp": 1752658430499,
       "status": 200,
       "duration": 150
     },
     {
       "method": "GET",
       "url": "https://api.demo.com/users",
-      "timestamp": 1752658005337,
+      "timestamp": 1752658431499,
       "status": 200,
       "duration": 120
     },
     {
       "method": "GET",
       "url": "https://api.demo.com/users/123",
-      "timestamp": 1752658006337,
+      "timestamp": 1752658432499,
       "status": 200,
       "duration": 95
     },
     {
       "method": "POST",
       "url": "https://api.demo.com/users",
-      "timestamp": 1752658007337,
+      "timestamp": 1752658433499,
       "status": 201,
       "duration": 250
     },
     {
       "method": "GET",
       "url": "https://api.demo.com/posts",
-      "timestamp": 1752658008337,
+      "timestamp": 1752658434499,
       "status": 200,
       "duration": 180
     },
     {
       "method": "GET",
       "url": "https://api.demo.com/users/999",
-      "timestamp": 1752658008837,
+      "timestamp": 1752658434999,
       "status": 404,
       "duration": 50
     },
     {
       "method": "PUT",
       "url": "https://api.demo.com/users/123",
-      "timestamp": 1752658009137,
+      "timestamp": 1752658435299,
       "status": 200,
       "duration": 200
     },
     {
       "method": "GET",
       "url": "https://api.demo.com/health",
-      "timestamp": 1752658009237,
+      "timestamp": 1752658435399,
       "status": 200,
       "duration": 30
     }

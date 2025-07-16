@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="Enhanced Demo API Tests" tests="9" failures="1" time="1.099">
-  <testcase name="GET /users" time="0.024" classname="API.GET" />
+<testsuite name="Enhanced Demo API Tests" tests="9" failures="1" time="1.109">
+  <testcase name="GET /users" time="0.034" classname="API.GET" />
   <testcase name="GET /users" time="0.15" classname="API.GET" />
   <testcase name="GET /users" time="0.12" classname="API.GET" />
   <testcase name="GET /users/123" time="0.095" classname="API.GET" />

@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generatedAt": "2025-07-16T09:26:49.388Z",
+    "generatedAt": "2025-07-16T09:33:55.522Z",
     "generatedBy": "PlaySwag",
     "version": "1.0.0",
     "sessionDuration": 5
@@ -62,8 +62,8 @@
     "totalRequests": 9,
     "uniqueEndpoints": 7,
     "timeRange": {
-      "start": "2025-07-16T09:26:44.337Z",
-      "end": "2025-07-16T09:26:49.313Z"
+      "start": "2025-07-16T09:33:50.499Z",
+      "end": "2025-07-16T09:33:55.464Z"
     },
     "methodDistribution": {
       "GET": 7,
@@ -79,13 +79,13 @@
     {
       "endpoint": "GET https://api.demo.com/users",
       "callCount": 3,
-      "totalDuration": 294,
-      "averageDuration": 98,
+      "totalDuration": 304,
+      "averageDuration": 101.33333333333333,
       "statusCodes": [
         200
       ],
-      "firstCalled": 1752658009313,
-      "lastCalled": 1752658009313
+      "firstCalled": 1752658435464,
+      "lastCalled": 1752658435464
     },
     {
       "endpoint": "GET https://api.demo.com/users/123",
@@ -95,8 +95,8 @@
       "statusCodes": [
         200
       ],
-      "firstCalled": 1752658006337,
-      "lastCalled": 1752658006337
+      "firstCalled": 1752658432499,
+      "lastCalled": 1752658432499
     },
     {
       "endpoint": "POST https://api.demo.com/users",
@@ -106,8 +106,8 @@
       "statusCodes": [
         201
       ],
-      "firstCalled": 1752658007337,
-      "lastCalled": 1752658007337
+      "firstCalled": 1752658433499,
+      "lastCalled": 1752658433499
     },
     {
       "endpoint": "GET https://api.demo.com/posts",
@@ -117,8 +117,8 @@
       "statusCodes": [
         200
       ],
-      "firstCalled": 1752658008337,
-      "lastCalled": 1752658008337
+      "firstCalled": 1752658434499,
+      "lastCalled": 1752658434499
     },
     {
       "endpoint": "GET https://api.demo.com/users/999",
@@ -128,8 +128,8 @@
       "statusCodes": [
         404
       ],
-      "firstCalled": 1752658008837,
-      "lastCalled": 1752658008837
+      "firstCalled": 1752658434999,
+      "lastCalled": 1752658434999
     },
     {
       "endpoint": "PUT https://api.demo.com/users/123",
@@ -139,8 +139,8 @@
       "statusCodes": [
         200
       ],
-      "firstCalled": 1752658009137,
-      "lastCalled": 1752658009137
+      "firstCalled": 1752658435299,
+      "lastCalled": 1752658435299
     },
     {
       "endpoint": "GET https://api.demo.com/health",
@@ -150,13 +150,13 @@
       "statusCodes": [
         200
       ],
-      "firstCalled": 1752658009237,
-      "lastCalled": 1752658009237
+      "firstCalled": 1752658435399,
+      "lastCalled": 1752658435399
     }
   ],
   "performanceMetrics": {
-    "averageResponseTime": 122,
-    "minResponseTime": 24,
+    "averageResponseTime": 123,
+    "minResponseTime": 30,
     "maxResponseTime": 250,
     "p95ResponseTime": 250,
     "p99ResponseTime": 250

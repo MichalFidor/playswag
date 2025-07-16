@@ -56,12 +56,12 @@
   "engines": {
     "node": ">=16.0.0"
   },
-  "homepage": "https://github.com/yourusername/playswag",
+  "homepage": "https://github.com/MichalFidor/playswag",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/playswag.git"
+    "url": "https://github.com/MichalFidor/playswag.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/playswag/issues"
+    "url": "https://github.com/MichalFidor/playswag/issues"
   }
 }
