@@ -1,5 +1,9 @@
 # playswag
 
+<p align="center">
+  <img src="assets/logo.png" alt="playswag logo" width="220" />
+</p>
+
 > Playwright API coverage tracking against Swagger / OpenAPI specifications.
 
 `playswag` transparently wraps Playwright's built-in `request` fixture to record every API call made during your tests, then compares the results against your OpenAPI spec(s) to report coverage across four dimensions:

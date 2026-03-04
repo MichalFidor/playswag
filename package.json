@@ -58,6 +58,7 @@
     "test": "npm run test:unit",
     "test:unit": "vitest run tests/unit",
     "test:integration": "playwright test --config=playwright.integration.config.ts",
+    "typecheck": "tsc --noEmit",
     "link": "npm install && npm run build && npm link @playwright/test && npm link",
     "lint": "tsc --noEmit",
     "prepublishOnly": "npm run build"
