@@ -25,7 +25,10 @@ function tryReadVersion(packageName: string): string {
     const require = createRequire(import.meta.url);
     const pkg: { version?: string } = require(`${packageName}/package.json`);
     return pkg.version ?? 'unknown';
-  } catch {
+  } catch (err) {
+    if (process.env['PLAYSWAG_DEBUG']) {
+      console.log(`[playswag:debug] Could not read version for "${packageName}": ${(err as Error).message}`);
+    }
     return 'unknown';
   }
 }
@@ -42,7 +45,10 @@ function readPlayswagVersion(): string {
       const pkgPath = resolve(currentDir, '../package.json');
       const pkg: { version?: string } = require(pkgPath);
       return pkg.version ?? 'unknown';
-    } catch {
+    } catch (err) {
+      if (process.env['PLAYSWAG_DEBUG']) {
+        console.log(`[playswag:debug] Could not read playswag version: ${(err as Error).message}`);
+      }
       return 'unknown';
     }
   }
@@ -135,7 +141,7 @@ class PlayswagReporter implements Reporter {
   }
 
   async onEnd(_result: FullResult): Promise<{ status?: FullResult['status'] } | void> {
-    if (this.aggregatedHits.length === 0 && !this.config.specs) {
+    if (!this.config.specs) {
       return;
     }
 

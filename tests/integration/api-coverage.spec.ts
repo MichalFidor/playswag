@@ -1,5 +1,5 @@
 import { test, expect } from '../../src/index.js';
-import { createMockServer } from './mock-server.js';
+import { createMockServer, resetMockServer } from './mock-server.js';
 import type { Server } from 'node:http';
 
 let server: Server | undefined;
@@ -7,6 +7,10 @@ let server: Server | undefined;
 test.beforeAll(async () => {
   const result = await createMockServer(3456);
   server = result.server;
+});
+
+test.beforeEach(() => {
+  resetMockServer();
 });
 
 test.afterAll(async () => {

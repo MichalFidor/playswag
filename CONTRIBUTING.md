@@ -30,7 +30,7 @@ npm install
 npm test
 
 # Type-check (no emitting)
-npx tsc --noEmit
+npm run typecheck
 
 # Build ESM + CJS + type declarations
 npm run build
@@ -68,7 +68,7 @@ The script will:
    ```
 2. Make your changes, keeping the [coding conventions](#code-style--conventions) in mind.
 3. Add or update **unit tests** in `tests/unit/`. Every new exported function must have test coverage.
-4. Ensure `npm test` and `npx tsc --noEmit` both pass with no errors.
+4. Ensure `npm test` and `npm run typecheck` both pass with no errors.
 5. Open a pull request against `main` with a clear description of *what* changed and *why*.
 
 ---
@@ -114,19 +114,15 @@ Use op.serverBasePath on each NormalizedOperation instead.
 | Version component | Increment when… | Example |
 |---|---|---|
 | **MAJOR** (`x.0.0`) | A breaking change is introduced — any public API is removed, renamed, or its contract changes in an incompatible way. Includes removing a field from `NormalizedSpec`, changing a function signature, or dropping Node version support. | `1.0.0 → 2.0.0` |
-| **MINOR** (`0.x.0`) | A new backward-compatible feature is added — new config option, new output dimension, new exported function. | `0.1.0 → 0.2.0` |
-| **PATCH** (`0.0.x`) | A backward-compatible bug fix — wrong percentage calculation, incorrect glob matching, a crash fix. | `0.1.0 → 0.1.1` |
-
-> **Note:** While the version is `0.x.y` (pre-`1.0.0`) the package is considered unstable.  
-> Minor increments (`0.x`) may include breaking changes — this is normal pre-stable behaviour.  
-> GitHub Releases for `0.x.y` tags are automatically marked as **pre-release**.
+| **MINOR** (`1.x.0`) | A new backward-compatible feature is added — new config option, new output dimension, new exported function. | `1.0.0 → 1.1.0` |
+| **PATCH** (`1.0.x`) | A backward-compatible bug fix — wrong percentage calculation, incorrect glob matching, a crash fix. | `1.0.0 → 1.0.1` |
 
 ### Quick cheat-sheet
 
 ```
-Bug fix?           → bump PATCH  e.g. 0.1.0 → 0.1.1
-New feature?       → bump MINOR  e.g. 0.1.1 → 0.2.0
-Breaking change?   → bump MAJOR  e.g. 0.2.0 → 1.0.0
+Bug fix?           → bump PATCH  e.g. 1.0.0 → 1.0.1
+New feature?       → bump MINOR  e.g. 1.0.1 → 1.1.0
+Breaking change?   → bump MAJOR  e.g. 1.1.0 → 2.0.0
 ```
 
 ---

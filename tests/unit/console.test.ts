@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { checkThresholds } from '../../src/output/console.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { checkThresholds, printConsoleReport } from '../../src/output/console.js';
 import type { CoverageResult, ThresholdConfig } from '../../src/types.js';
 
 function makeItem(percentage: number) {
@@ -137,5 +137,69 @@ describe('checkThresholds', () => {
     const result = makeResult(70, 100, 100, 100);
     const violations = checkThresholds(result, { endpoints: 80 }, true);
     expect(violations[0].fail).toBe(true);
+  });
+});
+
+describe('printConsoleReport', () => {
+  let logSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
+  it('calls console.log at least once (report is printed)', async () => {
+    const result = makeResult(75, 80, 50, 100);
+    await printConsoleReport(result);
+    expect(logSpy).toHaveBeenCalled();
+  });
+
+  it('includes the spec file name in the output', async () => {
+    const result: CoverageResult = {
+      ...makeResult(75, 80, 50, 100),
+      specFiles: ['./my-api.yaml'],
+    };
+    await printConsoleReport(result);
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).toContain('my-api.yaml');
+  });
+
+  it('does not print the operations table when showOperations=false', async () => {
+    const result: CoverageResult = {
+      ...makeResult(75, 80, 50, 100),
+      operations: [
+        {
+          path: '/api/users',
+          method: 'GET',
+          covered: true,
+          statusCodes: { '200': { covered: true, testRefs: [] } },
+          parameters: [],
+          bodyProperties: [],
+          testRefs: [],
+        },
+      ],
+      uncoveredOperations: [],
+    };
+    await printConsoleReport(result, { showOperations: false });
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).not.toContain('/api/users');
+  });
+
+  it('prints threshold violation messages when threshold is provided', async () => {
+    const result = makeResult(50, 100, 100, 100);
+    await printConsoleReport(result, {}, { endpoints: 80 }, false);
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).toContain('50.0%');
+    expect(allArgs).toContain('80%');
+  });
+
+  it('prints "All thresholds met" when no violations occur', async () => {
+    const result = makeResult(100, 100, 100, 100);
+    await printConsoleReport(result, {}, { endpoints: 80 }, false);
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).toContain('All thresholds met');
   });
 });

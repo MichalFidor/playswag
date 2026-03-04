@@ -236,6 +236,9 @@ Duplicate `method + path` entries across files are de-duplicated (last one wins,
 {
   "specFiles": ["./openapi.yaml"],
   "timestamp": "2026-03-04T12:00:00.000Z",
+  "playwrightVersion": "1.50.0",
+  "playswagVersion": "1.0.0",
+  "totalTestCount": 12,
   "summary": {
     "endpoints":     { "total": 6, "covered": 5, "percentage": 83.3 },
     "statusCodes":   { "total": 11, "covered": 7, "percentage": 63.6 },
@@ -282,7 +285,7 @@ testInfo.attach(                   onTestEnd():
                                    onEnd():
                                      parse OpenAPI spec(s)
                                      match hits → path templates
-                                     calculate 3-tier coverage
+                                     calculate 4-dimension coverage
                                      print console report
                                      write JSON file
 ```

@@ -99,14 +99,16 @@ export function calculateCoverage(
 
     cov.covered = true;
     const ref = testRef(hit);
-    if (!cov.testRefs.includes(ref)) cov.testRefs.push(ref);
+    const testRefSet = new Set(cov.testRefs);
+    if (!testRefSet.has(ref)) cov.testRefs.push(ref);
 
     const enrichedHit: EndpointHit = { ...hit, pathParams };
 
     const code = String(hit.statusCode);
     if (cov.statusCodes[code]) {
       cov.statusCodes[code]!.covered = true;
-      if (!cov.statusCodes[code]!.testRefs.includes(ref)) {
+      const statusRefSet = new Set(cov.statusCodes[code]!.testRefs);
+      if (!statusRefSet.has(ref)) {
         cov.statusCodes[code]!.testRefs.push(ref);
       }
     }

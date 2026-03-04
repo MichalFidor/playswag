@@ -5,10 +5,19 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
  * Used only in integration tests.
  */
 
-const users: Array<{ id: string; name: string; email: string; role?: string }> = [
+const initialUsers: Array<{ id: string; name: string; email: string; role?: string }> = [
   { id: '1', name: 'Alice', email: 'alice@example.com', role: 'admin' },
   { id: '2', name: 'Bob', email: 'bob@example.com' },
 ];
+
+let users: Array<{ id: string; name: string; email: string; role?: string }> = [
+  ...initialUsers,
+];
+
+/** Reset server state to initial fixture data. Call in test.beforeEach. */
+export function resetMockServer(): void {
+  users = [...initialUsers];
+}
 
 function json(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body);

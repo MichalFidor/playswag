@@ -19,7 +19,7 @@ export default defineConfig({
         outputFormats: ['console', 'json'],
         baseURL: 'http://localhost:3456',
         consoleOutput: {
-          showDetails: true,
+          showOperations: true,
           showParams: true,
         },
         threshold: {

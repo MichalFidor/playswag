@@ -22,6 +22,7 @@ export function stripToPath(url: string, baseURL?: string, serverBasePath?: stri
     const parsed = new URL(url);
     path = decodeURIComponent(parsed.pathname);
   } catch {
+    // Not a full URL — treat the input as a raw path (e.g. "/api/users?q=1")
     path = url.split('?')[0] ?? url;
     path = decodeURIComponent(path);
   }
@@ -31,6 +32,7 @@ export function stripToPath(url: string, baseURL?: string, serverBasePath?: stri
     try {
       basePath = new URL(baseURL).pathname;
     } catch {
+      // baseURL is already a path-like string
       basePath = baseURL;
     }
     const normBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;

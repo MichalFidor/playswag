@@ -123,7 +123,8 @@ function extractServerBasePath(servers: unknown): string | undefined {
     const pathname = new URL(url).pathname;
     const normalized = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
     return normalized && normalized !== '/' ? normalized : undefined;
-  } catch {
+  } catch (err) {
+    console.warn(`[playswag] Could not parse server URL "${url}": ${(err as Error).message}`);
     return undefined;
   }
 }
