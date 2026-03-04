@@ -144,6 +144,7 @@ class PlayswagReporter implements Reporter {
 
   async onEnd(_result: FullResult): Promise<{ status?: FullResult['status'] } | void> {
     if (!this.config.specs) {
+      console.warn('[playswag] No specs configured — skipping coverage. Set the `specs` option in your reporter config.');
       return;
     }
 
@@ -204,10 +205,10 @@ class PlayswagReporter implements Reporter {
       if (htmlConfig.enabled !== false) {
         try {
           const writtenPath = await writeHtmlReport(coverageResult, this.config.outputDir, htmlConfig);
+          const absPath = resolve(writtenPath);
           if (process.env['CI']) {
-            console.log(`[playswag] HTML report written to ${writtenPath}`);
+            console.log(`[playswag] HTML report written to ${absPath}`);
           } else {
-            const absPath = resolve(writtenPath);
             console.log(`[playswag] HTML report → file://${absPath}`);
           }
         } catch (err) {
