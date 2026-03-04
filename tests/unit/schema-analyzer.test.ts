@@ -58,6 +58,18 @@ describe('analyzeParameters', () => {
     const op: NormalizedOperation = { pathTemplate: '/', method: 'GET', parameters: [], responses: {} };
     expect(analyzeParameters(op, {}, {}, {})).toEqual([]);
   });
+
+  it('cookie parameters are always uncovered', () => {
+    const op: NormalizedOperation = {
+      pathTemplate: '/api/login',
+      method: 'POST',
+      parameters: [{ name: 'session', in: 'cookie', required: false }],
+      responses: {},
+    };
+    // Even when a matching key is present in query params the cookie param stays uncovered
+    const result = analyzeParameters(op, { session: '123' }, {}, {});
+    expect(result[0]?.covered).toBe(false);
+  });
 });
 
 describe('analyzeBodyProperties', () => {
@@ -95,5 +107,45 @@ describe('analyzeBodyProperties', () => {
     const result = analyzeBodyProperties(postOp, JSON.stringify({ name: 'Bob', email: 'b@b.com' }));
     expect(result.find((b) => b.name === 'name')?.covered).toBe(true);
     expect(result.find((b) => b.name === 'role')?.covered).toBe(false);
+  });
+
+  it('returns all uncovered when body is undefined', () => {
+    const result = analyzeBodyProperties(postOp, undefined);
+    expect(result).toHaveLength(3); // name, email, role
+    expect(result.every((b) => !b.covered)).toBe(true);
+  });
+
+  it('returns all uncovered when body is null', () => {
+    const result = analyzeBodyProperties(postOp, null);
+    expect(result.every((b) => !b.covered)).toBe(true);
+  });
+
+  it('returns all uncovered when body is an array (not a plain object)', () => {
+    const result = analyzeBodyProperties(postOp, [{ name: 'Alice' }]);
+    expect(result.every((b) => !b.covered)).toBe(true);
+  });
+
+  it('returns all uncovered when body is an invalid JSON string', () => {
+    const result = analyzeBodyProperties(postOp, 'not-json-at-all{{');
+    expect(result.every((b) => !b.covered)).toBe(true);
+  });
+
+  it('merges properties from allOf sub-schemas', () => {
+    const op: NormalizedOperation = {
+      pathTemplate: '/api/widgets',
+      method: 'POST',
+      parameters: [],
+      requestBodySchema: {
+        allOf: [
+          { type: 'object', properties: { name: { type: 'string' } } },
+          { type: 'object', properties: { weight: { type: 'number' } }, required: ['weight'] },
+        ],
+      },
+      responses: {},
+    };
+    const result = analyzeBodyProperties(op, { name: 'Widget A' });
+    expect(result.find((b) => b.name === 'name')?.covered).toBe(true);
+    expect(result.find((b) => b.name === 'weight')?.covered).toBe(false);
+    expect(result.find((b) => b.name === 'weight')?.required).toBe(true);
   });
 });

@@ -36,15 +36,27 @@ npx tsc --noEmit
 npm run build
 ```
 
-### Linking locally for end-to-end testing
+### Testing the build locally against a consumer project
+
+The repo ships a helper script, `dev-link.sh`, that rebuilds the package and
+installs it directly into a consumer project via `npm pack` + `npm install`.
+This avoids the duplicate-module problems (`@playwright/test` loaded twice) that
+`npm link` causes with peer dependencies.
 
 ```bash
-# In this repo
-npm run link          # builds + registers the local package globally
-
-# In your consumer project
-npm link playswag
+# Rebuild playswag and install it into your consumer project
+./dev-link.sh /path/to/your-test-project
 ```
+
+The script will:
+1. Run `npm run build` to produce a fresh `dist/`.
+2. Call `npm pack` to create a local `.tgz` tarball (automatically cleaned up).
+3. Run `npm install file:<tarball>` in the consumer project so Node resolves all
+   peer dependencies (`@playwright/test`, etc.) from the consumer's own
+   `node_modules` — not from playswag's.
+
+> **Note:** You need to re-run the script every time you change source files.
+> The `.tgz` artefact is gitignored via `*.tgz` so it will never be committed.
 
 ---
 

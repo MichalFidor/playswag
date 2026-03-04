@@ -184,4 +184,48 @@ describe('calculateCoverage', () => {
     );
     expect(result.unmatchedHits).toHaveLength(1);
   });
+
+  it('returns all operations uncovered and empty unmatchedHits when given no hits', () => {
+    const result = calculateCoverage([], spec, { baseURL });
+    expect(result.summary.endpoints.covered).toBe(0);
+    expect(result.summary.endpoints.total).toBe(4);
+    expect(result.uncoveredOperations).toHaveLength(4);
+    expect(result.unmatchedHits).toHaveLength(0);
+  });
+
+  it('counts total parameters correctly across all operations', () => {
+    // GET /api/users: 1 (limit), POST /api/users: 0,
+    // GET /api/users/{id}: 1 (id), DELETE /api/users/{id}: 1 (id) → 3 total
+    const result = calculateCoverage([], spec, { baseURL });
+    expect(result.summary.parameters.total).toBe(3);
+    expect(result.summary.parameters.covered).toBe(0);
+  });
+
+  it('reports 100% and total=0 for dimensions with no items defined in spec', () => {
+    const bareSpec: NormalizedSpec = {
+      sources: ['bare.yaml'],
+      operations: [
+        { pathTemplate: '/ping', method: 'GET', parameters: [], responses: { '200': {} } },
+      ],
+    };
+    const result = calculateCoverage(
+      [hit({ method: 'GET', url: `${baseURL}/ping`, statusCode: 200 })],
+      bareSpec,
+      { baseURL }
+    );
+    expect(result.summary.parameters.total).toBe(0);
+    expect(result.summary.parameters.percentage).toBe(100);
+    expect(result.summary.bodyProperties.total).toBe(0);
+    expect(result.summary.bodyProperties.percentage).toBe(100);
+  });
+
+  it('tracks query parameter coverage from hit.queryParams', () => {
+    const result = calculateCoverage(
+      [hit({ method: 'GET', url: `${baseURL}/api/users`, statusCode: 200, queryParams: { limit: '10' } })],
+      spec,
+      { baseURL }
+    );
+    const op = result.operations.find((o) => o.path === '/api/users' && o.method === 'GET');
+    expect(op?.parameters.find((p) => p.name === 'limit')?.covered).toBe(true);
+  });
 });
