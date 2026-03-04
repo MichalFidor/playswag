@@ -7,3 +7,4 @@ tests/integration/output/
 test-results/
 playwright-report/
 .playwright/
+.DS_Store

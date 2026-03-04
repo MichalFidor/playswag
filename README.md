@@ -1,3 +1,5 @@
+# Playswag 
+
 ![playswag logo](assets/logo.png)
 
 > Playwright API coverage tracking against Swagger / OpenAPI specifications.
