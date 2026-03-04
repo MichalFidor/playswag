@@ -52,7 +52,7 @@ export default defineConfig({
 
       // Optional
       outputDir: './playswag-coverage',
-      outputFormats: ['console', 'json'],   // default
+      outputFormats: ['console', 'json'],   // also: 'html', 'badge'
 
       threshold: {
         endpoints: 80,         // warn / fail if < 80% of endpoints are hit
@@ -74,6 +74,8 @@ npx playwright test
 ```
 
 Coverage is printed to the terminal and written to `./playswag-coverage/playswag-coverage.json`.
+To also get an interactive HTML report, add `'html'` to `outputFormats` — the reporter will print a
+clickable `file://` link at the end of the run (suppressed when `CI=true`).
 
 ---
 
@@ -94,7 +96,7 @@ interface PlayswagConfig {
   outputDir?: string;
 
   /** Which output formats to produce. @default ['console', 'json'] */
-  outputFormats?: Array<'console' | 'json'>;
+  outputFormats?: Array<'console' | 'json' | 'html' | 'badge'>;
 
   /**
    * Base URL of the API under test.
@@ -120,6 +122,28 @@ interface PlayswagConfig {
     enabled?: boolean;    // @default true
     fileName?: string;    // @default 'playswag-coverage.json'
     pretty?: boolean;     // @default true
+  };
+
+  /**
+   * Options for the standalone HTML coverage report.
+   * Enable by adding 'html' to outputFormats.
+   */
+  htmlOutput?: {
+    enabled?: boolean;  // @default true
+    fileName?: string;  // @default 'playswag-coverage.html'
+    title?: string;     // @default 'API Coverage Report'
+  };
+
+  /**
+   * Options for the SVG coverage badge.
+   * Enable by adding 'badge' to outputFormats.
+   */
+  badge?: {
+    enabled?: boolean;                                                        // @default true
+    fileName?: string;                                                        // @default 'playswag-badge.svg'
+    /** Which coverage dimension drives the badge percentage. */
+    dimension?: 'endpoints' | 'statusCodes' | 'parameters' | 'bodyProperties'; // @default 'endpoints'
+    label?: string;                                                           // @default 'API Coverage'
   };
 
   threshold?: {
@@ -208,6 +232,61 @@ specs: [
 ```
 
 Duplicate `method + path` entries across files are de-duplicated (last one wins, with a console warning).
+
+---
+
+---
+
+## HTML report
+
+Add `'html'` to `outputFormats` to generate a self-contained, zero-dependency HTML file alongside
+the JSON report:
+
+```ts
+outputFormats: ['console', 'json', 'html'],
+htmlOutput: {
+  fileName: 'playswag-coverage.html', // written to outputDir
+  title: 'My API Coverage',
+},
+```
+
+After the run, the reporter prints a clickable link:
+
+```
+[playswag] HTML report → file:///path/to/playswag-coverage/playswag-coverage.html
+```
+
+(On CI the `file://` link is omitted; only the relative path is logged.)
+
+The report includes:
+- Summary cards with progress bars for all four dimensions
+- Operations table with **All / Covered / Uncovered** filter buttons and per-tag filtering
+- Click any row to expand status codes, parameters, body properties, and the tests that hit it
+- Unmatched hits section (calls that matched no spec operation)
+- Dark / light theme toggle (persisted to `localStorage`)
+
+---
+
+## SVG badge
+
+Add `'badge'` to `outputFormats` to write a shields.io-style SVG badge:
+
+```ts
+outputFormats: ['console', 'json', 'badge'],
+badge: {
+  dimension: 'endpoints', // the percentage shown on the badge
+  label: 'API coverage',
+  fileName: 'playswag-badge.svg',
+},
+```
+
+Commit the badge and embed it in your README:
+
+```markdown
+![API coverage](./playswag-coverage/playswag-badge.svg)
+```
+
+Colour thresholds: **green** ≥ 80 % · **orange** ≥ 50 % · **red** < 50 %.
 
 ---
 

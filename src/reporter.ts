@@ -203,8 +203,13 @@ class PlayswagReporter implements Reporter {
       const htmlConfig = { enabled: true, ...this.config.htmlOutput };
       if (htmlConfig.enabled !== false) {
         try {
-          const path = await writeHtmlReport(coverageResult, this.config.outputDir, htmlConfig);
-          console.log(`[playswag] HTML report written to ${path}`);
+          const writtenPath = await writeHtmlReport(coverageResult, this.config.outputDir, htmlConfig);
+          if (process.env['CI']) {
+            console.log(`[playswag] HTML report written to ${writtenPath}`);
+          } else {
+            const absPath = resolve(writtenPath);
+            console.log(`[playswag] HTML report → file://${absPath}`);
+          }
         } catch (err) {
           console.error(`[playswag] Failed to write HTML report: ${(err as Error).message}`);
         }
