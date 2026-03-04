@@ -91,6 +91,8 @@ export interface CoverageResult {
   playswagVersion: string;
   totalTestCount: number;
   summary: CoverageSummary;
+  /** Coverage aggregated per OpenAPI tag. Populated for all tags found in the spec. */
+  tagCoverage: Record<string, CoverageSummary>;
   operations: OperationCoverage[];
   uncoveredOperations: OperationCoverage[];
   /**
@@ -206,6 +208,11 @@ export interface ConsoleOutputConfig {
   showParams?: boolean;
   /** Expand request body property coverage per operation @default false */
   showBodyProperties?: boolean;
+  /**
+   * Print a per-tag summary table after the overall summary.
+   * @default false
+   */
+  showTags?: boolean;
 }
 
 /**
@@ -233,6 +240,37 @@ export interface HtmlOutputConfig {
    * @default 'API Coverage Report'
    */
   title?: string;
+}
+
+/**
+ * Coverage history configuration.
+ */
+export interface HistoryConfig {
+  /** @default true */
+  enabled?: boolean;
+  /**
+   * File name for the history JSON file.
+   * @default 'playswag-history.json'
+   */
+  fileName?: string;
+  /**
+   * Maximum number of historical entries to keep.
+   * @default 50
+   */
+  maxEntries?: number;
+}
+
+/**
+ * JUnit XML output configuration.
+ */
+export interface JUnitOutputConfig {
+  /** @default true */
+  enabled?: boolean;
+  /**
+   * File name for the JUnit XML report.
+   * @default 'playswag-junit.xml'
+   */
+  fileName?: string;
 }
 
 /**
@@ -288,7 +326,7 @@ export interface PlayswagConfig {
    * Which output formats to produce.
    * @default ['console', 'json']
    */
-  outputFormats?: Array<'console' | 'json' | 'html' | 'badge'>;
+  outputFormats?: Array<'console' | 'json' | 'html' | 'badge' | 'junit'>;
 
   /**
    * Base URL of the API under test. Used to strip the host portion when
@@ -319,6 +357,12 @@ export interface PlayswagConfig {
 
   /** SVG badge options */
   badge?: BadgeConfig;
+
+  /** Coverage history options */
+  history?: HistoryConfig;
+
+  /** JUnit XML output options */
+  junitOutput?: JUnitOutputConfig;
 
   /**
    * Coverage thresholds. When set and `failOnThreshold` is true the

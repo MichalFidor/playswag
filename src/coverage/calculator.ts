@@ -3,6 +3,7 @@ import type {
   NormalizedSpec,
   CoverageResult,
   OperationCoverage,
+  CoverageSummary,
   CoverageSummaryItem,
   ParamCoverage,
   StatusCodeCoverage,
@@ -156,6 +157,36 @@ export function calculateCoverage(
   const [totalParams, coveredParams] = countCoveredItems((op) => op.parameters);
   const [totalBody, coveredBody] = countCoveredItems((op) => op.bodyProperties);
 
+  // Aggregate per-tag coverage
+  const tagOpsMap = new Map<string, OperationCoverage[]>();
+  for (const op of allOps) {
+    const tags = op.tags?.length ? op.tags : ['(untagged)'];
+    for (const tag of tags) {
+      if (!tagOpsMap.has(tag)) tagOpsMap.set(tag, []);
+      tagOpsMap.get(tag)!.push(op);
+    }
+  }
+
+  const tagCoverage: Record<string, CoverageSummary> = {};
+  for (const [tag, ops] of tagOpsMap) {
+    const tagEndpoints = ops.length;
+    const tagCoveredEndpoints = ops.filter((o) => o.covered).length;
+
+    let tSC = 0, cSC = 0, tP = 0, cP = 0, tB = 0, cB = 0;
+    for (const op of ops) {
+      for (const sc of Object.values(op.statusCodes)) { tSC++; if (sc.covered) cSC++; }
+      for (const p of op.parameters) { tP++; if (p.covered) cP++; }
+      for (const b of op.bodyProperties) { tB++; if (b.covered) cB++; }
+    }
+
+    tagCoverage[tag] = {
+      endpoints: makeItem(tagEndpoints, tagCoveredEndpoints),
+      statusCodes: makeItem(tSC, cSC),
+      parameters: makeItem(tP, cP),
+      bodyProperties: makeItem(tB, cB),
+    };
+  }
+
   return {
     specFiles: spec.sources,
     timestamp: new Date().toISOString(),
@@ -168,6 +199,7 @@ export function calculateCoverage(
       parameters: makeItem(totalParams, coveredParams),
       bodyProperties: makeItem(totalBody, coveredBody),
     },
+    tagCoverage,
     operations: allOps,
     uncoveredOperations: uncoveredOps,
     unmatchedHits,

@@ -12,6 +12,7 @@ import type {
   FullResult,
 } from '@playwright/test/reporter';
 import type { EndpointHit, PlayswagConfig } from './types.js';
+import type { HistoryEntry } from './output/history.js';
 import { ATTACHMENT_NAME } from './constants.js';
 import { parseSpecs } from './openapi/parser.js';
 import { calculateCoverage } from './coverage/calculator.js';
@@ -19,6 +20,9 @@ import { printConsoleReport, checkThresholds } from './output/console.js';
 import { writeJsonReport } from './output/json.js';
 import { writeHtmlReport } from './output/html.js';
 import { writeBadge } from './output/badge.js';
+import { writeJUnitReport } from './output/junit.js';
+import { appendToHistory, loadLastEntry, loadAllEntries, compareCoverage } from './output/history.js';
+import { isGitHubActions, emitAnnotations, writeStepSummary } from './output/github-actions.js';
 
 
 
@@ -170,6 +174,20 @@ class PlayswagReporter implements Reporter {
       totalTestCount: this.totalTestCount,
     });
 
+    // ── History: load previous entry for delta, then load all for sparklines ──
+    const historyConfig = this.config.history ? { enabled: true, ...this.config.history } : undefined;
+    let delta;
+    let historyEntries: HistoryEntry[] = [];
+    if (historyConfig?.enabled !== false) {
+      try {
+        const prev = await loadLastEntry(this.config.outputDir, historyConfig ?? {});
+        if (prev) delta = compareCoverage(coverageResult.summary, prev.summary);
+        historyEntries = await loadAllEntries(this.config.outputDir, historyConfig ?? {});
+      } catch (err) {
+        console.warn(`[playswag] Could not read history: ${(err as Error).message}`);
+      }
+    }
+
     const formats = this.config.outputFormats;
 
     if (formats.includes('console')) {
@@ -179,7 +197,8 @@ class PlayswagReporter implements Reporter {
           coverageResult,
           consoleConfig,
           this.config.threshold,
-          this.config.failOnThreshold
+          this.config.failOnThreshold,
+          delta
         );
       }
     }
@@ -204,7 +223,7 @@ class PlayswagReporter implements Reporter {
       const htmlConfig = { enabled: true, ...this.config.htmlOutput };
       if (htmlConfig.enabled !== false) {
         try {
-          const writtenPath = await writeHtmlReport(coverageResult, this.config.outputDir, htmlConfig);
+          const writtenPath = await writeHtmlReport(coverageResult, this.config.outputDir, htmlConfig, historyEntries);
           const absPath = resolve(writtenPath);
           if (process.env['CI']) {
             console.log(`[playswag] HTML report written to ${absPath}`);
@@ -229,15 +248,48 @@ class PlayswagReporter implements Reporter {
       }
     }
 
-    if (this.config.threshold) {
-      const violations = checkThresholds(
-        coverageResult,
-        this.config.threshold,
-        this.config.failOnThreshold
-      );
-      if (violations.some((v) => v.fail)) {
-        return { status: 'failed' };
+    if (formats.includes('junit')) {
+      const junitConfig = { enabled: true, ...this.config.junitOutput };
+      if (junitConfig.enabled !== false) {
+        try {
+          const path = await writeJUnitReport(
+            coverageResult,
+            this.config.outputDir,
+            this.config.threshold,
+            junitConfig
+          );
+          console.log(`[playswag] JUnit report written to ${path}`);
+        } catch (err) {
+          console.error(`[playswag] Failed to write JUnit report: ${(err as Error).message}`);
+        }
       }
+    }
+
+    // ── Append to history after all reports are written ─────────────────────
+    if (historyConfig?.enabled !== false) {
+      try {
+        await appendToHistory(coverageResult, this.config.outputDir, historyConfig ?? {});
+      } catch (err) {
+        console.warn(`[playswag] Could not write history: ${(err as Error).message}`);
+      }
+    }
+
+    const violations = this.config.threshold
+      ? checkThresholds(coverageResult, this.config.threshold, this.config.failOnThreshold)
+      : [];
+
+    // ── GitHub Actions annotations and step summary ──────────────────────────
+    if (isGitHubActions()) {
+      if (violations.length > 0) emitAnnotations(violations);
+      try {
+        await writeStepSummary(coverageResult, violations);
+      } catch (err) {
+        console.warn(`[playswag] Could not write GitHub step summary: ${(err as Error).message}`);
+      }
+    }
+
+    if (violations.some((v) => v.fail)) {
+      return { status: 'failed' };
     }
   }
 

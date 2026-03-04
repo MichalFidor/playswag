@@ -1,5 +1,6 @@
 import Table from 'cli-table3';
 import type { CoverageResult, OperationCoverage, ConsoleOutputConfig, ThresholdConfig, ThresholdEntry } from '../types.js';
+import type { CoverageDelta } from './history.js';
 
 const TABLE_CHARS = {
   'top': '─', 'top-mid': '┬', 'top-left': '┌', 'top-right': '┐',
@@ -126,6 +127,13 @@ function formatTimestamp(iso: string): string {
   return `${date} · ${time}`;
 }
 
+/** Format a coverage delta as a compact trend indicator: `↑ 3.2%`, `↓ 1.1%`, or `—`. */
+function formatDelta(c: ChalkInstance, delta: number | undefined): string {
+  if (delta === undefined || delta === 0) return '';
+  const s = `${Math.abs(delta).toFixed(1)}%`;
+  return delta > 0 ? c.green(` ↑ ${s}`) : c.red(` ↓ ${s}`);
+}
+
 /**
  * Print the Playswag coverage report to stdout.
  *
@@ -136,7 +144,8 @@ export async function printConsoleReport(
   result: CoverageResult,
   config: ConsoleOutputConfig = {},
   threshold?: ThresholdConfig,
-  globalFail = false
+  globalFail = false,
+  delta?: CoverageDelta
 ): Promise<void> {
   const c = await getChalk();
   const {
@@ -144,6 +153,7 @@ export async function printConsoleReport(
     showOperations = true,
     showParams = false,
     showBodyProperties = false,
+    showTags = false,
   } = config;
 
   const SEP = c.dim('─'.repeat(80));
@@ -170,25 +180,25 @@ export async function printConsoleReport(
     [
       'Endpoints',
       `${result.summary.endpoints.covered}/${result.summary.endpoints.total}`,
-      colorPercent(c, result.summary.endpoints.percentage),
+      colorPercent(c, result.summary.endpoints.percentage) + formatDelta(c, delta?.endpoints),
       progressBar(result.summary.endpoints.percentage),
     ],
     [
       'Status Codes',
       `${result.summary.statusCodes.covered}/${result.summary.statusCodes.total}`,
-      colorPercent(c, result.summary.statusCodes.percentage),
+      colorPercent(c, result.summary.statusCodes.percentage) + formatDelta(c, delta?.statusCodes),
       progressBar(result.summary.statusCodes.percentage),
     ],
     [
       'Parameters',
       `${result.summary.parameters.covered}/${result.summary.parameters.total}`,
-      colorPercent(c, result.summary.parameters.percentage),
+      colorPercent(c, result.summary.parameters.percentage) + formatDelta(c, delta?.parameters),
       progressBar(result.summary.parameters.percentage),
     ],
     [
       'Body Props',
       `${result.summary.bodyProperties.covered}/${result.summary.bodyProperties.total}`,
-      colorPercent(c, result.summary.bodyProperties.percentage),
+      colorPercent(c, result.summary.bodyProperties.percentage) + formatDelta(c, delta?.bodyProperties),
       progressBar(result.summary.bodyProperties.percentage),
     ],
   ];
@@ -200,6 +210,28 @@ export async function printConsoleReport(
   });
   for (const row of rows) summaryTable.push(row);
   console.log(summaryTable.toString());
+
+  // ── Per-tag summary ──────────────────────────────────────────────────────────
+  if (showTags && result.tagCoverage && Object.keys(result.tagCoverage).length > 0) {
+    console.log('');
+    console.log(c.bold('  Coverage by Tag'));
+    console.log('');
+    const tagTable = new Table({
+      head: [c.bold('Tag'), c.bold('Endpoints'), c.bold('Status Codes'), c.bold('Parameters'), c.bold('Body Props')],
+      style: { head: [], border: [] },
+      chars: TABLE_CHARS,
+    });
+    for (const [tag, tc] of Object.entries(result.tagCoverage)) {
+      tagTable.push([
+        tag,
+        colorPercent(c, tc.endpoints.percentage),
+        colorPercent(c, tc.statusCodes.percentage),
+        colorPercent(c, tc.parameters.percentage),
+        colorPercent(c, tc.bodyProperties.percentage),
+      ]);
+    }
+    console.log(tagTable.toString());
+  }
 
   // ── Threshold results ────────────────────────────────────────────────────────
   if (threshold) {

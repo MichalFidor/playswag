@@ -2,6 +2,7 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CoverageResult, HtmlOutputConfig, OperationCoverage } from '../types.js';
+import type { HistoryEntry } from './history.js';
 
 async function loadLogoDataUrl(): Promise<string> {
   try {
@@ -21,8 +22,23 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function summaryCard(label: string, covered: number, total: number, pct: number): string {
+function sparklineSvg(values: number[], cls: string): string {
+  if (values.length < 2) return '';
+  const W = 88, H = 24, pad = 2;
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (W - 2 * pad);
+    const y = H - pad - (Math.max(0, Math.min(v, 100)) / 100) * (H - 2 * pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return `<svg class="sparkline" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true"><polyline class="spark-line ${cls}" points="${pts}" /></svg>`;
+}
+
+function summaryCard(
+  label: string, covered: number, total: number, pct: number,
+  sparkValues?: number[]
+): string {
   const cls = pct >= 80 ? 'green' : pct >= 50 ? 'yellow' : 'red';
+  const spark = sparkValues && sparkValues.length >= 2 ? sparklineSvg(sparkValues, cls) : '';
   return `<div class="card ${cls}">
       <div class="card-label">${esc(label)}</div>
       <div class="card-row">
@@ -30,6 +46,7 @@ function summaryCard(label: string, covered: number, total: number, pct: number)
         <span class="card-pct ${cls}">${pct.toFixed(1)}%</span>
       </div>
       <div class="bar-wrap"><div class="bar ${cls}" style="width:${Math.min(pct, 100).toFixed(1)}%"></div></div>
+      ${spark}
     </div>`;
 }
 
@@ -152,8 +169,14 @@ function unmatchedSection(result: CoverageResult): string {
  * Generate a standalone HTML coverage report string.
  * Pure function — no I/O, easy to snapshot-test.
  * Pass a logoDataUrl for the embedded logo (omit or pass '' to skip).
+ * Pass historyEntries to render sparkline trend charts in the summary cards.
  */
-export function generateHtmlReport(result: CoverageResult, config: HtmlOutputConfig = {}, logoDataUrl = ''): string {
+export function generateHtmlReport(
+  result: CoverageResult,
+  config: HtmlOutputConfig = {},
+  logoDataUrl = '',
+  historyEntries: HistoryEntry[] = []
+): string {
   const title = config.title ?? 'API Coverage Report';
   const d = new Date(result.timestamp);
   const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -347,6 +370,13 @@ th { text-align: left; padding: 10px 16px; font-size: 11px; text-transform: uppe
 .tick.green { color: var(--green); }
 .tick.red { color: var(--red); }
 
+/* ── Sparklines ── */
+.sparkline { display: block; margin-top: 6px; overflow: visible; }
+.spark-line { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.spark-line.green { stroke: var(--green); opacity: .55; }
+.spark-line.yellow { stroke: var(--yellow); opacity: .55; }
+.spark-line.red { stroke: var(--red); opacity: .55; }
+
 /* ── Misc ── */
 .muted { color: var(--muted); }
 .green { color: var(--green); }
@@ -403,6 +433,17 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
   });
 })();`.trim();
 
+  // Extract sparkline history values per dimension (include current run at the end)
+  function sparkVals(dim: 'endpoints' | 'statusCodes' | 'parameters' | 'bodyProperties'): number[] | undefined {
+    if (historyEntries.length === 0) return undefined;
+    const vals = historyEntries.map((e) => e.summary[dim].percentage);
+    // Append current run if it differs from last history entry (current run hasn't been appended yet)
+    if (vals[vals.length - 1] !== result.summary[dim].percentage) {
+      vals.push(result.summary[dim].percentage);
+    }
+    return vals.length >= 2 ? vals : undefined;
+  }
+
   const overallClass = overallPct >= 80 ? 'green' : overallPct >= 50 ? 'yellow' : 'red';
 
   return `<!DOCTYPE html>
@@ -439,10 +480,10 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
   </div>
 
   <div class="summary">
-    ${summaryCard('Endpoints', result.summary.endpoints.covered, result.summary.endpoints.total, result.summary.endpoints.percentage)}
-    ${summaryCard('Status Codes', result.summary.statusCodes.covered, result.summary.statusCodes.total, result.summary.statusCodes.percentage)}
-    ${summaryCard('Parameters', result.summary.parameters.covered, result.summary.parameters.total, result.summary.parameters.percentage)}
-    ${summaryCard('Body Properties', result.summary.bodyProperties.covered, result.summary.bodyProperties.total, result.summary.bodyProperties.percentage)}
+    ${summaryCard('Endpoints', result.summary.endpoints.covered, result.summary.endpoints.total, result.summary.endpoints.percentage, sparkVals('endpoints'))}
+    ${summaryCard('Status Codes', result.summary.statusCodes.covered, result.summary.statusCodes.total, result.summary.statusCodes.percentage, sparkVals('statusCodes'))}
+    ${summaryCard('Parameters', result.summary.parameters.covered, result.summary.parameters.total, result.summary.parameters.percentage, sparkVals('parameters'))}
+    ${summaryCard('Body Properties', result.summary.bodyProperties.covered, result.summary.bodyProperties.total, result.summary.bodyProperties.percentage, sparkVals('bodyProperties'))}
   </div>
 
   <div class="section">
@@ -494,12 +535,13 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
 export async function writeHtmlReport(
   result: CoverageResult,
   outputDir: string,
-  config: HtmlOutputConfig = {}
+  config: HtmlOutputConfig = {},
+  historyEntries: HistoryEntry[] = []
 ): Promise<string> {
   const { fileName = 'playswag-coverage.html' } = config;
   const outputPath = join(outputDir, fileName);
   await mkdir(dirname(outputPath), { recursive: true });
   const logoDataUrl = await loadLogoDataUrl();
-  await writeFile(outputPath, generateHtmlReport(result, config, logoDataUrl), 'utf8');
+  await writeFile(outputPath, generateHtmlReport(result, config, logoDataUrl, historyEntries), 'utf8');
   return outputPath;
 }

@@ -229,3 +229,90 @@ describe('calculateCoverage', () => {
     expect(op?.parameters.find((p) => p.name === 'limit')?.covered).toBe(true);
   });
 });
+
+// ─── tagCoverage ─────────────────────────────────────────────────────────────
+
+describe('tagCoverage', () => {
+  const baseURL = 'https://api.example.com';
+
+  const taggedSpec: NormalizedSpec = {
+    sources: ['tagged.yaml'],
+    operations: [
+      {
+        pathTemplate: '/api/users',
+        method: 'GET',
+        tags: ['users'],
+        parameters: [],
+        responses: { '200': {}, '400': {} },
+      },
+      {
+        pathTemplate: '/api/users',
+        method: 'POST',
+        tags: ['users'],
+        parameters: [],
+        requestBodySchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+          required: ['name'],
+        },
+        responses: { '201': {}, '400': {} },
+      },
+      {
+        pathTemplate: '/api/health',
+        method: 'GET',
+        tags: ['system'],
+        parameters: [],
+        responses: { '200': {} },
+      },
+    ],
+  };
+
+  it('aggregates endpoints per tag', () => {
+    const result = calculateCoverage(
+      [hit({ method: 'GET', url: `${baseURL}/api/users`, statusCode: 200 })],
+      taggedSpec,
+      { baseURL }
+    );
+    expect(result.tagCoverage['users']?.endpoints.total).toBe(2);
+    expect(result.tagCoverage['users']?.endpoints.covered).toBe(1);
+    expect(result.tagCoverage['system']?.endpoints.total).toBe(1);
+    expect(result.tagCoverage['system']?.endpoints.covered).toBe(0);
+  });
+
+  it('marks a tag as fully covered when all its operations are hit', () => {
+    const result = calculateCoverage(
+      [
+        hit({ method: 'GET',  url: `${baseURL}/api/users`, statusCode: 200 }),
+        hit({ method: 'POST', url: `${baseURL}/api/users`, statusCode: 201 }),
+        hit({ method: 'GET',  url: `${baseURL}/api/health`, statusCode: 200 }),
+      ],
+      taggedSpec,
+      { baseURL }
+    );
+    expect(result.tagCoverage['users']?.endpoints.percentage).toBe(100);
+    expect(result.tagCoverage['system']?.endpoints.percentage).toBe(100);
+  });
+
+  it('places operations without tags under "(untagged)"', () => {
+    const untaggedSpec: NormalizedSpec = {
+      sources: ['bare.yaml'],
+      operations: [
+        { pathTemplate: '/api/ping', method: 'GET', parameters: [], responses: { '200': {} } },
+      ],
+    };
+    const result = calculateCoverage([], untaggedSpec, { baseURL });
+    expect(result.tagCoverage['(untagged)']).toBeDefined();
+    expect(result.tagCoverage['(untagged)']?.endpoints.total).toBe(1);
+  });
+
+  it('aggregates status code coverage per tag', () => {
+    const result = calculateCoverage(
+      [hit({ method: 'GET', url: `${baseURL}/api/users`, statusCode: 200 })],
+      taggedSpec,
+      { baseURL }
+    );
+    // users tag: 4 total status codes (200+400 for GET, 201+400 for POST), 1 covered (200)
+    expect(result.tagCoverage['users']?.statusCodes.total).toBe(4);
+    expect(result.tagCoverage['users']?.statusCodes.covered).toBe(1);
+  });
+});
