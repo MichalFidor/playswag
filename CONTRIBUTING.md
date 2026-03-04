@@ -152,7 +152,7 @@ A human only needs to:
    - Publishes to [npm](https://www.npmjs.com/package/playswag).
    - Creates a GitHub Release with an auto-generated changelog.
 
-> **Before releasing**, make sure you have `NPM_TOKEN` set as a repository secret  
+> **Before releasing**, make sure you have `NPMJS_TOKEN` set as a repository secret  
 > (`Settings → Secrets and variables → Actions → New repository secret`).
 
 ---
