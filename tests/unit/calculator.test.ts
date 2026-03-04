@@ -316,3 +316,112 @@ describe('tagCoverage', () => {
     expect(result.tagCoverage['users']?.statusCodes.covered).toBe(1);
   });
 });
+
+// ─── response property coverage ──────────────────────────────────────────────
+
+describe('response property coverage', () => {
+  const baseURL = 'https://api.example.com';
+
+  const specWithResponseSchema: NormalizedSpec = {
+    sources: ['resp-spec.yaml'],
+    operations: [
+      {
+        pathTemplate: '/api/users/{id}',
+        method: 'GET',
+        parameters: [{ name: 'id', in: 'path', required: true }],
+        responses: {
+          '200': {
+            schema: {
+              type: 'object',
+              properties: {
+                id:    { type: 'string' },
+                name:  { type: 'string' },
+                email: { type: 'string' },
+              },
+              required: ['id', 'name'],
+            },
+          },
+          '404': {
+            schema: {
+              type: 'object',
+              properties: { message: { type: 'string' } },
+              required: ['message'],
+            },
+          },
+        },
+      },
+    ],
+  };
+
+  it('pre-seeds responseProperties from all response schemas even without hits', () => {
+    const result = calculateCoverage([], specWithResponseSchema, { baseURL });
+    const op = result.operations[0]!;
+    // 3 props from 200 + 1 prop from 404 = 4 total
+    expect(op.responseProperties).toHaveLength(4);
+    expect(op.responseProperties.every((r) => !r.covered)).toBe(true);
+    expect(result.summary.responseProperties.total).toBe(4);
+    expect(result.summary.responseProperties.covered).toBe(0);
+  });
+
+  it('marks response properties as covered based on responseBody in hit', () => {
+    const result = calculateCoverage(
+      [
+        hit({
+          method: 'GET',
+          url: `${baseURL}/api/users/1`,
+          statusCode: 200,
+          responseBody: { id: '1', name: 'Alice' }, // email not present
+        }),
+      ],
+      specWithResponseSchema,
+      { baseURL }
+    );
+    const op = result.operations[0]!;
+    const props200 = op.responseProperties.filter((r) => r.statusCode === '200');
+    expect(props200.find((r) => r.name === 'id')?.covered).toBe(true);
+    expect(props200.find((r) => r.name === 'name')?.covered).toBe(true);
+    expect(props200.find((r) => r.name === 'email')?.covered).toBe(false);
+    expect(result.summary.responseProperties.covered).toBe(2);
+  });
+
+  it('accumulates coverage across multiple hits for different status codes', () => {
+    const result = calculateCoverage(
+      [
+        hit({ method: 'GET', url: `${baseURL}/api/users/1`, statusCode: 200, responseBody: { id: '1', name: 'Alice', email: 'a@b.com' } }),
+        hit({ method: 'GET', url: `${baseURL}/api/users/999`, statusCode: 404, responseBody: { message: 'Not found' } }),
+      ],
+      specWithResponseSchema,
+      { baseURL }
+    );
+    expect(result.summary.responseProperties.total).toBe(4);
+    expect(result.summary.responseProperties.covered).toBe(4);
+    expect(result.summary.responseProperties.percentage).toBe(100);
+  });
+
+  it('leaves response properties uncovered when responseBody is missing', () => {
+    const result = calculateCoverage(
+      [hit({ method: 'GET', url: `${baseURL}/api/users/1`, statusCode: 200 })],
+      specWithResponseSchema,
+      { baseURL }
+    );
+    const op = result.operations[0]!;
+    expect(op.responseProperties.filter((r) => r.statusCode === '200').every((r) => !r.covered)).toBe(true);
+  });
+
+  it('reports 100% and total=0 when no responses have schemas', () => {
+    const noSchemaSpec: NormalizedSpec = {
+      sources: ['bare.yaml'],
+      operations: [
+        { pathTemplate: '/ping', method: 'GET', parameters: [], responses: { '200': {} } },
+      ],
+    };
+    const result = calculateCoverage(
+      [hit({ method: 'GET', url: `${baseURL}/ping`, statusCode: 200, responseBody: {} })],
+      noSchemaSpec,
+      { baseURL }
+    );
+    expect(result.summary.responseProperties.total).toBe(0);
+    expect(result.summary.responseProperties.percentage).toBe(100);
+  });
+});
+

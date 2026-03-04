@@ -32,6 +32,7 @@ export type {
   StatusCodeCoverage,
   ParamCoverage,
   BodyPropertyCoverage,
+  ResponsePropertyCoverage,
   ThresholdConfig,
   ThresholdEntry,
   ConsoleOutputConfig,

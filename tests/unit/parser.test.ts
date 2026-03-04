@@ -95,4 +95,28 @@ describe('parseSpecs', () => {
     const specSingle = await parseSpecs(FIXTURE_YAML);
     expect(spec.operations.length).toBe(specSingle.operations.length);
   });
+
+  it('extracts response body schema from OAS3 content[application/json].schema', async () => {
+    const spec = await parseSpecs(FIXTURE_YAML);
+    const getUser = spec.operations.find(
+      (op) => op.method === 'GET' && op.pathTemplate === '/api/users/{id}'
+    );
+    const resp200 = getUser?.responses['200'];
+    expect(resp200?.schema).toBeDefined();
+    expect(resp200?.schema?.properties).toHaveProperty('id');
+    expect(resp200?.schema?.properties).toHaveProperty('name');
+    expect(resp200?.schema?.properties).toHaveProperty('email');
+    expect(resp200?.schema?.required).toContain('id');
+    expect(resp200?.schema?.required).toContain('name');
+  });
+
+  it('leaves response schema undefined when no schema is defined for a response', async () => {
+    const spec = await parseSpecs(FIXTURE_YAML);
+    const getUser = spec.operations.find(
+      (op) => op.method === 'GET' && op.pathTemplate === '/api/users/{id}'
+    );
+    // 404 response has no schema in the fixture
+    const resp404 = getUser?.responses['404'];
+    expect(resp404?.schema).toBeUndefined();
+  });
 });

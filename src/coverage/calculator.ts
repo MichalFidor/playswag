@@ -9,7 +9,7 @@ import type {
   StatusCodeCoverage,
 } from '../types.js';
 import { matchOperation } from '../openapi/matcher.js';
-import { analyzeParameters, analyzeBodyProperties } from './schema-analyzer.js';
+import { analyzeParameters, analyzeBodyProperties, analyzeResponseProperties } from './schema-analyzer.js';
 
 function makeItem(total: number, covered: number): CoverageSummaryItem {
   return {
@@ -67,6 +67,11 @@ export function calculateCoverage(
     // Pre-seed from spec so uncovered operations still show what could be covered
     const bodyProperties = analyzeBodyProperties(op, null);
 
+    // Pre-seed response properties for all response codes that have schemas
+    const responseProperties = Object.keys(op.responses).flatMap((code) =>
+      analyzeResponseProperties(op, code, undefined)
+    );
+
     opMap.set(key, {
       path: op.pathTemplate,
       method: op.method,
@@ -76,6 +81,7 @@ export function calculateCoverage(
       statusCodes,
       parameters,
       bodyProperties,
+      responseProperties,
       testRefs: [],
     });
   }
@@ -130,6 +136,14 @@ export function calculateCoverage(
       const existing = cov.bodyProperties.find((b) => b.name === bc.name);
       if (existing && bc.covered) existing.covered = true;
     }
+
+    const respCoverage = analyzeResponseProperties(matchedOp, code, enrichedHit.responseBody);
+    for (const rc of respCoverage) {
+      const existing = cov.responseProperties.find(
+        (r) => r.name === rc.name && r.statusCode === rc.statusCode
+      );
+      if (existing && rc.covered) existing.covered = true;
+    }
   }
 
   const allOps = Array.from(opMap.values());
@@ -156,6 +170,7 @@ export function calculateCoverage(
   );
   const [totalParams, coveredParams] = countCoveredItems((op) => op.parameters);
   const [totalBody, coveredBody] = countCoveredItems((op) => op.bodyProperties);
+  const [totalResponseProps, coveredResponseProps] = countCoveredItems((op) => op.responseProperties);
 
   // Aggregate per-tag coverage
   const tagOpsMap = new Map<string, OperationCoverage[]>();
@@ -172,11 +187,12 @@ export function calculateCoverage(
     const tagEndpoints = ops.length;
     const tagCoveredEndpoints = ops.filter((o) => o.covered).length;
 
-    let tSC = 0, cSC = 0, tP = 0, cP = 0, tB = 0, cB = 0;
+    let tSC = 0, cSC = 0, tP = 0, cP = 0, tB = 0, cB = 0, tR = 0, cR = 0;
     for (const op of ops) {
       for (const sc of Object.values(op.statusCodes)) { tSC++; if (sc.covered) cSC++; }
       for (const p of op.parameters) { tP++; if (p.covered) cP++; }
       for (const b of op.bodyProperties) { tB++; if (b.covered) cB++; }
+      for (const r of op.responseProperties) { tR++; if (r.covered) cR++; }
     }
 
     tagCoverage[tag] = {
@@ -184,6 +200,7 @@ export function calculateCoverage(
       statusCodes: makeItem(tSC, cSC),
       parameters: makeItem(tP, cP),
       bodyProperties: makeItem(tB, cB),
+      responseProperties: makeItem(tR, cR),
     };
   }
 
@@ -198,6 +215,7 @@ export function calculateCoverage(
       statusCodes: makeItem(totalStatusCodes, coveredStatusCodes),
       parameters: makeItem(totalParams, coveredParams),
       bodyProperties: makeItem(totalBody, coveredBody),
+      responseProperties: makeItem(totalResponseProps, coveredResponseProps),
     },
     tagCoverage,
     operations: allOps,

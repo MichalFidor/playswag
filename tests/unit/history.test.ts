@@ -12,10 +12,11 @@ import type { CoverageSummary, CoverageResult } from '../../src/types.js';
 
 function makeSummary(pct: number): CoverageSummary {
   return {
-    endpoints:      { total: 100, covered: pct, percentage: pct },
-    statusCodes:    { total: 100, covered: pct, percentage: pct },
-    parameters:     { total: 100, covered: pct, percentage: pct },
-    bodyProperties: { total: 100, covered: pct, percentage: pct },
+    endpoints:          { total: 100, covered: pct, percentage: pct },
+    statusCodes:        { total: 100, covered: pct, percentage: pct },
+    parameters:         { total: 100, covered: pct, percentage: pct },
+    bodyProperties:     { total: 100, covered: pct, percentage: pct },
+    responseProperties: { total: 100, covered: pct, percentage: pct },
   };
 }
 
@@ -50,7 +51,7 @@ describe('compareCoverage', () => {
   it('returns zero deltas when both summaries are identical', () => {
     const s = makeSummary(80);
     const delta = compareCoverage(s, s);
-    expect(delta).toEqual({ endpoints: 0, statusCodes: 0, parameters: 0, bodyProperties: 0 });
+    expect(delta).toEqual({ endpoints: 0, statusCodes: 0, parameters: 0, bodyProperties: 0, responseProperties: 0 });
   });
 
   it('returns positive deltas when current is higher', () => {
@@ -72,16 +73,18 @@ describe('compareCoverage', () => {
 
   it('rounds to one decimal place', () => {
     const current: CoverageSummary = {
-      endpoints:      { total: 3, covered: 2, percentage: 66.7 },
-      statusCodes:    { total: 3, covered: 2, percentage: 66.7 },
-      parameters:     { total: 3, covered: 2, percentage: 66.7 },
-      bodyProperties: { total: 3, covered: 2, percentage: 66.7 },
+      endpoints:          { total: 3, covered: 2, percentage: 66.7 },
+      statusCodes:        { total: 3, covered: 2, percentage: 66.7 },
+      parameters:         { total: 3, covered: 2, percentage: 66.7 },
+      bodyProperties:     { total: 3, covered: 2, percentage: 66.7 },
+      responseProperties: { total: 3, covered: 2, percentage: 66.7 },
     };
     const previous: CoverageSummary = {
-      endpoints:      { total: 3, covered: 1, percentage: 33.3 },
-      statusCodes:    { total: 3, covered: 1, percentage: 33.3 },
-      parameters:     { total: 3, covered: 1, percentage: 33.3 },
-      bodyProperties: { total: 3, covered: 1, percentage: 33.3 },
+      endpoints:          { total: 3, covered: 1, percentage: 33.3 },
+      statusCodes:        { total: 3, covered: 1, percentage: 33.3 },
+      parameters:         { total: 3, covered: 1, percentage: 33.3 },
+      bodyProperties:     { total: 3, covered: 1, percentage: 33.3 },
+      responseProperties: { total: 3, covered: 1, percentage: 33.3 },
     };
     const delta = compareCoverage(current, previous);
     expect(delta.endpoints).toBe(33.4);
@@ -89,16 +92,18 @@ describe('compareCoverage', () => {
 
   it('each dimension is computed independently', () => {
     const current: CoverageSummary = {
-      endpoints:      { total: 10, covered: 9, percentage: 90 },
-      statusCodes:    { total: 10, covered: 5, percentage: 50 },
-      parameters:     { total: 10, covered: 6, percentage: 60 },
-      bodyProperties: { total: 10, covered: 7, percentage: 70 },
+      endpoints:          { total: 10, covered: 9, percentage: 90 },
+      statusCodes:        { total: 10, covered: 5, percentage: 50 },
+      parameters:         { total: 10, covered: 6, percentage: 60 },
+      bodyProperties:     { total: 10, covered: 7, percentage: 70 },
+      responseProperties: { total: 10, covered: 8, percentage: 80 },
     };
     const previous: CoverageSummary = {
-      endpoints:      { total: 10, covered: 8, percentage: 80 },
-      statusCodes:    { total: 10, covered: 8, percentage: 80 },
-      parameters:     { total: 10, covered: 5, percentage: 50 },
-      bodyProperties: { total: 10, covered: 7, percentage: 70 },
+      endpoints:          { total: 10, covered: 8, percentage: 80 },
+      statusCodes:        { total: 10, covered: 8, percentage: 80 },
+      parameters:         { total: 10, covered: 5, percentage: 50 },
+      bodyProperties:     { total: 10, covered: 7, percentage: 70 },
+      responseProperties: { total: 10, covered: 8, percentage: 80 },
     };
     const delta = compareCoverage(current, previous);
     expect(delta.endpoints).toBe(10);

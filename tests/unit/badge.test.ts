@@ -19,6 +19,7 @@ function makeResult(endpointsPct = 80, overrides: Partial<CoverageResult> = {}):
       statusCodes: { total, covered: 60, percentage: 60 },
       parameters: { total, covered: 45, percentage: 45 },
       bodyProperties: { total, covered: 90, percentage: 90 },
+      responseProperties: { total, covered: 75, percentage: 75 },
     },
     operations: [],
     uncoveredOperations: [],
@@ -99,6 +100,13 @@ describe('generateBadgeSvg', () => {
     const svg = generateBadgeSvg(makeResult(80), { dimension: 'bodyProperties' });
     expect(svg).toContain('90');
     expect(svg).toContain('#4c1'); // green
+  });
+
+  it('respects responseProperties dimension', () => {
+    // responseProperties = 75%
+    const svg = generateBadgeSvg(makeResult(80), { dimension: 'responseProperties' });
+    expect(svg).toContain('75');
+    expect(svg).toContain('#fe7d37'); // orange (>= 50% but < 80%)
   });
 
   it('HTML-escapes special characters in label', () => {

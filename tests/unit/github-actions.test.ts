@@ -19,17 +19,19 @@ function makeResult(overrides: Partial<CoverageResult> = {}): CoverageResult {
     totalTestCount: 10,
     tagCoverage: {
       users: {
-        endpoints:      { total: 3, covered: 3, percentage: 100 },
-        statusCodes:    { total: 6, covered: 5, percentage: 83.3 },
-        parameters:     { total: 2, covered: 2, percentage: 100 },
-        bodyProperties: { total: 1, covered: 1, percentage: 100 },
+        endpoints:          { total: 3, covered: 3, percentage: 100 },
+        statusCodes:        { total: 6, covered: 5, percentage: 83.3 },
+        parameters:         { total: 2, covered: 2, percentage: 100 },
+        bodyProperties:     { total: 1, covered: 1, percentage: 100 },
+        responseProperties: { total: 1, covered: 1, percentage: 100 },
       },
     },
     summary: {
-      endpoints:      { total: 4, covered: 3, percentage: 75 },
-      statusCodes:    { total: 8, covered: 6, percentage: 75 },
-      parameters:     { total: 4, covered: 2, percentage: 50 },
-      bodyProperties: { total: 3, covered: 2, percentage: 66.7 },
+      endpoints:          { total: 4, covered: 3, percentage: 75 },
+      statusCodes:        { total: 8, covered: 6, percentage: 75 },
+      parameters:         { total: 4, covered: 2, percentage: 50 },
+      bodyProperties:     { total: 3, covered: 2, percentage: 66.7 },
+      responseProperties: { total: 3, covered: 2, percentage: 66.7 },
     },
     operations: [],
     uncoveredOperations: [],
@@ -206,10 +208,11 @@ describe('writeStepSummary', () => {
     const result = makeResult({
       tagCoverage: {
         '(untagged)': {
-          endpoints: { total: 2, covered: 1, percentage: 50 },
-          statusCodes: { total: 4, covered: 2, percentage: 50 },
-          parameters: { total: 0, covered: 0, percentage: 100 },
-          bodyProperties: { total: 0, covered: 0, percentage: 100 },
+          endpoints:          { total: 2, covered: 1, percentage: 50 },
+          statusCodes:        { total: 4, covered: 2, percentage: 50 },
+          parameters:         { total: 0, covered: 0, percentage: 100 },
+          bodyProperties:     { total: 0, covered: 0, percentage: 100 },
+          responseProperties: { total: 0, covered: 0, percentage: 100 },
         },
       },
     });

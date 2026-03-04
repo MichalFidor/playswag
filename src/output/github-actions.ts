@@ -53,6 +53,7 @@ export async function writeStepSummary(
     `| Status Codes | ${summary.statusCodes.covered} | ${summary.statusCodes.total} | ${badge(summary.statusCodes.percentage)} ${pct(summary.statusCodes.percentage)} |`,
     `| Parameters | ${summary.parameters.covered} | ${summary.parameters.total} | ${badge(summary.parameters.percentage)} ${pct(summary.parameters.percentage)} |`,
     `| Body Properties | ${summary.bodyProperties.covered} | ${summary.bodyProperties.total} | ${badge(summary.bodyProperties.percentage)} ${pct(summary.bodyProperties.percentage)} |`,
+    `| Response Properties | ${summary.responseProperties.covered} | ${summary.responseProperties.total} | ${badge(summary.responseProperties.percentage)} ${pct(summary.responseProperties.percentage)} |`,
     '',
   ];
 
@@ -61,11 +62,11 @@ export async function writeStepSummary(
   if (tags.length > 0) {
     lines.push('### Coverage by Tag');
     lines.push('');
-    lines.push('| Tag | Endpoints | Status Codes | Parameters | Body Props |');
-    lines.push('|-----|----------:|-------------:|-----------:|-----------:|');
+    lines.push('| Tag | Endpoints | Status Codes | Parameters | Body Props | Resp Props |');
+    lines.push('|-----|----------:|-------------:|-----------:|-----------:|-----------:|');
     for (const [tag, tc] of tags) {
       lines.push(
-        `| \`${tag}\` | ${badge(tc.endpoints.percentage)} ${pct(tc.endpoints.percentage)} | ${badge(tc.statusCodes.percentage)} ${pct(tc.statusCodes.percentage)} | ${badge(tc.parameters.percentage)} ${pct(tc.parameters.percentage)} | ${badge(tc.bodyProperties.percentage)} ${pct(tc.bodyProperties.percentage)} |`
+        `| \`${tag}\` | ${badge(tc.endpoints.percentage)} ${pct(tc.endpoints.percentage)} | ${badge(tc.statusCodes.percentage)} ${pct(tc.statusCodes.percentage)} | ${badge(tc.parameters.percentage)} ${pct(tc.parameters.percentage)} | ${badge(tc.bodyProperties.percentage)} ${pct(tc.bodyProperties.percentage)} | ${badge(tc.responseProperties.percentage)} ${pct(tc.responseProperties.percentage)} |`
       );
     }
     lines.push('');

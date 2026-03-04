@@ -12,7 +12,8 @@ function makeResult(
   endpoints: number,
   statusCodes: number,
   parameters: number,
-  bodyProperties: number
+  bodyProperties: number,
+  responseProperties = 100
 ): CoverageResult {
   return {
     specFiles: [],
@@ -25,6 +26,7 @@ function makeResult(
       statusCodes: makeItem(statusCodes),
       parameters: makeItem(parameters),
       bodyProperties: makeItem(bodyProperties),
+      responseProperties: makeItem(responseProperties),
     },
     operations: [],
     uncoveredOperations: [],
@@ -75,16 +77,24 @@ describe('checkThresholds', () => {
     expect(violations[0].message).toMatch(/Body property coverage/);
   });
 
+  it('returns a violation when responseProperties coverage is below threshold', () => {
+    const result = makeResult(100, 100, 100, 100, 40);
+    const violations = checkThresholds(result, { responseProperties: 50 });
+    expect(violations).toHaveLength(1);
+    expect(violations[0].message).toMatch(/Response property coverage/);
+  });
+
   it('returns multiple violations when several dimensions are below threshold', () => {
-    const result = makeResult(50, 40, 30, 20);
+    const result = makeResult(50, 40, 30, 20, 10);
     const threshold: ThresholdConfig = {
       endpoints: 80,
       statusCodes: 80,
       parameters: 80,
       bodyProperties: 80,
+      responseProperties: 80,
     };
     const violations = checkThresholds(result, threshold);
-    expect(violations).toHaveLength(4);
+    expect(violations).toHaveLength(5);
   });
 
   it('does not flag a dimension when no threshold is set for it', () => {

@@ -14,10 +14,11 @@ function makeResult(overrides: Partial<CoverageResult> = {}): CoverageResult {
     totalTestCount: 5,
     tagCoverage: {},
     summary: {
-      endpoints:      { total: 4, covered: 3, percentage: 75 },
-      statusCodes:    { total: 8, covered: 6, percentage: 75 },
-      parameters:     { total: 4, covered: 2, percentage: 50 },
-      bodyProperties: { total: 3, covered: 2, percentage: 66.7 },
+      endpoints:          { total: 4, covered: 3, percentage: 75 },
+      statusCodes:        { total: 8, covered: 6, percentage: 75 },
+      parameters:         { total: 4, covered: 2, percentage: 50 },
+      bodyProperties:     { total: 3, covered: 2, percentage: 66.7 },
+      responseProperties: { total: 3, covered: 2, percentage: 66.7 },
     },
     operations: [],
     uncoveredOperations: [],
@@ -59,12 +60,12 @@ describe('writeJUnitReport', () => {
     expect(xml).toContain('</testsuites>');
   });
 
-  it('emits 4 testcases — one per coverage dimension', async () => {
+  it('emits 5 testcases — one per coverage dimension', async () => {
     const outputPath = await writeJUnitReport(makeResult(), tmpDir, undefined);
     const xml = await readFile(outputPath, 'utf8');
 
     const matches = xml.match(/<testcase /g);
-    expect(matches).toHaveLength(4);
+    expect(matches).toHaveLength(5);
   });
 
   it('marks dimensions as self-closing testcase elements when no threshold violation', async () => {
@@ -104,7 +105,7 @@ describe('writeJUnitReport', () => {
   });
 
   it('has 0 failures when all dimensions pass their thresholds', async () => {
-    const threshold: ThresholdConfig = { endpoints: 50, statusCodes: 50, parameters: 50, bodyProperties: 50 };
+    const threshold: ThresholdConfig = { endpoints: 50, statusCodes: 50, parameters: 50, bodyProperties: 50, responseProperties: 50 };
     const outputPath = await writeJUnitReport(makeResult(), tmpDir, threshold);
     const xml = await readFile(outputPath, 'utf8');
 
@@ -116,10 +117,11 @@ describe('writeJUnitReport', () => {
     // Coverage at 66.7% with threshold 70 — violated
     const result = makeResult({
       summary: {
-        endpoints:      { total: 4, covered: 3, percentage: 66.7 },
-        statusCodes:    { total: 4, covered: 3, percentage: 66.7 },
-        parameters:     { total: 4, covered: 3, percentage: 66.7 },
-        bodyProperties: { total: 4, covered: 3, percentage: 66.7 },
+        endpoints:          { total: 4, covered: 3, percentage: 66.7 },
+        statusCodes:        { total: 4, covered: 3, percentage: 66.7 },
+        parameters:         { total: 4, covered: 3, percentage: 66.7 },
+        bodyProperties:     { total: 4, covered: 3, percentage: 66.7 },
+        responseProperties: { total: 4, covered: 3, percentage: 66.7 },
       },
     });
     const outputPath = await writeJUnitReport(result, tmpDir, { endpoints: 70 });
@@ -146,6 +148,7 @@ describe('writeJUnitReport', () => {
     expect(xml).toContain('Status Code Coverage');
     expect(xml).toContain('Parameter Coverage');
     expect(xml).toContain('Body Property Coverage');
+    expect(xml).toContain('Response Property Coverage');
     expect(xml).toContain('classname="playswag.coverage"');
   });
 });

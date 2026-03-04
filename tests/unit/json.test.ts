@@ -17,6 +17,7 @@ function makeResult(overrides: Partial<CoverageResult> = {}): CoverageResult {
       statusCodes: { total: 8, covered: 6, percentage: 75 },
       parameters: { total: 4, covered: 2, percentage: 50 },
       bodyProperties: { total: 3, covered: 3, percentage: 100 },
+      responseProperties: { total: 3, covered: 3, percentage: 100 },
     },
     operations: [],
     uncoveredOperations: [],

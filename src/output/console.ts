@@ -102,6 +102,7 @@ export function checkThresholds(
     ['statusCodes', result.summary.statusCodes.percentage, 'Status code'],
     ['parameters', result.summary.parameters.percentage, 'Parameter'],
     ['bodyProperties', result.summary.bodyProperties.percentage, 'Body property'],
+    ['responseProperties', result.summary.responseProperties.percentage, 'Response property'],
   ];
 
   for (const [key, actual, label] of checks) {
@@ -201,6 +202,12 @@ export async function printConsoleReport(
       colorPercent(c, result.summary.bodyProperties.percentage) + formatDelta(c, delta?.bodyProperties),
       progressBar(result.summary.bodyProperties.percentage),
     ],
+    [
+      'Resp Props',
+      `${result.summary.responseProperties.covered}/${result.summary.responseProperties.total}`,
+      colorPercent(c, result.summary.responseProperties.percentage) + formatDelta(c, delta?.responseProperties),
+      progressBar(result.summary.responseProperties.percentage),
+    ],
   ];
 
   const summaryTable = new Table({
@@ -217,7 +224,7 @@ export async function printConsoleReport(
     console.log(c.bold('  Coverage by Tag'));
     console.log('');
     const tagTable = new Table({
-      head: [c.bold('Tag'), c.bold('Endpoints'), c.bold('Status Codes'), c.bold('Parameters'), c.bold('Body Props')],
+      head: [c.bold('Tag'), c.bold('Endpoints'), c.bold('Status Codes'), c.bold('Parameters'), c.bold('Body Props'), c.bold('Resp Props')],
       style: { head: [], border: [] },
       chars: TABLE_CHARS,
     });
@@ -228,6 +235,7 @@ export async function printConsoleReport(
         colorPercent(c, tc.statusCodes.percentage),
         colorPercent(c, tc.parameters.percentage),
         colorPercent(c, tc.bodyProperties.percentage),
+        colorPercent(c, tc.responseProperties.percentage),
       ]);
     }
     console.log(tagTable.toString());

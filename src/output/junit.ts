@@ -65,10 +65,11 @@ export async function writeJUnitReport(
   }
 
   const dimensions: Array<{ label: string; key: keyof ThresholdConfig; actual: number }> = [
-    { label: 'Endpoint Coverage',       key: 'endpoints',       actual: result.summary.endpoints.percentage },
-    { label: 'Status Code Coverage',    key: 'statusCodes',     actual: result.summary.statusCodes.percentage },
-    { label: 'Parameter Coverage',      key: 'parameters',      actual: result.summary.parameters.percentage },
-    { label: 'Body Property Coverage',  key: 'bodyProperties',  actual: result.summary.bodyProperties.percentage },
+    { label: 'Endpoint Coverage',          key: 'endpoints',          actual: result.summary.endpoints.percentage },
+    { label: 'Status Code Coverage',       key: 'statusCodes',        actual: result.summary.statusCodes.percentage },
+    { label: 'Parameter Coverage',         key: 'parameters',         actual: result.summary.parameters.percentage },
+    { label: 'Body Property Coverage',     key: 'bodyProperties',     actual: result.summary.bodyProperties.percentage },
+    { label: 'Response Property Coverage', key: 'responseProperties', actual: result.summary.responseProperties.percentage },
   ];
 
   let failures = 0;

@@ -77,7 +77,7 @@ function normalizeParameters(
   return result;
 }
 
-/** Extract responses from an operation. */
+/** Extract responses from an operation, including response body schema. */
 function normalizeResponses(
   rawResponses: unknown
 ): Record<string, NormalizedResponse> {
@@ -87,8 +87,21 @@ function normalizeResponses(
   for (const [code, raw] of Object.entries(rawResponses as object)) {
     if (!raw || typeof raw !== 'object') continue;
     const r = raw as Record<string, unknown>;
+
+    // OAS2: schema is directly on the response object
+    // OAS3: schema lives inside content[mediaType].schema
+    let schema = extractSchema(r['schema']);
+    if (!schema && r['content'] && typeof r['content'] === 'object') {
+      const content = r['content'] as Record<string, unknown>;
+      const preferred = content['application/json'] ?? Object.values(content)[0];
+      if (preferred && typeof preferred === 'object') {
+        schema = extractSchema((preferred as Record<string, unknown>)['schema']);
+      }
+    }
+
     result[String(code)] = {
       description: typeof r['description'] === 'string' ? r['description'] : undefined,
+      schema,
     };
   }
 

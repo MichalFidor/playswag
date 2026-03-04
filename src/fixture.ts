@@ -21,7 +21,8 @@ type HttpMethod = (typeof INTERCEPTED_METHODS)[number];
 function buildTrackedRequest<T extends APIRequestContext>(
   original: T,
   hits: EndpointHit[],
-  testInfo: TestInfo
+  testInfo: TestInfo,
+  captureResponseBody = true
 ): T {
   return new Proxy(original, {
     get(target, prop, receiver) {
@@ -62,11 +63,22 @@ function buildTrackedRequest<T extends APIRequestContext>(
 
         const requestBody = options?.['data'] ?? options?.['form'] ?? options?.['multipart'] ?? undefined;
 
+        // Capture the response body JSON for response coverage (opt-out via captureResponseBody: false)
+        let responseBody: unknown | undefined;
+        if (captureResponseBody) {
+          try {
+            responseBody = await response.json();
+          } catch {
+            // Non-JSON or empty response — skip body capture
+          }
+        }
+
         hits.push({
           method: httpMethod,
           url: response.url(),
           statusCode: response.status(),
           requestBody,
+          responseBody,
           queryParams,
           headers,
           testFile: testInfo.titlePath[0] ?? '',
@@ -83,6 +95,8 @@ function buildTrackedRequest<T extends APIRequestContext>(
 type PlayswagOptions = {
   /** Set to false to disable coverage tracking for this project/file. @default true */
   playswagEnabled: boolean;
+  /** Set to false to opt out of response body capture (e.g. for large binary responses). @default true */
+  captureResponseBody: boolean;
 };
 
 /**
@@ -122,9 +136,10 @@ export type PlayswagFixtures = {
  */
 export const test = base.extend<PlayswagOptions & PlayswagFixtures>({
   playswagEnabled: [true, { option: true }],
+  captureResponseBody: [true, { option: true }],
 
   trackRequest: async (
-    { playswagEnabled }: { playswagEnabled: boolean },
+    { playswagEnabled, captureResponseBody }: { playswagEnabled: boolean; captureResponseBody: boolean },
     use: (fn: <T extends APIRequestContext>(ctx: T) => T) => Promise<void>,
     testInfo: TestInfo
   ) => {
@@ -134,7 +149,7 @@ export const test = base.extend<PlayswagOptions & PlayswagFixtures>({
     }
 
     const hits: EndpointHit[] = [];
-    await use(<T extends APIRequestContext>(ctx: T) => buildTrackedRequest(ctx, hits, testInfo));
+    await use(<T extends APIRequestContext>(ctx: T) => buildTrackedRequest(ctx, hits, testInfo, captureResponseBody));
 
     if (hits.length > 0) {
       await testInfo.attach(ATTACHMENT_NAME, {

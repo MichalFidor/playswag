@@ -19,6 +19,7 @@ export interface CoverageDelta {
   statusCodes: number;
   parameters: number;
   bodyProperties: number;
+  responseProperties: number;
 }
 
 const DEFAULT_FILE_NAME = 'playswag-history.json';
@@ -102,9 +103,10 @@ export function compareCoverage(
   previous: CoverageSummary
 ): CoverageDelta {
   return {
-    endpoints:       Math.round((current.endpoints.percentage       - previous.endpoints.percentage)       * 10) / 10,
-    statusCodes:     Math.round((current.statusCodes.percentage     - previous.statusCodes.percentage)     * 10) / 10,
-    parameters:      Math.round((current.parameters.percentage      - previous.parameters.percentage)      * 10) / 10,
-    bodyProperties:  Math.round((current.bodyProperties.percentage  - previous.bodyProperties.percentage)  * 10) / 10,
+    endpoints:          Math.round((current.endpoints.percentage          - previous.endpoints.percentage)          * 10) / 10,
+    statusCodes:        Math.round((current.statusCodes.percentage        - previous.statusCodes.percentage)        * 10) / 10,
+    parameters:         Math.round((current.parameters.percentage         - previous.parameters.percentage)         * 10) / 10,
+    bodyProperties:     Math.round((current.bodyProperties.percentage     - previous.bodyProperties.percentage)     * 10) / 10,
+    responseProperties: Math.round(((current.responseProperties?.percentage ?? 0) - (previous.responseProperties?.percentage ?? 0)) * 10) / 10,
   };
 }

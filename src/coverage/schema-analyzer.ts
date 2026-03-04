@@ -1,4 +1,4 @@
-import type { NormalizedOperation, NormalizedSchema, ParamCoverage, BodyPropertyCoverage } from '../types.js';
+import type { NormalizedOperation, NormalizedSchema, ParamCoverage, BodyPropertyCoverage, ResponsePropertyCoverage } from '../types.js';
 
 /** Retrieve the top-level properties of a schema, merging allOf/anyOf/oneOf. */
 function collectTopLevelProperties(schema: NormalizedSchema | undefined): Map<string, boolean> {
@@ -65,6 +65,39 @@ export function analyzeParameters(
       covered,
     };
   });
+}
+
+/**
+ * Analyze which top-level response body properties were present in a recorded response.
+ */
+export function analyzeResponseProperties(
+  operation: NormalizedOperation,
+  statusCode: string,
+  responseBody: unknown
+): ResponsePropertyCoverage[] {
+  const schema = operation.responses[statusCode]?.schema;
+  if (!schema) return [];
+
+  const props = collectTopLevelProperties(schema);
+  if (props.size === 0) return [];
+
+  let bodyObj: Record<string, unknown> | null = null;
+  if (responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)) {
+    bodyObj = responseBody as Record<string, unknown>;
+  } else if (typeof responseBody === 'string') {
+    try {
+      bodyObj = JSON.parse(responseBody);
+    } catch {
+      // Not JSON — treat as no body
+    }
+  }
+
+  return Array.from(props.entries()).map(([name, required]) => ({
+    statusCode,
+    name,
+    required,
+    covered: bodyObj != null && name in bodyObj,
+  }));
 }
 
 /**

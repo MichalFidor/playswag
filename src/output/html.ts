@@ -74,6 +74,14 @@ function bodyBadges(op: OperationCoverage): string {
   }).join(' ');
 }
 
+function responseBadges(op: OperationCoverage): string {
+  if (op.responseProperties.length === 0) return '<em class="muted">none</em>';
+  return op.responseProperties.map((r) => {
+    const cls = r.covered ? 'green' : (r.required ? 'red' : 'grey');
+    return `<span class="badge ${cls}" title="${esc(r.statusCode)}">${esc(r.name)}${r.required ? '*' : ''}</span>`;
+  }).join(' ');
+}
+
 function operationRows(ops: OperationCoverage[]): string {
   return ops.map((op, i) => {
     const tags = (op.tags ?? []).join(',');
@@ -116,6 +124,10 @@ function operationRows(ops: OperationCoverage[]): string {
             <div class="detail-section">
               <div class="detail-label">Body Properties</div>
               <div class="detail-content">${bodyBadges(op)}</div>
+            </div>
+            <div class="detail-section">
+              <div class="detail-label">Response Properties</div>
+              <div class="detail-content">${responseBadges(op)}</div>
             </div>
             <div class="detail-section detail-tests">
               <div class="detail-label">Tests <span class="detail-count">${op.testRefs.length}</span></div>
@@ -186,13 +198,14 @@ export function generateHtmlReport(
     ? `<img src="${logoDataUrl}" alt="playswag logo" class="logo" width="36" height="36">`
     : '';
 
-  // Overall score: average of all four percentages
+  // Overall score: average of all five percentages
   const overallPct = (
     result.summary.endpoints.percentage +
     result.summary.statusCodes.percentage +
     result.summary.parameters.percentage +
-    result.summary.bodyProperties.percentage
-  ) / 4;
+    result.summary.bodyProperties.percentage +
+    result.summary.responseProperties.percentage
+  ) / 5;
 
   const css = `
 :root {
@@ -278,7 +291,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 28px 32px; }
 .score-pct.red { color: var(--red); }
 
 /* ── Summary cards ── */
-.summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); border-left: 4px solid var(--border2); }
 .card.green { border-left-color: var(--green); }
 .card.yellow { border-left-color: var(--yellow); }
@@ -434,9 +447,9 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
 })();`.trim();
 
   // Extract sparkline history values per dimension (include current run at the end)
-  function sparkVals(dim: 'endpoints' | 'statusCodes' | 'parameters' | 'bodyProperties'): number[] | undefined {
+  function sparkVals(dim: 'endpoints' | 'statusCodes' | 'parameters' | 'bodyProperties' | 'responseProperties'): number[] | undefined {
     if (historyEntries.length === 0) return undefined;
-    const vals = historyEntries.map((e) => e.summary[dim].percentage);
+    const vals = historyEntries.map((e) => (e.summary[dim]?.percentage ?? 0));
     // Append current run if it differs from last history entry (current run hasn't been appended yet)
     if (vals[vals.length - 1] !== result.summary[dim].percentage) {
       vals.push(result.summary[dim].percentage);
@@ -484,6 +497,7 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
     ${summaryCard('Status Codes', result.summary.statusCodes.covered, result.summary.statusCodes.total, result.summary.statusCodes.percentage, sparkVals('statusCodes'))}
     ${summaryCard('Parameters', result.summary.parameters.covered, result.summary.parameters.total, result.summary.parameters.percentage, sparkVals('parameters'))}
     ${summaryCard('Body Properties', result.summary.bodyProperties.covered, result.summary.bodyProperties.total, result.summary.bodyProperties.percentage, sparkVals('bodyProperties'))}
+    ${summaryCard('Response Properties', result.summary.responseProperties.covered, result.summary.responseProperties.total, result.summary.responseProperties.percentage, sparkVals('responseProperties'))}
   </div>
 
   <div class="section">

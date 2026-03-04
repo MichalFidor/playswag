@@ -8,6 +8,8 @@ export interface EndpointHit {
   pathTemplate?: string;
   statusCode: number;
   requestBody?: unknown;
+  /** Parsed JSON response body, populated when captureResponseBody is enabled. */
+  responseBody?: unknown;
   queryParams?: Record<string, string>;
   /** Path parameters extracted from the URL, e.g. { id: '123' } */
   pathParams?: Record<string, string>;
@@ -58,6 +60,8 @@ export interface OperationCoverage {
   parameters: ParamCoverage[];
   /** Top-level request body schema properties and whether they were supplied */
   bodyProperties: BodyPropertyCoverage[];
+  /** Response body schema properties per status code and whether they were observed */
+  responseProperties: ResponsePropertyCoverage[];
   /** Test references that hit this operation */
   testRefs: string[];
 }
@@ -79,6 +83,8 @@ export interface CoverageSummary {
   statusCodes: CoverageSummaryItem;
   parameters: CoverageSummaryItem;
   bodyProperties: CoverageSummaryItem;
+  /** Response body property coverage — only populated when specs define response schemas. */
+  responseProperties: CoverageSummaryItem;
 }
 
 /**
@@ -129,6 +135,22 @@ export interface NormalizedParameter {
 
 export interface NormalizedResponse {
   description?: string;
+  /**
+   * Top-level schema for this response code (if defined in the spec).
+   * Used to track response body property coverage.
+   */
+  schema?: NormalizedSchema;
+}
+
+/**
+ * Coverage result for a single response body property.
+ */
+export interface ResponsePropertyCoverage {
+  /** The HTTP status code this property belongs to, e.g. '200'. */
+  statusCode: string;
+  name: string;
+  required: boolean;
+  covered: boolean;
 }
 
 export interface NormalizedSchema {
@@ -188,6 +210,8 @@ export interface ThresholdConfig {
   parameters?: number | ThresholdEntry;
   /** Minimum request body property coverage percentage, or a {@link ThresholdEntry} */
   bodyProperties?: number | ThresholdEntry;
+  /** Minimum response body property coverage percentage, or a {@link ThresholdEntry} */
+  responseProperties?: number | ThresholdEntry;
 }
 
 /**
@@ -285,7 +309,7 @@ export interface BadgeConfig {
    * Which coverage dimension to reflect in the badge value.
    * @default 'endpoints'
    */
-  dimension?: 'endpoints' | 'statusCodes' | 'parameters' | 'bodyProperties';
+  dimension?: 'endpoints' | 'statusCodes' | 'parameters' | 'bodyProperties' | 'responseProperties';
   /**
    * Label text on the left side of the badge.
    * @default 'API Coverage'
@@ -355,6 +379,14 @@ export interface PlayswagConfig {
   /** HTML report output options */
   htmlOutput?: HtmlOutputConfig;
 
+  /**
+   * Disable response body capture globally. Equivalent to adding
+   * `test.use({ captureResponseBody: false })` to every test file.
+   * The fixture option takes precedence when explicitly set per-file.
+   * @default true
+   */
+  captureResponseBody?: boolean;
+
   /** SVG badge options */
   badge?: BadgeConfig;
 
@@ -386,4 +418,11 @@ export interface PlayswagFixtureOptions {
    * @default true
    */
   playswagEnabled: boolean;
+  /**
+   * Set to false to opt out of response body capture (useful for large binary payloads).
+   * When true, playswag will call response.json() and record the parsed body to enable
+   * response property coverage.
+   * @default true
+   */
+  captureResponseBody: boolean;
 }
