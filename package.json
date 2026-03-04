@@ -1,0 +1,69 @@
+{
+  "name": "playswag",
+  "version": "0.1.0",
+  "description": "Playwright API coverage tracking against Swagger/OpenAPI specifications",
+  "keywords": [
+    "playwright",
+    "swagger",
+    "openapi",
+    "api-coverage",
+    "testing",
+    "coverage"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./reporter": {
+      "import": {
+        "types": "./dist/types/reporter.d.ts",
+        "default": "./dist/esm/reporter.js"
+      },
+      "require": {
+        "types": "./dist/types/reporter.d.cts",
+        "default": "./dist/cjs/reporter.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "playwright test --config=playwright.integration.config.ts",
+    "link": "npm install && npm run build && npm link @playwright/test && npm link",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.20.0"
+  },
+  "dependencies": {
+    "@apidevtools/swagger-parser": "^12.1.0",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "openapi-types": "^12.1.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

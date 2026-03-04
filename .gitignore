@@ -1,0 +1,9 @@
+node_modules/
+dist/
+playswag-coverage/
+tests/integration/output/
+*.js.map
+*.d.ts.map
+test-results/
+playwright-report/
+.playwright/
