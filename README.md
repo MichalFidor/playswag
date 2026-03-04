@@ -111,7 +111,7 @@ interface PlayswagConfig {
   consoleOutput?: {
     enabled?: boolean;            // @default true
     showUncoveredOnly?: boolean;  // @default false
-    showDetails?: boolean;        // @default true — per-operation table
+    showOperations?: boolean;     // @default true — per-operation table
     showParams?: boolean;         // @default false
     showBodyProperties?: boolean; // @default false
   };
@@ -123,10 +123,11 @@ interface PlayswagConfig {
   };
 
   threshold?: {
-    endpoints?: number;       // 0–100
-    statusCodes?: number;
-    parameters?: number;
-    bodyProperties?: number;
+    // Plain number: informational warning only (respects failOnThreshold globally)
+    endpoints?: number | { min: number; fail?: boolean };
+    statusCodes?: number | { min: number; fail?: boolean };
+    parameters?: number | { min: number; fail?: boolean };
+    bodyProperties?: number | { min: number; fail?: boolean };
   };
 
   /**
@@ -151,6 +152,48 @@ projects: [
 // Or inside a test file
 test.use({ playswagEnabled: false });
 ```
+
+## Tracking custom request contexts
+
+The built-in `request` fixture is wrapped automatically. If your tests use **additional
+`APIRequestContext` instances** — for example contexts created with `request.newContext()`
+or returned by a custom fixture — use the `trackRequest` fixture to wrap them:
+
+```ts
+import { test, expect } from '@michalfidor/playswag';
+
+// request.newContext()
+test('uses a second context', async ({ request, trackRequest }) => {
+  const adminCtx = trackRequest(await request.newContext({ extraHTTPHeaders: { 'x-role': 'admin' } }));
+  const res = await adminCtx.get('/api/admin/stats');
+  expect(res.ok()).toBeTruthy();
+});
+```
+
+`trackRequest` is most useful inside **custom fixtures** that create their own contexts:
+
+```ts
+import { test as base } from '@michalfidor/playswag';
+
+const test = base.extend<{ adminRequest: import('@playwright/test').APIRequestContext }>({
+  adminRequest: async ({ trackRequest }, use) => {
+    const raw = await ContextFactory.getContextByUserAccessToken('admin');
+    await use(trackRequest(raw));
+  },
+});
+
+export { test };
+
+// Then in tests:
+test('admin can list users', async ({ adminRequest }) => {
+  const res = await adminRequest.get('/api/admin/users');
+  expect(res.ok()).toBeTruthy();
+});
+```
+
+All calls made through any `trackRequest`-wrapped context are recorded alongside
+calls from the main `request` fixture. They all end up in the same per-test
+attachment and contribute to the coverage report.
 
 ---
 
