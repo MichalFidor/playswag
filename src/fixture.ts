@@ -109,7 +109,7 @@ export type PlayswagFixtures = {
  * Just replace:
  *   import { test, expect } from '@playwright/test';
  * with:
- *   import { test, expect } from 'playswag';
+ *   import { test, expect } from '@michalfidor/playswag';
  *
  * The `request` fixture is automatically wrapped — no other changes needed.
  *

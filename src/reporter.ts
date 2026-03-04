@@ -57,7 +57,7 @@ function readPlayswagVersion(): string {
  * Configure in playwright.config.ts:
  * ```ts
  * reporter: [
- *   ['playswag/reporter', {
+ *   ['@michalfidor/playswag/reporter', {
  *     specs: './openapi.yaml',
  *     outputDir: './playswag-coverage',
  *   }]
