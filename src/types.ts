@@ -149,17 +149,43 @@ export interface NormalizedSpec {
 }
 
 /**
- * Threshold configuration for failing the run.
+ * Per-dimension threshold entry. Can be a plain number (minimum %) or a full object
+ * that additionally controls whether failing to meet the threshold fails the run.
+ *
+ * @example
+ * ```ts
+ * threshold: {
+ *   endpoints: 80,                          // shorthand
+ *   statusCodes: { min: 70, fail: true },   // fail the run on this dimension only
+ *   parameters: { min: 50, fail: false },   // warn only, never fails the run
+ * }
+ * ```
+ */
+export interface ThresholdEntry {
+  /** Minimum coverage percentage required (0–100). */
+  min: number;
+  /**
+   * Fail the test run when this dimension falls below `min`.
+   * Overrides the top-level `failOnThreshold` setting for this dimension.
+   * @default inherited from PlayswagConfig.failOnThreshold
+   */
+  fail?: boolean;
+}
+
+/**
+ * Threshold configuration for coverage dimensions.
+ * Each key accepts either a plain number (minimum %) or a {@link ThresholdEntry} for
+ * fine-grained per-dimension fail control.
  */
 export interface ThresholdConfig {
-  /** Minimum endpoint coverage percentage (0-100) */
-  endpoints?: number;
-  /** Minimum status code coverage percentage (0-100) */
-  statusCodes?: number;
-  /** Minimum parameter coverage percentage (0-100) */
-  parameters?: number;
-  /** Minimum request body property coverage percentage (0-100) */
-  bodyProperties?: number;
+  /** Minimum endpoint coverage percentage, or a {@link ThresholdEntry} */
+  endpoints?: number | ThresholdEntry;
+  /** Minimum status code coverage percentage, or a {@link ThresholdEntry} */
+  statusCodes?: number | ThresholdEntry;
+  /** Minimum parameter coverage percentage, or a {@link ThresholdEntry} */
+  parameters?: number | ThresholdEntry;
+  /** Minimum request body property coverage percentage, or a {@link ThresholdEntry} */
+  bodyProperties?: number | ThresholdEntry;
 }
 
 /**
@@ -170,8 +196,12 @@ export interface ConsoleOutputConfig {
   enabled?: boolean;
   /** Show only uncovered / partially covered operations @default false */
   showUncoveredOnly?: boolean;
-  /** Show per-operation breakdown table @default true */
-  showDetails?: boolean;
+  /**
+   * Show the per-operation breakdown table below the summary.
+   * Set to `false` to print the summary table only.
+   * @default true
+   */
+  showOperations?: boolean;
   /** Expand parameter-level coverage per operation @default false */
   showParams?: boolean;
   /** Expand request body property coverage per operation @default false */

@@ -33,8 +33,11 @@ export type {
   ParamCoverage,
   BodyPropertyCoverage,
   ThresholdConfig,
+  ThresholdEntry,
   ConsoleOutputConfig,
   JsonOutputConfig,
   NormalizedSpec,
   NormalizedOperation,
 } from './types.js';
+
+export type { ThresholdViolation } from './output/console.js';

@@ -1,5 +1,5 @@
 import Table from 'cli-table3';
-import type { CoverageResult, OperationCoverage, ConsoleOutputConfig, ThresholdConfig } from '../types.js';
+import type { CoverageResult, OperationCoverage, ConsoleOutputConfig, ThresholdConfig, ThresholdEntry } from '../types.js';
 
 const TABLE_CHARS = {
   'top': '─', 'top-mid': '┬', 'top-left': '┌', 'top-right': '┐',
@@ -16,6 +16,27 @@ type ChalkInstance = {
   bold: (s: string) => string;
   dim: (s: string) => string;
 };
+
+/** A single threshold violation returned by {@link checkThresholds}. */
+export interface ThresholdViolation {
+  /** Human-readable description of the violation. */
+  message: string;
+  /**
+   * Whether this violation should cause the run to fail.
+   * Determined by the per-entry `fail` flag or the global `failOnThreshold` default.
+   */
+  fail: boolean;
+}
+
+/** Resolve a `number | ThresholdEntry` config value into `{ min, fail }` or `null`. */
+function resolveEntry(
+  entry: number | ThresholdEntry | undefined,
+  globalFail: boolean
+): { min: number; fail: boolean } | null {
+  if (entry === undefined) return null;
+  if (typeof entry === 'number') return { min: entry, fail: globalFail };
+  return { min: entry.min, fail: entry.fail ?? globalFail };
+}
 
 let _chalk: ChalkInstance | null = null;
 
@@ -60,12 +81,20 @@ function paramRatio(op: OperationCoverage): string {
   return `${covered}/${total}`;
 }
 
-/** Check whether any threshold is breached and return violation messages. */
+/**
+ * Check whether any threshold is breached and return structured violation objects.
+ *
+ * @param result     - The coverage result to check.
+ * @param threshold  - Per-dimension threshold configuration.
+ * @param globalFail - Default for the `fail` flag when a dimension's entry does not
+ *                     specify its own value. Corresponds to `PlayswagConfig.failOnThreshold`.
+ */
 export function checkThresholds(
   result: CoverageResult,
-  threshold: ThresholdConfig
-): string[] {
-  const violations: string[] = [];
+  threshold: ThresholdConfig,
+  globalFail = false
+): ThresholdViolation[] {
+  const violations: ThresholdViolation[] = [];
 
   const checks: [keyof ThresholdConfig, number, string][] = [
     ['endpoints', result.summary.endpoints.percentage, 'Endpoint'],
@@ -75,9 +104,12 @@ export function checkThresholds(
   ];
 
   for (const [key, actual, label] of checks) {
-    const min = threshold[key];
-    if (min !== undefined && actual < min) {
-      violations.push(`${label} coverage ${actual.toFixed(1)}% is below threshold ${min}%`);
+    const resolved = resolveEntry(threshold[key], globalFail);
+    if (resolved !== null && actual < resolved.min) {
+      violations.push({
+        message: `${label} coverage ${actual.toFixed(1)}% is below threshold ${resolved.min}%`,
+        fail: resolved.fail,
+      });
     }
   }
 
@@ -86,32 +118,54 @@ export function checkThresholds(
 
 
 
+/** Format an ISO timestamp as "04 Mar 2026 · 14:18:27". */
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString('en-GB', { hour12: false });
+  return `${date} · ${time}`;
+}
+
 /**
  * Print the Playswag coverage report to stdout.
+ *
+ * The summary table is always shown. The operations table is controlled by
+ * `config.showOperations` (default `true`).
  */
 export async function printConsoleReport(
   result: CoverageResult,
   config: ConsoleOutputConfig = {},
   threshold?: ThresholdConfig,
-  failOnThreshold = false
+  globalFail = false
 ): Promise<void> {
   const c = await getChalk();
   const {
     showUncoveredOnly = false,
-    showDetails = true,
+    showOperations = true,
     showParams = false,
     showBodyProperties = false,
   } = config;
 
-  const divider = c.dim('─'.repeat(80));
+  const SEP = c.dim('─'.repeat(80));
 
+  // ── Header ──────────────────────────────────────────────────────────────────
   console.log('');
-  console.log(divider);
-  console.log(c.bold(c.cyan('  Playswag · API Coverage Report')));
-  console.log(c.dim(`  ${result.timestamp}  ·  specs: ${result.specFiles.join(', ')}`));
-  console.log(divider);
+  console.log(SEP);
+  console.log(
+    `  ${c.bold(c.cyan('playswag'))}  ${c.dim('▸')}  ${c.bold('API Coverage Report')}` +
+    `  ${c.dim(formatTimestamp(result.timestamp))}`
+  );
+  if (result.specFiles.length === 1) {
+    console.log(c.dim(`  ${result.specFiles[0]}`));
+  } else {
+    result.specFiles.forEach((s, i) =>
+      console.log(c.dim(`  ${String(i + 1).padStart(2)}.  ${s}`))
+    );
+  }
+  console.log(SEP);
+  console.log('');
 
-
+  // ── Summary table (always visible) ──────────────────────────────────────────
   const rows: [string, string, string, string][] = [
     [
       'Endpoints',
@@ -144,39 +198,39 @@ export async function printConsoleReport(
     style: { head: [], border: [] },
     chars: TABLE_CHARS,
   });
-
-  for (const row of rows) {
-    summaryTable.push(row);
-  }
-
+  for (const row of rows) summaryTable.push(row);
   console.log(summaryTable.toString());
 
+  // ── Threshold results ────────────────────────────────────────────────────────
   if (threshold) {
-    const violations = checkThresholds(result, threshold);
+    const violations = checkThresholds(result, threshold, globalFail);
     if (violations.length > 0) {
       console.log('');
       for (const v of violations) {
-        console.log(failOnThreshold ? c.red(`  ✗ ${v}`) : c.yellow(`  ⚠ ${v}`));
+        // ✗ red = this violation will fail the run  |  ⚠ yellow = informational only
+        console.log(v.fail ? c.red(`  ✗ ${v.message}`) : c.yellow(`  ⚠ ${v.message}`));
       }
     } else {
       console.log(c.green('  ✓ All thresholds met'));
     }
   }
 
-  if (!showDetails) {
-    console.log(divider);
+  if (!showOperations) {
+    console.log('');
+    console.log(SEP);
     console.log('');
     return;
   }
 
-
+  // ── Operations table ────────────────────────────────────────────────────────
   const opsToShow = showUncoveredOnly
     ? result.operations.filter((o) => !o.covered)
     : result.operations;
 
   if (opsToShow.length === 0) {
     console.log(c.green('\n  All operations covered!\n'));
-    console.log(divider);
+    console.log(SEP);
+    console.log('');
     return;
   }
 
@@ -225,7 +279,6 @@ export async function printConsoleReport(
 
   console.log(opsTable.toString());
 
-
   if (result.unmatchedHits.length > 0) {
     console.log('');
     console.log(
@@ -240,6 +293,6 @@ export async function printConsoleReport(
   }
 
   console.log('');
-  console.log(divider);
+  console.log(SEP);
   console.log('');
 }
