@@ -261,7 +261,8 @@ export async function parseSpecs(sources: string | string[]): Promise<Normalized
       parsed = await parseOne(source);
     } catch (err) {
       throw new Error(
-        `[playswag] Failed to parse OpenAPI spec from "${source}": ${(err as Error).message}`
+        `[playswag] Failed to parse OpenAPI spec from "${source}": ${(err as Error).message}`,
+        { cause: err }
       );
     }
     const { operations: ops } = parsed;

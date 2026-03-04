@@ -87,6 +87,7 @@ export function analyzeBodyProperties(
     try {
       bodyObj = JSON.parse(requestBody);
     } catch {
+      // requestBody is not valid JSON — treat as if no body was provided
     }
   }
 

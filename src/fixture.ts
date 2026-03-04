@@ -31,7 +31,7 @@ function buildTrackedRequest<T extends APIRequestContext>(
 
       const method = prop as HttpMethod;
 
-      return async (urlOrRequest: string | any, options?: Record<string, unknown>): Promise<APIResponse> => {
+      return async (urlOrRequest: string | object, options?: Record<string, unknown>): Promise<APIResponse> => {
         let httpMethod: string;
         if (method === 'fetch') {
           httpMethod = (
@@ -41,6 +41,7 @@ function buildTrackedRequest<T extends APIRequestContext>(
           httpMethod = method.toUpperCase();
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response: APIResponse = await (target[method] as any).call(target, urlOrRequest, options);
 
         let queryParams: Record<string, string> | undefined;

@@ -1,8 +1,4 @@
-# playswag
-
-<p align="center">
-  <img src="assets/logo.png" alt="playswag logo" width="220" />
-</p>
+![playswag logo](assets/logo.png)
 
 > Playwright API coverage tracking against Swagger / OpenAPI specifications.
 

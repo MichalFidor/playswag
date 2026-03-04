@@ -134,7 +134,7 @@ class PlayswagReporter implements Reporter {
     }
   }
 
-  async onEnd(result: FullResult): Promise<{ status?: FullResult['status'] } | void> {
+  async onEnd(_result: FullResult): Promise<{ status?: FullResult['status'] } | void> {
     if (this.aggregatedHits.length === 0 && !this.config.specs) {
       return;
     }

@@ -1,5 +1,4 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { join } from 'node:path';
 
 /**
  * Minimal HTTP server that simulates the sample OpenAPI spec.

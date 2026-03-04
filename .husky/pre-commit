@@ -1,0 +1,8 @@
+# Run lint-staged (ESLint --fix on staged .ts files)
+npx lint-staged
+
+# Type-check the whole project
+npm run typecheck
+
+# Run unit tests
+npm run test:unit
