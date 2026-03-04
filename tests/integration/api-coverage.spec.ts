@@ -13,8 +13,6 @@ test.afterAll(async () => {
   await new Promise<void>((resolve) => server?.close(() => resolve()));
 });
 
-// ── Tests ──────────────────────────────────────────────────────────────────────
-
 test('GET /api/users — returns list', async ({ request }) => {
   const res = await request.get('/api/users');
   expect(res.status()).toBe(200);
@@ -57,8 +55,6 @@ test('GET /api/health', async ({ request }) => {
   const res = await request.get('/api/health');
   expect(res.status()).toBe(200);
 });
-
-// ── Verify JSON output was generated ──────────────────────────────────────────
 
 test('JSON coverage report is generated after run', async () => {
   // This test verifies the fixture wires up correctly.

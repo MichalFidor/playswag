@@ -48,31 +48,31 @@ describe('checkThresholds', () => {
     const result = makeResult(79.9, 100, 100, 100);
     const violations = checkThresholds(result, { endpoints: 80 });
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toMatch(/Endpoint coverage/);
-    expect(violations[0]).toMatch(/79\.9%/);
-    expect(violations[0]).toMatch(/80%/);
+    expect(violations[0].message).toMatch(/Endpoint coverage/);
+    expect(violations[0].message).toMatch(/79\.9%/);
+    expect(violations[0].message).toMatch(/80%/);
   });
 
   it('returns a violation when statusCodes coverage is below threshold', () => {
     const result = makeResult(100, 60, 100, 100);
     const violations = checkThresholds(result, { statusCodes: 80 });
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toMatch(/Status code coverage/);
-    expect(violations[0]).toMatch(/60\.0%/);
+    expect(violations[0].message).toMatch(/Status code coverage/);
+    expect(violations[0].message).toMatch(/60\.0%/);
   });
 
   it('returns a violation when parameters coverage is below threshold', () => {
     const result = makeResult(100, 100, 50, 100);
     const violations = checkThresholds(result, { parameters: 70 });
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toMatch(/Parameter coverage/);
+    expect(violations[0].message).toMatch(/Parameter coverage/);
   });
 
   it('returns a violation when bodyProperties coverage is below threshold', () => {
     const result = makeResult(100, 100, 100, 40);
     const violations = checkThresholds(result, { bodyProperties: 50 });
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toMatch(/Body property coverage/);
+    expect(violations[0].message).toMatch(/Body property coverage/);
   });
 
   it('returns multiple violations when several dimensions are below threshold', () => {
@@ -93,7 +93,7 @@ describe('checkThresholds', () => {
     // produce violations for the unconfigured keys.
     const violations = checkThresholds(result, { statusCodes: 50 });
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toMatch(/Status code/);
+    expect(violations[0].message).toMatch(/Status code/);
   });
 
   it('does not flag when actual equals the threshold exactly', () => {
@@ -105,5 +105,37 @@ describe('checkThresholds', () => {
   it('returns no violations when threshold object is empty', () => {
     const result = makeResult(0, 0, 0, 0);
     expect(checkThresholds(result, {})).toEqual([]);
+  });
+
+  it('ThresholdEntry shorthand { min } behaves the same as a plain number', () => {
+    const result = makeResult(79.9, 100, 100, 100);
+    const byNumber = checkThresholds(result, { endpoints: 80 });
+    const byEntry = checkThresholds(result, { endpoints: { min: 80 } });
+    expect(byEntry).toHaveLength(byNumber.length);
+    expect(byEntry[0].message).toBe(byNumber[0].message);
+  });
+
+  it('per-entry fail:true overrides globalFail=false', () => {
+    const result = makeResult(70, 100, 100, 100);
+    const violations = checkThresholds(result, { endpoints: { min: 80, fail: true } }, false);
+    expect(violations[0].fail).toBe(true);
+  });
+
+  it('per-entry fail:false overrides globalFail=true', () => {
+    const result = makeResult(70, 100, 100, 100);
+    const violations = checkThresholds(result, { endpoints: { min: 80, fail: false } }, true);
+    expect(violations[0].fail).toBe(false);
+  });
+
+  it('violation.fail defaults to false when globalFail is not set', () => {
+    const result = makeResult(70, 100, 100, 100);
+    const violations = checkThresholds(result, { endpoints: 80 });
+    expect(violations[0].fail).toBe(false);
+  });
+
+  it('violation.fail is true when globalFail=true and no per-entry override', () => {
+    const result = makeResult(70, 100, 100, 100);
+    const violations = checkThresholds(result, { endpoints: 80 }, true);
+    expect(violations[0].fail).toBe(true);
   });
 });

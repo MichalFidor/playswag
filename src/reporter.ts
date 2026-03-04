@@ -191,9 +191,13 @@ class PlayswagReporter implements Reporter {
       }
     }
 
-    if (this.config.failOnThreshold && this.config.threshold) {
-      const violations = checkThresholds(coverageResult, this.config.threshold);
-      if (violations.length > 0) {
+    if (this.config.threshold) {
+      const violations = checkThresholds(
+        coverageResult,
+        this.config.threshold,
+        this.config.failOnThreshold
+      );
+      if (violations.some((v) => v.fail)) {
         return { status: 'failed' };
       }
     }
