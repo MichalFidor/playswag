@@ -25,7 +25,7 @@ function testRef(hit: EndpointHit): string {
 
 /**
  * Given all aggregated endpoint hits and a normalized spec, calculate coverage
- * across three dimensions: operations, status codes, and request body properties / parameters.
+ * across four dimensions: operations, status codes, parameters, and request body properties.
  */
 export function calculateCoverage(
   hits: EndpointHit[],
@@ -41,7 +41,6 @@ export function calculateCoverage(
     console.log('[playswag:debug] calculateCoverage called');
     console.log('[playswag:debug]   hits.length      :', hits.length);
     console.log('[playswag:debug]   options.baseURL  :', options.baseURL);
-    console.log('[playswag:debug]   serverBasePath   :', spec.serverBasePath);
     console.log('[playswag:debug]   spec.operations  :', spec.operations.length);
     if (hits.length > 0) {
       console.log('[playswag:debug]   first hit        :', hits[0]?.method, hits[0]?.url);
@@ -139,36 +138,27 @@ export function calculateCoverage(
   const allOps = Array.from(opMap.values());
   const uncoveredOps = allOps.filter((o) => !o.covered);
 
+  function countCoveredItems<T extends { covered: boolean }>(
+    selector: (op: OperationCoverage) => T[]
+  ): [total: number, covered: number] {
+    let total = 0, covered = 0;
+    for (const op of allOps) {
+      for (const item of selector(op)) {
+        total++;
+        if (item.covered) covered++;
+      }
+    }
+    return [total, covered];
+  }
 
   const totalEndpoints = allOps.length;
   const coveredEndpoints = allOps.filter((o) => o.covered).length;
 
-  let totalStatusCodes = 0;
-  let coveredStatusCodes = 0;
-  for (const op of allOps) {
-    for (const sc of Object.values(op.statusCodes)) {
-      totalStatusCodes++;
-      if (sc.covered) coveredStatusCodes++;
-    }
-  }
-
-  let totalParams = 0;
-  let coveredParams = 0;
-  for (const op of allOps) {
-    for (const p of op.parameters) {
-      totalParams++;
-      if (p.covered) coveredParams++;
-    }
-  }
-
-  let totalBody = 0;
-  let coveredBody = 0;
-  for (const op of allOps) {
-    for (const b of op.bodyProperties) {
-      totalBody++;
-      if (b.covered) coveredBody++;
-    }
-  }
+  const [totalStatusCodes, coveredStatusCodes] = countCoveredItems((op) =>
+    Object.values(op.statusCodes)
+  );
+  const [totalParams, coveredParams] = countCoveredItems((op) => op.parameters);
+  const [totalBody, coveredBody] = countCoveredItems((op) => op.bodyProperties);
 
   return {
     specFiles: spec.sources,

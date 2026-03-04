@@ -2,13 +2,14 @@
 
 > Playwright API coverage tracking against Swagger / OpenAPI specifications.
 
-`playswag` transparently wraps Playwright's built-in `request` fixture to record every API call made during your tests, then compares the results against your OpenAPI spec(s) to report coverage across three dimensions:
+`playswag` transparently wraps Playwright's built-in `request` fixture to record every API call made during your tests, then compares the results against your OpenAPI spec(s) to report coverage across four dimensions:
 
 | Dimension | What it measures |
-|-----------|-----------------|
+|-----------|------------------|
 | **Endpoints** | Which path + method combinations were called at all |
 | **Status codes** | Which response codes defined in the spec were actually exercised |
-| **Parameters & body properties** | Which query/path/header params and request body fields were supplied |
+| **Parameters** | Which query/path/header params were supplied |
+| **Body properties** | Which request body fields were provided |
 
 Works with **multiple workers** out of the box — per-worker data is collected via test attachments and aggregated in the reporter process after all tests complete.
 

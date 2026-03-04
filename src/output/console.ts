@@ -1,6 +1,13 @@
 import Table from 'cli-table3';
 import type { CoverageResult, OperationCoverage, ConsoleOutputConfig, ThresholdConfig } from '../types.js';
 
+const TABLE_CHARS = {
+  'top': '─', 'top-mid': '┬', 'top-left': '┌', 'top-right': '┐',
+  'bottom': '─', 'bottom-mid': '┴', 'bottom-left': '└', 'bottom-right': '┘',
+  'left': '│', 'left-mid': '├', 'mid': '─', 'mid-mid': '┼',
+  'right': '│', 'right-mid': '┤', 'middle': '│',
+} as const;
+
 type ChalkInstance = {
   green: (s: string) => string;
   red: (s: string) => string;
@@ -135,12 +142,7 @@ export async function printConsoleReport(
   const summaryTable = new Table({
     head: [c.bold('Dimension'), c.bold('Covered'), c.bold('%'), c.bold('Progress')],
     style: { head: [], border: [] },
-    chars: {
-      'top': '─', 'top-mid': '┬', 'top-left': '┌', 'top-right': '┐',
-      'bottom': '─', 'bottom-mid': '┴', 'bottom-left': '└', 'bottom-right': '┘',
-      'left': '│', 'left-mid': '├', 'mid': '─', 'mid-mid': '┼',
-      'right': '│', 'right-mid': '┤', 'middle': '│',
-    },
+    chars: TABLE_CHARS,
   });
 
   for (const row of rows) {
@@ -193,12 +195,7 @@ export async function printConsoleReport(
     colWidths: [10, 45, 30, 10, 5],
     wordWrap: true,
     style: { head: [], border: [] },
-    chars: {
-      'top': '─', 'top-mid': '┬', 'top-left': '┌', 'top-right': '┐',
-      'bottom': '─', 'bottom-mid': '┴', 'bottom-left': '└', 'bottom-right': '┘',
-      'left': '│', 'left-mid': '├', 'mid': '─', 'mid-mid': '┼',
-      'right': '│', 'right-mid': '┤', 'middle': '│',
-    },
+    chars: TABLE_CHARS,
   });
 
   for (const op of opsToShow) {

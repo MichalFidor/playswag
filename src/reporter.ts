@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import picomatch from 'picomatch';
 import type {
   Reporter,
   FullConfig,
@@ -108,7 +109,10 @@ class PlayswagReporter implements Reporter {
       } else if (attachment.path) {
         try {
           raw = readFileSync(attachment.path, 'utf8');
-        } catch {}
+        } catch (err) {
+          console.warn(`[playswag] Could not read attachment file "${attachment.path}": ${(err as Error).message}`);
+          continue;
+        }
       }
 
       if (!raw) continue;
@@ -116,7 +120,8 @@ class PlayswagReporter implements Reporter {
       let hits: EndpointHit[];
       try {
         hits = JSON.parse(raw) as EndpointHit[];
-      } catch {
+      } catch (err) {
+        console.warn(`[playswag] Could not parse hits attachment for test "${test.title}": ${(err as Error).message}`);
         continue;
       }
 
@@ -214,28 +219,18 @@ class PlayswagReporter implements Reporter {
       }
 
       if (includePatterns?.length) {
-        const included = includePatterns.some((p) => minimatch(path, p));
+        const included = includePatterns.some((p) => picomatch.isMatch(path, p));
         if (!included) return false;
       }
 
       if (excludePatterns?.length) {
-        const excluded = excludePatterns.some((p) => minimatch(path, p));
+        const excluded = excludePatterns.some((p) => picomatch.isMatch(path, p));
         if (excluded) return false;
       }
 
       return true;
     });
   }
-}
-
-/** Minimal glob matching (supports `*` and `**` only). */
-function minimatch(path: string, pattern: string): boolean {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '__GLOBSTAR__')
-    .replace(/\*/g, '[^/]*')
-    .replace(/__GLOBSTAR__/g, '.*');
-  return new RegExp(`^${escaped}$`).test(path);
 }
 
 export default PlayswagReporter;

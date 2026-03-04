@@ -254,7 +254,6 @@ export async function parseSpecs(sources: string | string[]): Promise<Normalized
   const sourceList = Array.isArray(sources) ? sources : [sources];
   const allOperations: NormalizedOperation[] = [];
   const seen = new Map<string, string>();
-  let serverBasePath: string | undefined;
 
   for (const source of sourceList) {
     let parsed: ParsedSpec;
@@ -265,8 +264,7 @@ export async function parseSpecs(sources: string | string[]): Promise<Normalized
         `[playswag] Failed to parse OpenAPI spec from "${source}": ${(err as Error).message}`
       );
     }
-    const { operations: ops, serverBasePath: specBasePath } = parsed;
-    if (!serverBasePath && specBasePath) serverBasePath = specBasePath;
+    const { operations: ops } = parsed;
 
     for (const op of ops) {
       const key = `${op.method}:${op.pathTemplate}`;
@@ -284,5 +282,5 @@ export async function parseSpecs(sources: string | string[]): Promise<Normalized
     }
   }
 
-  return { sources: sourceList, operations: allOperations, serverBasePath };
+  return { sources: sourceList, operations: allOperations };
 }

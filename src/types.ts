@@ -146,12 +146,6 @@ export interface NormalizedSpec {
   /** Original source paths / URLs */
   sources: string[];
   operations: NormalizedOperation[];
-  /**
-   * The base path extracted from the spec's server definition (OAS3 `servers[0].url` pathname
-   * or OAS2 `basePath`). Used to strip the service prefix from recorded URLs before matching.
-   * E.g. `/modeling-service` for a spec whose server URL is `https://host/modeling-service`.
-   */
-  serverBasePath?: string;
 }
 
 /**

@@ -1,6 +1,7 @@
 {
   "name": "playswag",
   "version": "0.1.0",
+  "author": "Michał Fidor <michal.fidor@gmail.com>",
   "description": "Playwright API coverage tracking against Swagger/OpenAPI specifications",
   "keywords": [
     "playwright",
@@ -11,6 +12,17 @@
     "coverage"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MichalFidor/playswag.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MichalFidor/playswag/issues"
+  },
+  "homepage": "https://github.com/MichalFidor/playswag#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "type": "module",
   "main": "./dist/cjs/index.cjs",
   "module": "./dist/esm/index.js",
@@ -57,11 +69,13 @@
     "@apidevtools/swagger-parser": "^12.1.0",
     "chalk": "^5.4.1",
     "cli-table3": "^0.6.5",
-    "openapi-types": "^12.1.3"
+    "openapi-types": "^12.1.3",
+    "picomatch": "^4.0.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
     "@types/node": "^22.0.0",
+    "@types/picomatch": "^4.0.2",
     "tsup": "^8.0.0",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"
