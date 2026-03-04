@@ -3,8 +3,8 @@
  *
  * @example
  * ```ts
- * // In your test files — replace @playwright/test with playswag-api:
- * import { test, expect } from 'playswag-api';
+ * // In your test files — replace @playwright/test with playswag:
+ * import { test, expect } from 'playswag';
  *
  * test('GET /users', async ({ request }) => {
  *   const res = await request.get('/api/users');
@@ -15,7 +15,7 @@
  * @example
  * ```ts
  * // In playwright.config.ts:
- * reporter: [['playswag-api/reporter', { specs: './openapi.yaml' }]]
+ * reporter: [['playswag/reporter', { specs: './openapi.yaml' }]]
  * ```
  */
 export { test, expect, ATTACHMENT_NAME } from './fixture.js';
