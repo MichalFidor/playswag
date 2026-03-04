@@ -17,6 +17,8 @@ import { parseSpecs } from './openapi/parser.js';
 import { calculateCoverage } from './coverage/calculator.js';
 import { printConsoleReport, checkThresholds } from './output/console.js';
 import { writeJsonReport } from './output/json.js';
+import { writeHtmlReport } from './output/html.js';
+import { writeBadge } from './output/badge.js';
 
 
 
@@ -193,6 +195,30 @@ class PlayswagReporter implements Reporter {
           console.log(`[playswag] Coverage report written to ${path}`);
         } catch (err) {
           console.error(`[playswag] Failed to write JSON report: ${(err as Error).message}`);
+        }
+      }
+    }
+
+    if (formats.includes('html')) {
+      const htmlConfig = { enabled: true, ...this.config.htmlOutput };
+      if (htmlConfig.enabled !== false) {
+        try {
+          const path = await writeHtmlReport(coverageResult, this.config.outputDir, htmlConfig);
+          console.log(`[playswag] HTML report written to ${path}`);
+        } catch (err) {
+          console.error(`[playswag] Failed to write HTML report: ${(err as Error).message}`);
+        }
+      }
+    }
+
+    if (formats.includes('badge')) {
+      const badgeConfig = { enabled: true, ...this.config.badge };
+      if (badgeConfig.enabled !== false) {
+        try {
+          const path = await writeBadge(coverageResult, this.config.outputDir, badgeConfig);
+          console.log(`[playswag] Badge written to ${path}`);
+        } catch (err) {
+          console.error(`[playswag] Failed to write badge: ${(err as Error).message}`);
         }
       }
     }

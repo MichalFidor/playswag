@@ -36,8 +36,12 @@ export type {
   ThresholdEntry,
   ConsoleOutputConfig,
   JsonOutputConfig,
+  HtmlOutputConfig,
+  BadgeConfig,
   NormalizedSpec,
   NormalizedOperation,
 } from './types.js';
 
 export type { ThresholdViolation } from './output/console.js';
+export { generateHtmlReport } from './output/html.js';
+export { generateBadgeSvg } from './output/badge.js';

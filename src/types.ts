@@ -221,6 +221,41 @@ export interface JsonOutputConfig {
 }
 
 /**
+ * HTML report output configuration.
+ */
+export interface HtmlOutputConfig {
+  /** @default true */
+  enabled?: boolean;
+  /** @default 'playswag-coverage.html' */
+  fileName?: string;
+  /**
+   * Custom title shown at the top of the HTML report.
+   * @default 'API Coverage Report'
+   */
+  title?: string;
+}
+
+/**
+ * SVG badge configuration.
+ */
+export interface BadgeConfig {
+  /** @default true */
+  enabled?: boolean;
+  /** @default 'playswag-badge.svg' */
+  fileName?: string;
+  /**
+   * Which coverage dimension to reflect in the badge value.
+   * @default 'endpoints'
+   */
+  dimension?: 'endpoints' | 'statusCodes' | 'parameters' | 'bodyProperties';
+  /**
+   * Label text on the left side of the badge.
+   * @default 'API Coverage'
+   */
+  label?: string;
+}
+
+/**
  * Main configuration object for the Playswag reporter.
  * Pass this as the second argument in the reporter array in playwright.config.ts.
  *
@@ -253,7 +288,7 @@ export interface PlayswagConfig {
    * Which output formats to produce.
    * @default ['console', 'json']
    */
-  outputFormats?: Array<'console' | 'json'>;
+  outputFormats?: Array<'console' | 'json' | 'html' | 'badge'>;
 
   /**
    * Base URL of the API under test. Used to strip the host portion when
@@ -278,6 +313,12 @@ export interface PlayswagConfig {
 
   /** JSON file output options */
   jsonOutput?: JsonOutputConfig;
+
+  /** HTML report output options */
+  htmlOutput?: HtmlOutputConfig;
+
+  /** SVG badge options */
+  badge?: BadgeConfig;
 
   /**
    * Coverage thresholds. When set and `failOnThreshold` is true the

@@ -55,6 +55,16 @@ test('GET /api/users/:id — missing user returns 404', async ({ request }) => {
   expect(res.status()).toBe(404);
 });
 
+test('DELETE /api/users/:id — deletes existing user', async ({ request }) => {
+  const res = await request.delete('/api/users/1');
+  expect(res.status()).toBe(204);
+});
+
+test('DELETE /api/users/:id — missing user returns 404', async ({ request }) => {
+  const res = await request.delete('/api/users/9999');
+  expect(res.status()).toBe(404);
+});
+
 test('GET /api/health', async ({ request }) => {
   const res = await request.get('/api/health');
   expect(res.status()).toBe(200);

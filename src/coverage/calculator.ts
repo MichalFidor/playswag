@@ -5,7 +5,6 @@ import type {
   OperationCoverage,
   CoverageSummaryItem,
   ParamCoverage,
-  BodyPropertyCoverage,
   StatusCodeCoverage,
 } from '../types.js';
 import { matchOperation } from '../openapi/matcher.js';
@@ -64,7 +63,8 @@ export function calculateCoverage(
       covered: false,
     }));
 
-    const bodyProperties: BodyPropertyCoverage[] = [];
+    // Pre-seed from spec so uncovered operations still show what could be covered
+    const bodyProperties = analyzeBodyProperties(op, null);
 
     opMap.set(key, {
       path: op.pathTemplate,
@@ -125,15 +125,9 @@ export function calculateCoverage(
     }
 
     const bodyCoverage = analyzeBodyProperties(matchedOp, enrichedHit.requestBody);
-    if (bodyCoverage.length > 0) {
-      if (cov.bodyProperties.length === 0) {
-        cov.bodyProperties.push(...bodyCoverage);
-      } else {
-        for (const bc of bodyCoverage) {
-          const existing = cov.bodyProperties.find((b) => b.name === bc.name);
-          if (existing && bc.covered) existing.covered = true;
-        }
-      }
+    for (const bc of bodyCoverage) {
+      const existing = cov.bodyProperties.find((b) => b.name === bc.name);
+      if (existing && bc.covered) existing.covered = true;
     }
   }
 
