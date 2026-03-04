@@ -1,6 +1,6 @@
 {
   "name": "playswag",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "author": "Michał Fidor <michal.fidor@gmail.com>",
   "description": "Playwright API coverage tracking against Swagger/OpenAPI specifications",
   "keywords": [
