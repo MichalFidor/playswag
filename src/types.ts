@@ -226,7 +226,7 @@ export interface JsonOutputConfig {
  *
  * @example
  * ```ts
- * reporter: [['playswag/reporter', {
+ * reporter: [['playswag-api/reporter', {
  *   specs: ['./openapi.yaml', 'https://api.example.com/swagger.json'],
  *   outputDir: './playswag-coverage',
  *   threshold: { endpoints: 80, statusCodes: 60 },

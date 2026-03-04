@@ -20,7 +20,7 @@ Works with **multiple workers** out of the box — per-worker data is collected 
 ## Installation
 
 ```bash
-npm install --save-dev playswag
+npm install --save-dev playswag-api
 ```
 
 `@playwright/test >=1.20.0` is a required peer dependency.
@@ -33,7 +33,7 @@ npm install --save-dev playswag
 
 ```diff
 -import { test, expect } from '@playwright/test';
-+import { test, expect } from 'playswag';
++import { test, expect } from 'playswag-api';
 ```
 
 That's it. The `request` fixture is transparently wrapped — existing tests need no other changes.
@@ -46,7 +46,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   reporter: [
     ['list'],
-    ['playswag/reporter', {
+    ['playswag-api/reporter', {
       // Required: one or more spec sources (file paths or URLs)
       specs: ['./openapi.yaml'],
 
