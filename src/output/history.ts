@@ -1,6 +1,7 @@
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import type { CoverageResult, CoverageSummary, HistoryConfig } from '../types.js';
+import { log } from '../log.js';
 
 /**
  * A single historical entry persisted in the history file.
@@ -38,7 +39,7 @@ async function readHistory(filePath: string): Promise<HistoryEntry[]> {
     return JSON.parse(raw) as HistoryEntry[];
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.warn(`[playswag] Could not read history file "${filePath}": ${(err as Error).message}`);
+      log.warn(`Could not read history file "${filePath}": ${(err as Error).message}`);
     }
     return [];
   }

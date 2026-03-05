@@ -3,6 +3,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CoverageResult, HtmlOutputConfig, OperationCoverage } from '../types.js';
 import type { HistoryEntry } from './history.js';
+import { log } from '../log.js';
 
 async function loadLogoDataUrl(): Promise<string> {
   try {
@@ -10,7 +11,7 @@ async function loadLogoDataUrl(): Promise<string> {
     const buf = await readFile(assetPath);
     return `data:image/png;base64,${buf.toString('base64')}`;
   } catch (err) {
-    console.warn(`[playswag] Could not load logo asset: ${(err as Error).message}`);
+    log.warn(`Could not load logo asset: ${(err as Error).message}`);
     return '';
   }
 }

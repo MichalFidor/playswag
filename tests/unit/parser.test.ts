@@ -250,7 +250,7 @@ describe('parseSpecs — URL without scheme', () => {
     // but the test verifies that the warning is emitted before the fetch attempt.
     await parseSpecs('example.com/openapi.json').catch(() => {});
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('looks like a URL without a scheme')
+      expect.stringContaining('has no scheme')
     );
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('https://example.com/openapi.json')

@@ -1,4 +1,5 @@
 import type { NormalizedOperation, NormalizedSchema, ParamCoverage, BodyPropertyCoverage, ResponsePropertyCoverage } from '../types.js';
+import { log } from '../log.js';
 
 /** Retrieve the top-level properties of a schema, merging allOf/anyOf/oneOf. */
 function collectTopLevelProperties(schema: NormalizedSchema | undefined): Map<string, boolean> {
@@ -91,7 +92,7 @@ export function analyzeResponseProperties(
         bodyObj = parsed as Record<string, unknown>;
       }
     } catch {
-      console.warn(`[playswag] Could not parse response body as JSON for ${operation.method}:${operation.pathTemplate} (status ${statusCode})`);
+      log.warn(`Could not parse response body as JSON for ${operation.method}:${operation.pathTemplate} (status ${statusCode})`);
     }
   }
 
@@ -133,7 +134,7 @@ export function analyzeBodyProperties(
         bodyObj = parsed as Record<string, unknown>;
       }
     } catch {
-      console.warn(`[playswag] Could not parse request body as JSON for ${operation.method}:${operation.pathTemplate}`);
+      log.warn(`Could not parse request body as JSON for ${operation.method}:${operation.pathTemplate}`);
     }
   }
 

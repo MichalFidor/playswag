@@ -7,6 +7,7 @@ import type {
   NormalizedSchema,
   NormalizedSpec,
 } from '../types.js';
+import { log } from '../log.js';
 
 function isV2(doc: OpenAPI.Document): doc is OpenAPIV2.Document {
   return 'swagger' in doc && (doc as OpenAPIV2.Document).swagger?.startsWith('2');
@@ -137,7 +138,7 @@ function extractServerBasePath(servers: unknown): string | undefined {
     const normalized = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
     return normalized && normalized !== '/' ? normalized : undefined;
   } catch (err) {
-    console.warn(`[playswag] Could not parse server URL "${url}": ${(err as Error).message}`);
+    log.warn(`Could not parse server URL "${url}": ${(err as Error).message}`);
     return undefined;
   }
 }
@@ -246,9 +247,9 @@ function resolveSource(source: string): string {
   if (source.startsWith('/') || source.startsWith('./') || source.startsWith('../')) return source;
   // Matches: hostname.tld/path  (at least one dot, then a slash)
   if (/^[a-z0-9-][a-z0-9.-]*\.[a-z]{2,}\//i.test(source)) {
-    console.warn(
-      `[playswag] Spec source "${source}" looks like a URL without a scheme. ` +
-      `Treating as "https://${source}". Add "https://" explicitly to suppress this warning.`
+    log.warn(
+      `Spec source has no scheme — resolved as "https://${source}"`,
+      'Prefix the URL with "https://" to suppress this warning.'
     );
     return `https://${source}`;
   }
@@ -310,9 +311,7 @@ export async function parseSpecs(sources: string | string[]): Promise<Normalized
     for (const op of ops) {
       const key = `${op.method}:${op.pathTemplate}`;
       if (seen.has(key)) {
-        console.warn(
-          `[playswag] Duplicate operation ${key} found in "${source}" (already seen in "${seen.get(key)}"). Using the latest definition.`
-        );
+        log.warn(`Duplicate operation ${key} in "${source}" (already seen in "${seen.get(key)}") — using latest definition.`);
         const idx = allOperations.findIndex(
           (o) => o.method === op.method && o.pathTemplate === op.pathTemplate
         );

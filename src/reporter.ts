@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import picomatch from 'picomatch';
+import { log } from './log.js';
 import type {
   Reporter,
   FullConfig,
@@ -123,7 +124,7 @@ class PlayswagReporter implements Reporter {
         try {
           raw = readFileSync(attachment.path, 'utf8');
         } catch (err) {
-          console.warn(`[playswag] Could not read attachment file "${attachment.path}": ${(err as Error).message}`);
+          log.warn(`Could not read attachment file "${attachment.path}": ${(err as Error).message}`);
           continue;
         }
       }
@@ -134,7 +135,7 @@ class PlayswagReporter implements Reporter {
       try {
         hits = JSON.parse(raw) as EndpointHit[];
       } catch (err) {
-        console.warn(`[playswag] Could not parse hits attachment for test "${test.title}": ${(err as Error).message}`);
+        log.warn(`Could not parse hits attachment for test "${test.title}": ${(err as Error).message}`);
         continue;
       }
 
@@ -163,7 +164,7 @@ class PlayswagReporter implements Reporter {
     }
 
     if (!this.config.specs) {
-      console.warn('[playswag] No specs configured — skipping coverage. Set the `specs` option in your reporter config.');
+      log.warn('No specs configured — skipping coverage.', 'Set the `specs` option in your reporter config.');
       return;
     }
 
@@ -223,12 +224,12 @@ class PlayswagReporter implements Reporter {
     try {
       spec = await parseSpecs(specsInput);
     } catch (err) {
-      console.error(`[playswag] Could not parse spec(s): ${(err as Error).message}`);
+      log.error(`Could not parse spec(s): ${(err as Error).message}`);
       return false;
     }
 
     if (spec.operations.length === 0) {
-      console.warn('[playswag] No operations found in the provided spec(s). Coverage cannot be calculated.');
+      log.warn('No operations found in the provided spec(s). Coverage cannot be calculated.');
       return false;
     }
 
@@ -249,7 +250,7 @@ class PlayswagReporter implements Reporter {
         if (prev) delta = compareCoverage(coverageResult.summary, prev.summary);
         historyEntries = await loadAllEntries(outputDir, historyConfig ?? {});
       } catch (err) {
-        console.warn(`[playswag] Could not read history: ${(err as Error).message}`);
+        log.warn(`Could not read history: ${(err as Error).message}`);
       }
     }
 
@@ -273,9 +274,9 @@ class PlayswagReporter implements Reporter {
       if (jsonConfig.enabled !== false) {
         try {
           const path = await writeJsonReport(coverageResult, outputDir, jsonConfig);
-          console.log(`[playswag] Coverage report written to ${path}`);
+          log.info(`Coverage report written to ${path}`);
         } catch (err) {
-          console.error(`[playswag] Failed to write JSON report: ${(err as Error).message}`);
+          log.error(`Failed to write JSON report: ${(err as Error).message}`);
         }
       }
     }
@@ -287,12 +288,12 @@ class PlayswagReporter implements Reporter {
           const writtenPath = await writeHtmlReport(coverageResult, outputDir, htmlConfig, historyEntries);
           const absPath = resolve(writtenPath);
           if (process.env['CI']) {
-            console.log(`[playswag] HTML report written to ${absPath}`);
+            log.info(`HTML report written to ${absPath}`);
           } else {
-            console.log(`[playswag] HTML report → file://${absPath}`);
+            log.info(`HTML report → file://${absPath}`);
           }
         } catch (err) {
-          console.error(`[playswag] Failed to write HTML report: ${(err as Error).message}`);
+          log.error(`Failed to write HTML report: ${(err as Error).message}`);
         }
       }
     }
@@ -302,9 +303,9 @@ class PlayswagReporter implements Reporter {
       if (badgeConfig.enabled !== false) {
         try {
           const path = await writeBadge(coverageResult, outputDir, badgeConfig);
-          console.log(`[playswag] Badge written to ${path}`);
+          log.info(`Badge written to ${path}`);
         } catch (err) {
-          console.error(`[playswag] Failed to write badge: ${(err as Error).message}`);
+          log.error(`Failed to write badge: ${(err as Error).message}`);
         }
       }
     }
@@ -314,9 +315,9 @@ class PlayswagReporter implements Reporter {
       if (junitConfig.enabled !== false) {
         try {
           const path = await writeJUnitReport(coverageResult, outputDir, this.config.threshold, junitConfig);
-          console.log(`[playswag] JUnit report written to ${path}`);
+          log.info(`JUnit report written to ${path}`);
         } catch (err) {
-          console.error(`[playswag] Failed to write JUnit report: ${(err as Error).message}`);
+          log.error(`Failed to write JUnit report: ${(err as Error).message}`);
         }
       }
     }
@@ -326,7 +327,7 @@ class PlayswagReporter implements Reporter {
       try {
         await appendToHistory(coverageResult, outputDir, historyConfig ?? {});
       } catch (err) {
-        console.warn(`[playswag] Could not write history: ${(err as Error).message}`);
+        log.warn(`Could not write history: ${(err as Error).message}`);
       }
     }
 
@@ -340,7 +341,7 @@ class PlayswagReporter implements Reporter {
       try {
         await writeStepSummary(coverageResult, violations);
       } catch (err) {
-        console.warn(`[playswag] Could not write GitHub step summary: ${(err as Error).message}`);
+        log.warn(`Could not write GitHub step summary: ${(err as Error).message}`);
       }
     }
 

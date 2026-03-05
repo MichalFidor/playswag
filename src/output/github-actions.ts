@@ -1,6 +1,7 @@
 import { appendFile } from 'node:fs/promises';
 import type { CoverageResult } from '../types.js';
 import type { ThresholdViolation } from './console.js';
+import { log } from '../log.js';
 
 /**
  * Whether the current process is running inside GitHub Actions.
@@ -87,6 +88,6 @@ export async function writeStepSummary(
   try {
     await appendFile(summaryPath, content, 'utf8');
   } catch (err) {
-    console.warn(`[playswag] Could not write to $GITHUB_STEP_SUMMARY: ${(err as Error).message}`);
+    log.warn(`Could not write to $GITHUB_STEP_SUMMARY: ${(err as Error).message}`);
   }
 }
