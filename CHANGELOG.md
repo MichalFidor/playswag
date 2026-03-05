@@ -7,6 +7,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.5.2] — 2026-03-05
+
+Re-release of 1.5.0 — no code changes. The 1.5.0 and 1.5.1 version slots were
+consumed by failed/unpublished local publish attempts.
+
+---
+
 ## [1.5.1] — 2026-03-05
 
 Re-release of 1.5.0 — no code changes. The 1.5.0 version slot was consumed by a
