@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSpecs } from '../../src/openapi/parser.js';
@@ -240,5 +240,41 @@ describe('parseSpecs (OAS2 / Swagger 2.0)', () => {
     const keys = spec.operations.map((op) => `${op.method}:${op.pathTemplate}`);
     expect(keys).toContain('GET:/api/users');
     expect(keys).toContain('GET:/api/products');
+  });
+});
+
+describe('parseSpecs — URL without scheme', () => {
+  it('wraps a bare hostname+path source with https:// and warns', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // A self-referencing attempt: the bare URL will fail to fetch (no live server),
+    // but the test verifies that the warning is emitted before the fetch attempt.
+    await parseSpecs('example.com/openapi.json').catch(() => {});
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('looks like a URL without a scheme')
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('https://example.com/openapi.json')
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('does not warn or rewrite absolute file paths', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await parseSpecs('/non/existent/path.yaml').catch(() => {});
+    const schemeWarnings = warnSpy.mock.calls.filter((args) =>
+      String(args[0]).includes('looks like a URL without a scheme')
+    );
+    expect(schemeWarnings).toHaveLength(0);
+    warnSpy.mockRestore();
+  });
+
+  it('does not warn or rewrite http:// sources', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await parseSpecs('http://localhost:9999/openapi.json').catch(() => {});
+    const schemeWarnings = warnSpy.mock.calls.filter((args) =>
+      String(args[0]).includes('looks like a URL without a scheme')
+    );
+    expect(schemeWarnings).toHaveLength(0);
+    warnSpy.mockRestore();
   });
 });

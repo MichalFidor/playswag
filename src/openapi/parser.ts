@@ -236,8 +236,28 @@ interface ParsedSpec {
   serverBasePath?: string;
 }
 
+/**
+ * If `source` looks like a bare hostname+path URL without a scheme
+ * (e.g. `api.example.com/v2/openapi.yaml`), prepend `https://` and warn.
+ * SwaggerParser only fetches sources that begin with `http://` or `https://`.
+ */
+function resolveSource(source: string): string {
+  if (/^https?:\/\//i.test(source)) return source;
+  if (source.startsWith('/') || source.startsWith('./') || source.startsWith('../')) return source;
+  // Matches: hostname.tld/path  (at least one dot, then a slash)
+  if (/^[a-z0-9-][a-z0-9.-]*\.[a-z]{2,}\//i.test(source)) {
+    console.warn(
+      `[playswag] Spec source "${source}" looks like a URL without a scheme. ` +
+      `Treating as "https://${source}". Add "https://" explicitly to suppress this warning.`
+    );
+    return `https://${source}`;
+  }
+  return source;
+}
+
 async function parseOne(source: string): Promise<ParsedSpec> {
-  const doc = await SwaggerParser.dereference(source) as OpenAPI.Document;
+  const resolvedSource = resolveSource(source);
+  const doc = await SwaggerParser.dereference(resolvedSource) as OpenAPI.Document;
 
   if (isV2(doc)) {
     const v2 = doc as OpenAPIV2.Document;

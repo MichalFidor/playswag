@@ -1,15 +1,37 @@
 import {
   test as base,
   expect,
+  defineConfig as baseDefineConfig,
   type APIRequestContext,
   type APIResponse,
   type TestInfo,
+  type PlaywrightTestConfig,
 } from '@playwright/test';
-import type { EndpointHit } from './types.js';
+import type { EndpointHit, PlayswagFixtureOptions } from './types.js';
 import { ATTACHMENT_NAME } from './constants.js';
 
 export { expect };
 export { ATTACHMENT_NAME } from './constants.js';
+
+/**
+ * Type-aware wrapper around Playwright's `defineConfig` that makes playswag fixture
+ * options (`playswagSpecs`, `playswagBaseURL`, `playswagEnabled`, `captureResponseBody`)
+ * available in each project's `use` block without TypeScript errors.
+ *
+ * Replace the `@playwright/test` import in your `playwright.config.ts`:
+ * ```ts
+ * // Before:
+ * import { defineConfig } from '@playwright/test';
+ * // After:
+ * import { defineConfig } from '@michalfidor/playswag';
+ * ```
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export function defineConfig<T = {}, W = {}>(
+  config: PlaywrightTestConfig<T & PlayswagFixtureOptions, W>
+): PlaywrightTestConfig<T & PlayswagFixtureOptions, W> {
+  return baseDefineConfig(config) as PlaywrightTestConfig<T & PlayswagFixtureOptions, W>;
+}
 
 const INTERCEPTED_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head', 'fetch'] as const;
 type HttpMethod = (typeof INTERCEPTED_METHODS)[number];

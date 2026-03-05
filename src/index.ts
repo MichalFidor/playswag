@@ -61,7 +61,7 @@
  * test.use({ playswagEnabled: false });
  * ```
  */
-export { test, expect, ATTACHMENT_NAME } from './fixture.js';
+export { test, expect, ATTACHMENT_NAME, defineConfig } from './fixture.js';
 export type { PlayswagFixtures } from './fixture.js';
 
 export type {
