@@ -12,7 +12,7 @@ import type {
   TestResult,
   FullResult,
 } from '@playwright/test/reporter';
-import type { EndpointHit, PlayswagConfig } from './types.js';
+import type { EndpointHit, PlayswagConfig, CoverageResult } from './types.js';
 import type { HistoryEntry } from './output/history.js';
 import { ATTACHMENT_NAME } from './constants.js';
 import { parseSpecs } from './openapi/parser.js';
@@ -214,6 +214,71 @@ class PlayswagReporter implements Reporter {
     if (anyFailed) return { status: 'failed' };
   }
 
+  // ── Per-format output helpers ─────────────────────────────────────────────
+
+  private async emitJsonOutput(result: CoverageResult, outputDir: string): Promise<void> {
+    const jsonConfig = { enabled: true, ...this.config.jsonOutput };
+    if (jsonConfig.enabled === false) return;
+    try {
+      const path = await writeJsonReport(result, outputDir, jsonConfig);
+      log.info(`Coverage report written to ${path}`);
+    } catch (err) {
+      log.error(`Failed to write JSON report: ${(err as Error).message}`);
+    }
+  }
+
+  private async emitHtmlOutput(
+    result: CoverageResult,
+    outputDir: string,
+    historyEntries: HistoryEntry[],
+  ): Promise<void> {
+    const htmlConfig = { enabled: true, ...this.config.htmlOutput };
+    if (htmlConfig.enabled === false) return;
+    try {
+      const writtenPath = await writeHtmlReport(result, outputDir, htmlConfig, historyEntries);
+      const absPath = resolve(writtenPath);
+      log.info(process.env['CI'] ? `HTML report written to ${absPath}` : `HTML report → file://${absPath}`);
+    } catch (err) {
+      log.error(`Failed to write HTML report: ${(err as Error).message}`);
+    }
+  }
+
+  private async emitBadgeOutput(result: CoverageResult, outputDir: string): Promise<void> {
+    const badgeConfig = { enabled: true, ...this.config.badge };
+    if (badgeConfig.enabled === false) return;
+    try {
+      const path = await writeBadge(result, outputDir, badgeConfig);
+      log.info(`Badge written to ${path}`);
+    } catch (err) {
+      log.error(`Failed to write badge: ${(err as Error).message}`);
+    }
+  }
+
+  private async emitJUnitOutput(result: CoverageResult, outputDir: string): Promise<void> {
+    const junitConfig = { enabled: true, ...this.config.junitOutput };
+    if (junitConfig.enabled === false) return;
+    try {
+      const path = await writeJUnitReport(result, outputDir, this.config.threshold, junitConfig);
+      log.info(`JUnit report written to ${path}`);
+    } catch (err) {
+      log.error(`Failed to write JUnit report: ${(err as Error).message}`);
+    }
+  }
+
+  private async saveHistoryData(
+    result: CoverageResult,
+    outputDir: string,
+    historyConfig: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await appendToHistory(result, outputDir, historyConfig);
+    } catch (err) {
+      log.warn(`Could not write history: ${(err as Error).message}`);
+    }
+  }
+
+  // ── Main output orchestration ─────────────────────────────────────────────
+
   private async runOutputsForGroup(
     filteredHits: EndpointHit[],
     specsInput: string | string[],
@@ -240,11 +305,13 @@ class PlayswagReporter implements Reporter {
       totalTestCount: this.totalTestCount,
     });
 
-    // ── History: load previous entry for delta, then load all for sparklines ──
     const historyConfig = this.config.history ? { enabled: true, ...this.config.history } : undefined;
-    let delta;
+    const historyEnabled = historyConfig?.enabled !== false;
+
+    // Load history (for delta indicators and sparklines) before emitting reports
+    let delta: ReturnType<typeof compareCoverage> | undefined;
     let historyEntries: HistoryEntry[] = [];
-    if (historyConfig?.enabled !== false) {
+    if (historyEnabled) {
       try {
         const prev = await loadLastEntry(outputDir, historyConfig ?? {});
         if (prev) delta = compareCoverage(coverageResult.summary, prev.summary);
@@ -259,83 +326,22 @@ class PlayswagReporter implements Reporter {
     if (formats.includes('console')) {
       const consoleConfig = { enabled: true, ...this.config.consoleOutput };
       if (consoleConfig.enabled !== false) {
-        await printConsoleReport(
-          coverageResult,
-          consoleConfig,
-          this.config.threshold,
-          this.config.failOnThreshold,
-          delta
-        );
+        await printConsoleReport(coverageResult, consoleConfig, this.config.threshold, this.config.failOnThreshold, delta);
       }
     }
 
-    if (formats.includes('json')) {
-      const jsonConfig = { enabled: true, ...this.config.jsonOutput };
-      if (jsonConfig.enabled !== false) {
-        try {
-          const path = await writeJsonReport(coverageResult, outputDir, jsonConfig);
-          log.info(`Coverage report written to ${path}`);
-        } catch (err) {
-          log.error(`Failed to write JSON report: ${(err as Error).message}`);
-        }
-      }
-    }
+    if (formats.includes('json'))   await this.emitJsonOutput(coverageResult, outputDir);
+    if (formats.includes('html'))   await this.emitHtmlOutput(coverageResult, outputDir, historyEntries);
+    if (formats.includes('badge'))  await this.emitBadgeOutput(coverageResult, outputDir);
+    if (formats.includes('junit'))  await this.emitJUnitOutput(coverageResult, outputDir);
 
-    if (formats.includes('html')) {
-      const htmlConfig = { enabled: true, ...this.config.htmlOutput };
-      if (htmlConfig.enabled !== false) {
-        try {
-          const writtenPath = await writeHtmlReport(coverageResult, outputDir, htmlConfig, historyEntries);
-          const absPath = resolve(writtenPath);
-          if (process.env['CI']) {
-            log.info(`HTML report written to ${absPath}`);
-          } else {
-            log.info(`HTML report → file://${absPath}`);
-          }
-        } catch (err) {
-          log.error(`Failed to write HTML report: ${(err as Error).message}`);
-        }
-      }
-    }
-
-    if (formats.includes('badge')) {
-      const badgeConfig = { enabled: true, ...this.config.badge };
-      if (badgeConfig.enabled !== false) {
-        try {
-          const path = await writeBadge(coverageResult, outputDir, badgeConfig);
-          log.info(`Badge written to ${path}`);
-        } catch (err) {
-          log.error(`Failed to write badge: ${(err as Error).message}`);
-        }
-      }
-    }
-
-    if (formats.includes('junit')) {
-      const junitConfig = { enabled: true, ...this.config.junitOutput };
-      if (junitConfig.enabled !== false) {
-        try {
-          const path = await writeJUnitReport(coverageResult, outputDir, this.config.threshold, junitConfig);
-          log.info(`JUnit report written to ${path}`);
-        } catch (err) {
-          log.error(`Failed to write JUnit report: ${(err as Error).message}`);
-        }
-      }
-    }
-
-    // ── Append to history after all reports are written ─────────────────────
-    if (historyConfig?.enabled !== false) {
-      try {
-        await appendToHistory(coverageResult, outputDir, historyConfig ?? {});
-      } catch (err) {
-        log.warn(`Could not write history: ${(err as Error).message}`);
-      }
-    }
+    // Append to history after all reports are written
+    if (historyEnabled) await this.saveHistoryData(coverageResult, outputDir, historyConfig ?? {});
 
     const violations = this.config.threshold
       ? checkThresholds(coverageResult, this.config.threshold, this.config.failOnThreshold)
       : [];
 
-    // ── GitHub Actions annotations and step summary ──────────────────────────
     if (isGitHubActions()) {
       if (violations.length > 0) emitAnnotations(violations);
       try {

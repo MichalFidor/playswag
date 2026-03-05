@@ -479,14 +479,6 @@ export interface PlayswagConfig {
   /** HTML report output options */
   htmlOutput?: HtmlOutputConfig;
 
-  /**
-   * Disable response body capture globally. Equivalent to adding
-   * `test.use({ captureResponseBody: false })` to every test file.
-   * The fixture option takes precedence when explicitly set per-file.
-   * @default true
-   */
-  captureResponseBody?: boolean;
-
   /** SVG badge options */
   badge?: BadgeConfig;
 

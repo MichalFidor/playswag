@@ -8,7 +8,7 @@ import type {
   ParamCoverage,
   StatusCodeCoverage,
 } from '../types.js';
-import { matchOperation } from '../openapi/matcher.js';
+import { matchOperation, buildOperationIndex } from '../openapi/matcher.js';
 import { analyzeParameters, analyzeBodyProperties, analyzeResponseProperties } from './schema-analyzer.js';
 
 function makeItem(total: number, covered: number): CoverageSummaryItem {
@@ -90,8 +90,11 @@ export function calculateCoverage(
 
   const unmatchedHits: EndpointHit[] = [];
 
+  // Build index once so matchOperation can skip O(n) scan for every hit.
+  const operationIndex = buildOperationIndex(spec.operations);
+
   for (const hit of hits) {
-    const match = matchOperation(hit.url, hit.method, spec.operations, options.baseURL);
+    const match = matchOperation(hit.url, hit.method, spec.operations, options.baseURL, operationIndex);
 
     if (!match) {
       unmatchedHits.push(hit);

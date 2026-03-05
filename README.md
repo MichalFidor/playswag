@@ -41,7 +41,7 @@ That's it. The `request` fixture is transparently wrapped — existing tests nee
 ### 2. Add the reporter to `playwright.config.ts`
 
 ```ts
-import { defineConfig } from '@playwright/test';
+import { defineConfig } from '@michalfidor/playswag'; // typed wrapper — accepts playswagSpecs etc.
 
 export default defineConfig({
   reporter: [
@@ -111,11 +111,13 @@ interface PlayswagConfiguration {
   excludePatterns?: string[];
 
   consoleOutput?: {
-    enabled?: boolean;            // @default true
-    showUncoveredOnly?: boolean;  // @default false
-    showOperations?: boolean;     // @default true — per-operation table
-    showParams?: boolean;         // @default false
-    showBodyProperties?: boolean; // @default false
+    enabled?: boolean;                  // @default true
+    showUncoveredOnly?: boolean;        // @default false
+    showOperations?: boolean;           // @default true — per-operation table
+    showParams?: boolean;               // @default false
+    showBodyProperties?: boolean;       // @default false
+    showResponseProperties?: boolean;   // @default false — expand response body fields per status code
+    showTags?: boolean;                 // @default false — per-tag summary table
   };
 
   jsonOutput?: {
@@ -146,12 +148,33 @@ interface PlayswagConfiguration {
     label?: string;                                                           // @default 'API Coverage'
   };
 
+  /**
+   * Coverage history options.
+   * Each run appends a summary entry. The HTML report shows a sparkline;
+   * the console report shows ↑/↓ delta indicators.
+   */
+  history?: {
+    enabled?: boolean;    // @default true
+    fileName?: string;    // @default 'playswag-history.json'
+    maxEntries?: number;  // @default 50
+  };
+
+  /**
+   * JUnit XML output options.
+   * Enable by adding 'junit' to outputFormats.
+   */
+  junitOutput?: {
+    enabled?: boolean;  // @default true
+    fileName?: string;  // @default 'playswag-junit.xml'
+  };
+
   threshold?: {
     // Plain number: informational warning only (respects failOnThreshold globally)
-    endpoints?: number | { min: number; fail?: boolean };
-    statusCodes?: number | { min: number; fail?: boolean };
-    parameters?: number | { min: number; fail?: boolean };
-    bodyProperties?: number | { min: number; fail?: boolean };
+    endpoints?:         number | { min: number; fail?: boolean };
+    statusCodes?:       number | { min: number; fail?: boolean };
+    parameters?:        number | { min: number; fail?: boolean };
+    bodyProperties?:    number | { min: number; fail?: boolean };
+    responseProperties?:number | { min: number; fail?: boolean };
   };
 
   /**
@@ -185,6 +208,8 @@ calculation per project and writes each report to `outputDir/<projectName>/`.
 
 ```ts
 // playwright.config.ts
+import { defineConfig } from '@michalfidor/playswag';  // typed: accepts playswagSpecs in use blocks
+
 export default defineConfig({
   reporter: [
     ['@michalfidor/playswag/reporter', {
@@ -337,7 +362,48 @@ Colour thresholds: **green** ≥ 80 % · **orange** ≥ 50 % · **red** < 50 %.
 
 ---
 
-## Console output example
+## Coverage history
+
+Add `history` to the reporter config to persist a summary after each run. The HTML report renders sparklines; the console report shows ↑ / ↓ delta indicators.
+
+```ts
+history: {
+  enabled: true,       // @default true when the key is present
+  maxEntries: 50,      // keep last 50 runs
+  fileName: 'playswag-history.json',  // written to outputDir
+}
+```
+
+The file is appended automatically and trimmed to `maxEntries`. Delete it to reset the history.
+
+---
+
+## JUnit XML output
+
+Add `'junit'` to `outputFormats` to write a JUnit-compatible XML file:
+
+```ts
+outputFormats: ['console', 'json', 'junit'],
+junitOutput: {
+  fileName: 'playswag-junit.xml',  // written to outputDir
+},
+```
+
+Each coverage dimension becomes a `<testcase>`. Threshold violations produce `<failure>` elements, making the report compatible with Jenkins, GitLab CI, and other JUnit-aware systems.
+
+---
+
+## GitHub Actions
+
+When `GITHUB_ACTIONS=true` playswag automatically:
+
+1. **Emits annotations** — threshold violations appear as warning annotations on the summary page.
+2. **Writes a step summary** — a Markdown table with four-dimension coverage results is appended to `$GITHUB_STEP_SUMMARY` and shown in the Actions UI.
+
+No configuration required. Both features activate only inside GitHub Actions.
+
+---
+
 
 ```
 ────────────────────────────────────────────────────────────────────────────────

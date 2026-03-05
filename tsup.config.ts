@@ -32,7 +32,7 @@ export default defineConfig([
     splitting: false,
     treeshake: true,
   },
-  // Type declarations
+  // Type declarations — ESM (.d.ts)
   {
     entry: {
       index: 'src/index.ts',
@@ -40,6 +40,17 @@ export default defineConfig([
     },
     outDir: 'dist/types',
     format: ['esm'],
+    dts: { only: true },
+    external: ['@playwright/test'],
+  },
+  // Type declarations — CJS (.d.cts)
+  {
+    entry: {
+      index: 'src/index.ts',
+      reporter: 'src/reporter.ts',
+    },
+    outDir: 'dist/types',
+    format: ['cjs'],
     dts: { only: true },
     external: ['@playwright/test'],
   },

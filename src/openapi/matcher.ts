@@ -5,6 +5,50 @@ interface MatchResult {
   pathParams: Record<string, string>;
 }
 
+// ── Operation index ───────────────────────────────────────────────────────────
+
+/**
+ * Pre-built lookup structure for efficient operation matching.
+ * Construct once per spec via {@link buildOperationIndex}, then pass to every
+ * {@link matchOperation} call to avoid redundant URL parsing.
+ */
+export interface OperationIndex {
+  /**
+   * Operations grouped by `"METHOD:firstLiteralSegment"`.
+   * Operations whose first path template segment is a parameter (`{id}`) or whose
+   * template is just `/` are stored under `"METHOD:"` (the catch-all bucket).
+   */
+  buckets: Map<string, NormalizedOperation[]>;
+  /**
+   * Deduplicated list of `serverBasePath` values found across all operations.
+   * Usually contains only 1–2 values even in multi-service specs.
+   */
+  basePaths: (string | undefined)[];
+}
+
+/**
+ * Build a {@link OperationIndex} from a list of normalized operations.
+ * Call this once after parsing the spec; reuse the result for every hit.
+ */
+export function buildOperationIndex(operations: NormalizedOperation[]): OperationIndex {
+  const buckets = new Map<string, NormalizedOperation[]>();
+  const basePathSet = new Set<string | undefined>();
+
+  for (const op of operations) {
+    basePathSet.add(op.serverBasePath);
+
+    const segments = op.pathTemplate.split('/').filter(Boolean);
+    const first = segments[0];
+    // Use the literal first segment as a narrow bucket key; fall back to '' for
+    // parameterised first segments (e.g. "/{id}") or root paths ("/").
+    const key = `${op.method}:${(first && !first.startsWith('{')) ? first.toLowerCase() : ''}`;
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(op);
+    if (!buckets.has(key)) buckets.set(key, bucket);
+  }
+
+  return { buckets, basePaths: [...basePathSet] };
+}
 /**
  * Strip a URL down to just its path component, optionally removing a baseURL prefix.
  *
@@ -102,24 +146,61 @@ export function matchTemplate(
  *
  * Returns the matched operation with extracted path params, or null if no
  * operation matches.
+ *
+ * Pass a pre-built {@link OperationIndex} (from {@link buildOperationIndex}) to
+ * skip the O(n) linear scan and avoid redundant URL parsing — this is the
+ * recommended path for the reporter which processes thousands of hits per run.
  */
 export function matchOperation(
   recordedUrl: string,
   recordedMethod: string,
   operations: NormalizedOperation[],
-  baseURL?: string
+  baseURL?: string,
+  index?: OperationIndex
 ): MatchResult | null {
   const method = recordedMethod.toUpperCase();
 
+  if (!index) {
+    // Fallback: O(n) linear scan (no index — used by tests and one-off callers)
+    let bestMatch: MatchResult | null = null;
+    let bestScore = -1;
+    for (const op of operations) {
+      if (op.method !== method) continue;
+      const path = stripToPath(recordedUrl, baseURL, op.serverBasePath);
+      const result = matchTemplate(path, op.pathTemplate);
+      if (result && result.score > bestScore) {
+        bestScore = result.score;
+        bestMatch = { operation: op, pathParams: result.pathParams };
+      }
+    }
+    return bestMatch;
+  }
+
+  // ── Indexed path ──────────────────────────────────────────────────────────
+  // 1. For each unique serverBasePath, compute the stripped path once.
+  const strippedByBase = new Map<string | undefined, string>();
+  for (const bp of index.basePaths) {
+    strippedByBase.set(bp, stripToPath(recordedUrl, baseURL, bp));
+  }
+
+  // 2. Collect candidate operations from matching buckets.
+  const candidates = new Set<NormalizedOperation>();
+  const catchAllKey = `${method}:`;
+
+  for (const stripped of strippedByBase.values()) {
+    const firstSeg = stripped.split('/').filter(Boolean)[0]?.toLowerCase() ?? '';
+    const literalKey = `${method}:${firstSeg}`;
+    for (const op of index.buckets.get(literalKey) ?? []) candidates.add(op);
+    for (const op of index.buckets.get(catchAllKey) ?? []) candidates.add(op);
+  }
+
+  // 3. Match only the candidates.
   let bestMatch: MatchResult | null = null;
   let bestScore = -1;
 
-  for (const op of operations) {
-    if (op.method !== method) continue;
-
-    // Strip using this operation's own serverBasePath so multi-service specs resolve correctly.
-    const path = stripToPath(recordedUrl, baseURL, op.serverBasePath);
-    const result = matchTemplate(path, op.pathTemplate);
+  for (const op of candidates) {
+    const stripped = strippedByBase.get(op.serverBasePath)!;
+    const result = matchTemplate(stripped, op.pathTemplate);
     if (result && result.score > bestScore) {
       bestScore = result.score;
       bestMatch = { operation: op, pathParams: result.pathParams };

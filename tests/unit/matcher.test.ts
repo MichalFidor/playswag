@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripToPath, matchTemplate, matchOperation } from '../../src/openapi/matcher.js';
+import { stripToPath, matchTemplate, matchOperation, buildOperationIndex } from '../../src/openapi/matcher.js';
 import type { NormalizedOperation } from '../../src/types.js';
 
 describe('stripToPath', () => {
@@ -193,5 +193,82 @@ describe('matchOperation', () => {
     expect(matchA?.operation.pathTemplate).toBe('/v1/foo');
     const matchB = matchOperation('https://host/svc-b/v1/bar', 'GET', multiServiceOps, 'https://host');
     expect(matchB?.operation.pathTemplate).toBe('/v1/bar');
+  });
+});
+
+describe('buildOperationIndex', () => {
+  const ops: NormalizedOperation[] = [
+    { pathTemplate: '/api/users',     method: 'GET',    parameters: [], responses: {} },
+    { pathTemplate: '/api/users',     method: 'POST',   parameters: [], responses: {} },
+    { pathTemplate: '/api/users/{id}',method: 'GET',    parameters: [], responses: {} },
+    { pathTemplate: '/api/users/{id}',method: 'DELETE', parameters: [], responses: {} },
+    { pathTemplate: '/api/health',    method: 'GET',    parameters: [], responses: {} },
+    { pathTemplate: '/{wildcard}',    method: 'GET',    parameters: [], responses: {} },
+  ];
+
+  it('creates a bucket for operations with a literal first segment', () => {
+    const idx = buildOperationIndex(ops);
+    expect(idx.buckets.has('GET:api')).toBe(true);
+    expect(idx.buckets.get('GET:api')!.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('places param-first templates in the catch-all bucket', () => {
+    const idx = buildOperationIndex(ops);
+    const catchAll = idx.buckets.get('GET:') ?? [];
+    expect(catchAll.some(op => op.pathTemplate === '/{wildcard}')).toBe(true);
+  });
+
+  it('collects unique base paths', () => {
+    const svcOps: NormalizedOperation[] = [
+      { pathTemplate: '/v1/a', method: 'GET', parameters: [], responses: {}, serverBasePath: '/svc-a' },
+      { pathTemplate: '/v1/b', method: 'GET', parameters: [], responses: {}, serverBasePath: '/svc-b' },
+      { pathTemplate: '/v1/c', method: 'GET', parameters: [], responses: {}, serverBasePath: '/svc-a' },
+    ];
+    const idx = buildOperationIndex(svcOps);
+    expect(idx.basePaths).toHaveLength(2);
+    expect(idx.basePaths).toContain('/svc-a');
+    expect(idx.basePaths).toContain('/svc-b');
+  });
+});
+
+describe('matchOperation — indexed vs linear parity', () => {
+  const ops: NormalizedOperation[] = [
+    { pathTemplate: '/api/users',      method: 'GET',    parameters: [], responses: {} },
+    { pathTemplate: '/api/users',      method: 'POST',   parameters: [], responses: {} },
+    { pathTemplate: '/api/users/{id}', method: 'GET',    parameters: [], responses: {} },
+    { pathTemplate: '/api/users/{id}', method: 'DELETE', parameters: [], responses: {} },
+    { pathTemplate: '/api/health',     method: 'GET',    parameters: [], responses: {} },
+  ];
+  const BASE = 'https://api.example.com';
+  const index = buildOperationIndex(ops);
+
+  const cases: [string, string][] = [
+    [`${BASE}/api/users`,     'GET'],
+    [`${BASE}/api/users`,     'POST'],
+    [`${BASE}/api/users/42`,  'GET'],
+    [`${BASE}/api/users/42`,  'DELETE'],
+    [`${BASE}/api/health`,    'GET'],
+    [`${BASE}/api/notfound`,  'GET'],
+    [`${BASE}/api/users`,     'PATCH'],
+  ];
+
+  for (const [url, method] of cases) {
+    it(`${method} ${url.replace(BASE, '')} — indexed === linear`, () => {
+      const linear  = matchOperation(url, method, ops, BASE);
+      const indexed = matchOperation(url, method, ops, BASE, index);
+      expect(indexed?.operation.pathTemplate).toBe(linear?.operation.pathTemplate);
+      expect(indexed?.pathParams).toEqual(linear?.pathParams);
+    });
+  }
+
+  it('indexed and linear agree for multi-service ops', () => {
+    const svcOps: NormalizedOperation[] = [
+      { pathTemplate: '/v1/users', method: 'GET', parameters: [], responses: {}, serverBasePath: '/svc-a' },
+      { pathTemplate: '/v1/items', method: 'GET', parameters: [], responses: {}, serverBasePath: '/svc-b' },
+    ];
+    const svcIndex = buildOperationIndex(svcOps);
+    const linear  = matchOperation('https://host/svc-a/v1/users', 'GET', svcOps, 'https://host');
+    const indexed = matchOperation('https://host/svc-a/v1/users', 'GET', svcOps, 'https://host', svcIndex);
+    expect(indexed?.operation.pathTemplate).toBe(linear?.operation.pathTemplate);
   });
 });
