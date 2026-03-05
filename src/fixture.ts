@@ -102,6 +102,10 @@ type PlayswagOptions = {
   playswagEnabled: boolean;
   /** Set to false to opt out of response body capture (e.g. for large binary responses). @default true */
   captureResponseBody: boolean;
+  /** Per-project OpenAPI/Swagger spec path(s) that override the reporter-level `specs`. */
+  playswagSpecs: string | string[] | undefined;
+  /** Per-project base URL that overrides `baseURL` when stripping URL prefixes during matching. */
+  playswagBaseURL: string | undefined;
 };
 
 /**
@@ -142,6 +146,8 @@ export type PlayswagFixtures = {
 export const test = base.extend<PlayswagOptions & PlayswagFixtures>({
   playswagEnabled: [true, { option: true }],
   captureResponseBody: [true, { option: true }],
+  playswagSpecs: [undefined, { option: true }],
+  playswagBaseURL: [undefined, { option: true }],
 
   trackRequest: async (
     { playswagEnabled, captureResponseBody }: { playswagEnabled: boolean; captureResponseBody: boolean },

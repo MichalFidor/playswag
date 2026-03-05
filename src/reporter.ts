@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import picomatch from 'picomatch';
 import type {
@@ -83,6 +83,7 @@ class PlayswagReporter implements Reporter {
     PlayswagConfig;
 
   private aggregatedHits: EndpointHit[] = [];
+  private readonly projectOverrides = new Map<string, { specs: string | string[]; baseURL?: string }>();
   private baseURL: string | undefined;
   private totalTestCount = 0;
 
@@ -137,9 +138,19 @@ class PlayswagReporter implements Reporter {
         continue;
       }
 
+      const proj = test.parent.project();
+      const use = proj?.use as Record<string, unknown> | undefined;
+      const projSpecs = use?.['playswagSpecs'] as string | string[] | undefined;
+      const projBaseURL = (use?.['playswagBaseURL'] as string | undefined) ?? proj?.use?.baseURL;
+
+      if (projSpecs && proj?.name) {
+        this.projectOverrides.set(proj.name, { specs: projSpecs, baseURL: projBaseURL });
+      }
+
       for (const hit of hits) {
         if (!hit.testFile) hit.testFile = test.location.file;
         if (!hit.testTitle) hit.testTitle = test.title;
+        hit.projectName = proj?.name;
       }
 
       this.aggregatedHits.push(...hits);
@@ -147,28 +158,82 @@ class PlayswagReporter implements Reporter {
   }
 
   async onEnd(_result: FullResult): Promise<{ status?: FullResult['status'] } | void> {
+    if (this.projectOverrides.size > 0) {
+      return this.runMultiProjectCoverage();
+    }
+
     if (!this.config.specs) {
       console.warn('[playswag] No specs configured — skipping coverage. Set the `specs` option in your reporter config.');
       return;
     }
 
+    const failed = await this.runOutputsForGroup(
+      this.filterHits(this.aggregatedHits),
+      this.config.specs,
+      this.baseURL,
+      this.config.outputDir,
+    );
+    if (failed) return { status: 'failed' };
+  }
+
+  private async runMultiProjectCoverage(): Promise<{ status?: FullResult['status'] } | void> {
+    const hitsByProject = new Map<string, EndpointHit[]>();
+    const globalHits: EndpointHit[] = [];
+
+    for (const hit of this.aggregatedHits) {
+      if (hit.projectName && this.projectOverrides.has(hit.projectName)) {
+        const arr = hitsByProject.get(hit.projectName) ?? [];
+        arr.push(hit);
+        hitsByProject.set(hit.projectName, arr);
+      } else {
+        globalHits.push(hit);
+      }
+    }
+
+    let anyFailed = false;
+
+    for (const [projectName, override] of this.projectOverrides) {
+      const projectHits = this.filterHits(hitsByProject.get(projectName) ?? []);
+      const projectOutputDir = join(this.config.outputDir, projectName);
+      const projectBaseURL = override.baseURL ?? this.baseURL;
+      const failed = await this.runOutputsForGroup(projectHits, override.specs, projectBaseURL, projectOutputDir);
+      if (failed) anyFailed = true;
+    }
+
+    if (globalHits.length > 0 && this.config.specs) {
+      const failed = await this.runOutputsForGroup(
+        this.filterHits(globalHits),
+        this.config.specs,
+        this.baseURL,
+        this.config.outputDir,
+      );
+      if (failed) anyFailed = true;
+    }
+
+    if (anyFailed) return { status: 'failed' };
+  }
+
+  private async runOutputsForGroup(
+    filteredHits: EndpointHit[],
+    specsInput: string | string[],
+    baseURL: string | undefined,
+    outputDir: string,
+  ): Promise<boolean> {
     let spec;
     try {
-      spec = await parseSpecs(this.config.specs);
+      spec = await parseSpecs(specsInput);
     } catch (err) {
       console.error(`[playswag] Could not parse spec(s): ${(err as Error).message}`);
-      return;
+      return false;
     }
 
     if (spec.operations.length === 0) {
       console.warn('[playswag] No operations found in the provided spec(s). Coverage cannot be calculated.');
-      return;
+      return false;
     }
 
-    const filteredHits = this.filterHits(this.aggregatedHits);
-
     const coverageResult = calculateCoverage(filteredHits, spec, {
-      baseURL: this.baseURL,
+      baseURL,
       playwrightVersion: tryReadVersion('@playwright/test'),
       playswagVersion: readPlayswagVersion(),
       totalTestCount: this.totalTestCount,
@@ -180,9 +245,9 @@ class PlayswagReporter implements Reporter {
     let historyEntries: HistoryEntry[] = [];
     if (historyConfig?.enabled !== false) {
       try {
-        const prev = await loadLastEntry(this.config.outputDir, historyConfig ?? {});
+        const prev = await loadLastEntry(outputDir, historyConfig ?? {});
         if (prev) delta = compareCoverage(coverageResult.summary, prev.summary);
-        historyEntries = await loadAllEntries(this.config.outputDir, historyConfig ?? {});
+        historyEntries = await loadAllEntries(outputDir, historyConfig ?? {});
       } catch (err) {
         console.warn(`[playswag] Could not read history: ${(err as Error).message}`);
       }
@@ -207,11 +272,7 @@ class PlayswagReporter implements Reporter {
       const jsonConfig = { enabled: true, ...this.config.jsonOutput };
       if (jsonConfig.enabled !== false) {
         try {
-          const path = await writeJsonReport(
-            coverageResult,
-            this.config.outputDir,
-            jsonConfig
-          );
+          const path = await writeJsonReport(coverageResult, outputDir, jsonConfig);
           console.log(`[playswag] Coverage report written to ${path}`);
         } catch (err) {
           console.error(`[playswag] Failed to write JSON report: ${(err as Error).message}`);
@@ -223,7 +284,7 @@ class PlayswagReporter implements Reporter {
       const htmlConfig = { enabled: true, ...this.config.htmlOutput };
       if (htmlConfig.enabled !== false) {
         try {
-          const writtenPath = await writeHtmlReport(coverageResult, this.config.outputDir, htmlConfig, historyEntries);
+          const writtenPath = await writeHtmlReport(coverageResult, outputDir, htmlConfig, historyEntries);
           const absPath = resolve(writtenPath);
           if (process.env['CI']) {
             console.log(`[playswag] HTML report written to ${absPath}`);
@@ -240,7 +301,7 @@ class PlayswagReporter implements Reporter {
       const badgeConfig = { enabled: true, ...this.config.badge };
       if (badgeConfig.enabled !== false) {
         try {
-          const path = await writeBadge(coverageResult, this.config.outputDir, badgeConfig);
+          const path = await writeBadge(coverageResult, outputDir, badgeConfig);
           console.log(`[playswag] Badge written to ${path}`);
         } catch (err) {
           console.error(`[playswag] Failed to write badge: ${(err as Error).message}`);
@@ -252,12 +313,7 @@ class PlayswagReporter implements Reporter {
       const junitConfig = { enabled: true, ...this.config.junitOutput };
       if (junitConfig.enabled !== false) {
         try {
-          const path = await writeJUnitReport(
-            coverageResult,
-            this.config.outputDir,
-            this.config.threshold,
-            junitConfig
-          );
+          const path = await writeJUnitReport(coverageResult, outputDir, this.config.threshold, junitConfig);
           console.log(`[playswag] JUnit report written to ${path}`);
         } catch (err) {
           console.error(`[playswag] Failed to write JUnit report: ${(err as Error).message}`);
@@ -268,7 +324,7 @@ class PlayswagReporter implements Reporter {
     // ── Append to history after all reports are written ─────────────────────
     if (historyConfig?.enabled !== false) {
       try {
-        await appendToHistory(coverageResult, this.config.outputDir, historyConfig ?? {});
+        await appendToHistory(coverageResult, outputDir, historyConfig ?? {});
       } catch (err) {
         console.warn(`[playswag] Could not write history: ${(err as Error).message}`);
       }
@@ -288,9 +344,7 @@ class PlayswagReporter implements Reporter {
       }
     }
 
-    if (violations.some((v) => v.fail)) {
-      return { status: 'failed' };
-    }
+    return violations.some((v) => v.fail);
   }
 
   printsToStdio(): boolean {

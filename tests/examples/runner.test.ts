@@ -202,3 +202,20 @@ describe('fixture options', () => {
     expect(coveredRespProps.length).toBe(0);
   });
 });
+
+describe('multi-project', () => {
+  it('each project gets isolated coverage against its own spec', { timeout: 60_000 }, () => {
+    const { exitCode } = run('multi-project.config.ts');
+    expect(exitCode).toBe(0);
+
+    const usersReport = readReport('multi-project/users-service');
+    const healthReport = readReport('multi-project/health-service');
+
+    expect(usersReport.summary.endpoints.total).toBe(4);
+    expect(usersReport.operations.every((op) => op.path !== '/api/health')).toBe(true);
+
+    expect(healthReport.summary.endpoints.total).toBe(1);
+    expect(healthReport.operations[0]?.path).toBe('/api/health');
+    expect(healthReport.operations.every((op) => !op.path.startsWith('/api/users'))).toBe(true);
+  });
+});

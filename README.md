@@ -84,7 +84,7 @@ clickable `file://` link at the end of the run (suppressed when `CI=true`).
 All options are passed as the second element of the reporter tuple in `playwright.config.ts`.
 
 ```ts
-interface PlayswagConfig {
+interface PlayswagConfiguration {
   /**
    * OpenAPI / Swagger spec source(s).
    * Accepts local file paths (.yaml / .json), remote URLs, or an array of both.
@@ -176,6 +176,53 @@ projects: [
 // Or inside a test file
 test.use({ playswagEnabled: false });
 ```
+
+### Per-project spec and base URL
+
+When your Playwright config has multiple projects targeting different services, you can
+point each project at its own OpenAPI spec. The reporter then runs a separate coverage
+calculation per project and writes each report to `outputDir/<projectName>/`.
+
+```ts
+// playwright.config.ts
+export default defineConfig({
+  reporter: [
+    ['@michalfidor/playswag/reporter', {
+      outputDir: './coverage',
+      outputFormats: ['json'],
+      // no global `specs` needed when every project declares its own
+    }],
+  ],
+  projects: [
+    {
+      name: 'users-service',
+      use: {
+        baseURL: 'http://localhost:3000',
+        playswagSpecs: './specs/users.yaml',
+      },
+    },
+    {
+      name: 'payments-service',
+      use: {
+        baseURL: 'http://localhost:3001',
+        playswagSpecs: './specs/payments.yaml',
+      },
+    },
+  ],
+});
+```
+
+Output structure:
+```
+coverage/
+  users-service/
+    playswag-coverage.json
+  payments-service/
+    playswag-coverage.json
+```
+
+> Projects that do **not** declare `playswagSpecs` fall back to the reporter-level `specs`
+> and their hits are grouped together in the root `outputDir`.
 
 ## Tracking custom request contexts
 

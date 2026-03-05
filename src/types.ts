@@ -16,6 +16,11 @@ export interface EndpointHit {
   headers?: Record<string, string>;
   testFile: string;
   testTitle: string;
+  /**
+   * Playwright project name this hit originated from.
+   * Set automatically by the reporter — do not populate manually.
+   */
+  projectName?: string;
 }
 
 /**
@@ -552,4 +557,36 @@ export interface PlayswagFixtureOptions {
    * @default true
    */
   captureResponseBody: boolean;
+  /**
+   * Per-project OpenAPI / Swagger spec override.
+   *
+   * When set in a project's `use` block, hits from that project are evaluated against
+   * these spec(s) instead of the global `specs` reporter config. Accepts the same values
+   * as `PlayswagConfig.specs` (file path, URL, or array of either).
+   *
+   * @example
+   * ```ts
+   * projects: [
+   *   {
+   *     name: 'users-service',
+   *     use: { playswagSpecs: './specs/users.yaml', baseURL: 'http://localhost:4001' },
+   *   },
+   *   {
+   *     name: 'orders-service',
+   *     use: { playswagSpecs: './specs/orders.yaml', baseURL: 'http://localhost:4002' },
+   *   },
+   * ]
+   * ```
+   */
+  playswagSpecs?: string | string[];
+  /**
+   * Per-project base URL override.
+   *
+   * When set in a project's `use` block, overrides the global `baseURL` reporter config
+   * for hits originating from that project. Useful when different projects target different
+   * service hosts.
+   *
+   * Falls back to the project's own `baseURL` if not set, then to the global reporter config.
+   */
+  playswagBaseURL?: string;
 }

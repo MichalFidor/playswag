@@ -153,6 +153,7 @@ vitest.examples.config.ts    – sequential forks pool (maxForks: 1), 90 s per-t
 | `console-options.config.ts` | All `consoleOutput.showXxx` options |
 | `history-options.config.ts` | `history.maxEntries`, `history.fileName` |
 | `fixture-options.config.ts` | `playswagEnabled: false` + `captureResponseBody: false` |
+| `multi-project.config.ts` | `playswagSpecs` per project — isolated coverage per service |
 
 ### Conventions
 

@@ -1,0 +1,14 @@
+openapi: '3.0.3'
+info:
+  title: Health Service API
+  version: '1.0.0'
+servers:
+  - url: http://localhost:3457
+
+paths:
+  /api/health:
+    get:
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy
