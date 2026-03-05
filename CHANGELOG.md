@@ -9,9 +9,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [1.5.3] — 2026-03-05
 
-> Version slots 1.5.0–1.5.2 were consumed by failed local publish attempts
-> (npm 2FA blocks local publish, burning the slot). No code changes from the
-> original 1.5.0 intent.
+Re-release of 1.5.0 — no code changes. See [1.5.0] for full release notes.
 
 ## [1.5.0] — 2026-03-05
 
