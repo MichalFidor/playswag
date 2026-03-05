@@ -7,6 +7,13 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.5.1] — 2026-03-05
+
+Re-release of 1.5.0 — no code changes. The 1.5.0 version slot was consumed by a
+failed publish attempt and cannot be reused per npm policy.
+
+---
+
 ## [1.5.0] — 2026-03-05
 
 **Theme:** DX, quality & URL support — friction reduction for real-world
