@@ -8,7 +8,6 @@ on:
 permissions:
   contents: write
   packages: write
-  id-token: write  # Required for OIDC Trusted Publisher
 
 jobs:
   release:
@@ -80,9 +79,9 @@ jobs:
           fi
 
       - name: Publish to npm
-        # OIDC Trusted Publisher — no token needed; npm CLI exchanges the GitHub
-        # OIDC token automatically (requires Node ≥22.14 and npm CLI ≥11.5.1)
         run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
 
       - name: Set up Node 22 (GitHub Packages)
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
