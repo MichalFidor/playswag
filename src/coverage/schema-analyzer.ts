@@ -92,12 +92,19 @@ export function analyzeResponseProperties(
     }
   }
 
-  return Array.from(props.entries()).map(([name, required]) => ({
+  const results = Array.from(props.entries()).map(([name, required]) => ({
     statusCode,
     name,
     required,
     covered: bodyObj != null && name in bodyObj,
   }));
+
+  if (process.env['PLAYSWAG_DEBUG'] && responseBody !== undefined) {
+    const covCount = results.filter((r) => r.covered).length;
+    console.log(`[playswag:debug] resp analysis  op=${operation.method}:${operation.pathTemplate} code=${statusCode} schema_props=${results.length} covered=${covCount} body_type=${Array.isArray(responseBody) ? 'array' : typeof responseBody}`);
+  }
+
+  return results;
 }
 
 /**

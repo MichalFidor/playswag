@@ -45,6 +45,8 @@ export function calculateCoverage(
     if (hits.length > 0) {
       console.log('[playswag:debug]   first hit        :', hits[0]?.method, hits[0]?.url);
     }
+    const hitsWithBody = hits.filter(h => h.responseBody !== undefined).length;
+    console.log('[playswag:debug]   hitsWithBody     :', hitsWithBody, '/', hits.length);
   }
 
   const opMap = new Map<string, OperationCoverage>();
@@ -138,6 +140,12 @@ export function calculateCoverage(
     }
 
     const respCoverage = analyzeResponseProperties(matchedOp, code, enrichedHit.responseBody);
+    if (process.env['PLAYSWAG_DEBUG']) {
+      const hasBody = enrichedHit.responseBody !== undefined;
+      const schemaLen = cov.responseProperties.filter((r) => r.statusCode === code).length;
+      const newlyCovered = respCoverage.filter((r) => r.covered).length;
+      console.log(`[playswag:debug] resp merge  ${matchedOp.method}:${matchedOp.pathTemplate} code=${code} hasBody=${hasBody} schemaPropCount=${schemaLen} newlyCovered=${newlyCovered}`);
+    }
     for (const rc of respCoverage) {
       const existing = cov.responseProperties.find(
         (r) => r.name === rc.name && r.statusCode === rc.statusCode

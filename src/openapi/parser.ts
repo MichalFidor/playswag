@@ -255,6 +255,12 @@ async function parseOne(source: string): Promise<ParsedSpec> {
       console.log(`[playswag:debug] parseOne (OAS3) "${source}" -> servers[0].url: ${(v3.servers?.[0] as Record<string, unknown> | undefined)?.['url'] ?? '(none)'}, serverBasePath: ${serverBasePath ?? '(none)'}`);
     }
     const operations = normalizeV3(v3).map(op => ({ ...op, serverBasePath }));
+    if (process.env['PLAYSWAG_DEBUG']) {
+      const withRespSchema = operations.filter(op => Object.values(op.responses).some(r => r.schema != null)).length;
+      const totalRespCodes = operations.reduce((sum, op) => sum + Object.keys(op.responses).length, 0);
+      const codesWithSchema = operations.reduce((sum, op) => sum + Object.values(op.responses).filter(r => r.schema != null).length, 0);
+      console.log(`[playswag:debug] parseOne schemas: ops=${operations.length} opsWithRespSchema=${withRespSchema} totalRespCodes=${totalRespCodes} codesWithSchema=${codesWithSchema}`);
+    }
     return { operations, serverBasePath };
   }
 }

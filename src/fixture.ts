@@ -41,7 +41,6 @@ function buildTrackedRequest<T extends APIRequestContext>(
         } else {
           httpMethod = method.toUpperCase();
         }
-
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response: APIResponse = await (target[method] as any).call(target, urlOrRequest, options);
 
@@ -75,7 +74,7 @@ function buildTrackedRequest<T extends APIRequestContext>(
               responseBody = JSON.parse(raw.toString('utf8'));
             }
           } catch {
-            // Non-JSON or empty response — skip body capture
+            // Non-JSON or empty response - skip body capture
           }
         }
 
