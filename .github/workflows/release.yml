@@ -79,7 +79,13 @@ jobs:
           fi
 
       - name: Publish to npm
-        run: npm publish --access public
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          if npm view "@michalfidor/playswag@${VERSION}" version &>/dev/null; then
+            echo "Version ${VERSION} already published — skipping."
+          else
+            npm publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
 
