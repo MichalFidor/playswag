@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write  # Required for OIDC Trusted Publisher
 
 jobs:
   release:
@@ -19,10 +20,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Node 20
+      - name: Set up Node 22
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: npm
           registry-url: https://registry.npmjs.org
 
@@ -79,20 +80,14 @@ jobs:
           fi
 
       - name: Publish to npm
-        run: |
-          VERSION="${{ steps.meta.outputs.version }}"
-          if npm view "@michalfidor/playswag@${VERSION}" version &>/dev/null; then
-            echo "Version ${VERSION} already published — skipping."
-          else
-            npm publish --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+        # OIDC Trusted Publisher — no token needed; npm CLI exchanges the GitHub
+        # OIDC token automatically (requires Node ≥22.14 and npm CLI ≥11.5.1)
+        run: npm publish --access public
 
-      - name: Set up Node 20 (GitHub Packages)
+      - name: Set up Node 22 (GitHub Packages)
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: 20.x
+          node-version: 22.x
           registry-url: https://npm.pkg.github.com
 
       - name: Publish to GitHub Packages
