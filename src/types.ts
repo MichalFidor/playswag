@@ -216,6 +216,21 @@ export interface ThresholdConfig {
 
 /**
  * Console output configuration.
+ *
+ * Controls the summary table, per-operation breakdown, and optional per-dimension
+ * expand rows printed to stdout at the end of a test run.
+ *
+ * @example
+ * ```ts
+ * consoleOutput: {
+ *   showUncoveredOnly: true,   // focus on gaps
+ *   showOperations: true,
+ *   showParams: true,          // expand query/path/header params per op
+ *   showBodyProperties: true,  // expand request body fields per op
+ *   showResponseProperties: true, // expand response body fields per op, grouped by status code
+ *   showTags: true,            // print a per-tag summary table
+ * }
+ * ```
  */
 export interface ConsoleOutputConfig {
   /** @default true */
@@ -228,38 +243,70 @@ export interface ConsoleOutputConfig {
    * @default true
    */
   showOperations?: boolean;
-  /** Expand parameter-level coverage per operation @default false */
+  /**
+   * Expand parameter-level coverage (query, path, header) per operation.
+   * Required parameters are marked with `*`.
+   * @default false
+   */
   showParams?: boolean;
-  /** Expand request body property coverage per operation @default false */
+  /**
+   * Expand request body property coverage per operation.
+   * Required properties are marked with `*`.
+   * @default false
+   */
   showBodyProperties?: boolean;
-  /** Expand response body property coverage per operation @default false */
+  /**
+   * Expand response body property coverage per operation, grouped by status code.
+   * Required properties are marked with `*`.
+   * @default false
+   */
   showResponseProperties?: boolean;
   /**
-   * Print a per-tag summary table after the overall summary.
+   * Print a per-tag summary table after the overall summary, showing coverage
+   * percentages for each OpenAPI tag across all five dimensions.
    * @default false
    */
   showTags?: boolean;
 }
 
 /**
- * JSON output configuration.
+ * JSON file output configuration.
+ *
+ * The JSON report contains the full {@link CoverageResult} and can be consumed
+ * by external dashboards or CI tooling.
  */
 export interface JsonOutputConfig {
   /** @default true */
   enabled?: boolean;
-  /** @default 'playswag-coverage.json' */
+  /**
+   * Output file name inside `outputDir`.
+   * @default 'playswag-coverage.json'
+   */
   fileName?: string;
-  /** Pretty-print the JSON @default true */
+  /**
+   * Pretty-print the JSON with 2-space indentation.
+   * Set to `false` for smaller files in CI.
+   * @default true
+   */
   pretty?: boolean;
 }
 
 /**
  * HTML report output configuration.
+ *
+ * Produces a self-contained single-file HTML report with:
+ * - A 5-dimension summary card row with progress bars
+ * - An expandable per-operation detail panel
+ * - Per-tag coverage aggregation
+ * - A coverage history sparkline (when history is enabled)
  */
 export interface HtmlOutputConfig {
   /** @default true */
   enabled?: boolean;
-  /** @default 'playswag-coverage.html' */
+  /**
+   * Output file name inside `outputDir`.
+   * @default 'playswag-coverage.html'
+   */
   fileName?: string;
   /**
    * Custom title shown at the top of the HTML report.
@@ -270,17 +317,22 @@ export interface HtmlOutputConfig {
 
 /**
  * Coverage history configuration.
+ *
+ * When enabled, each run appends a {@link HistoryEntry} to a JSON file. The HTML
+ * report renders a sparkline for each dimension from the last N entries. The console
+ * report shows `↑ / ↓` delta indicators next to each percentage.
  */
 export interface HistoryConfig {
   /** @default true */
   enabled?: boolean;
   /**
-   * File name for the history JSON file.
+   * File name for the history JSON file inside `outputDir`.
    * @default 'playswag-history.json'
    */
   fileName?: string;
   /**
-   * Maximum number of historical entries to keep.
+   * Maximum number of historical entries to retain.
+   * Older entries are dropped once this limit is exceeded.
    * @default 50
    */
   maxEntries?: number;
@@ -288,12 +340,15 @@ export interface HistoryConfig {
 
 /**
  * JUnit XML output configuration.
+ *
+ * Produces a JUnit XML report with one `<testcase>` per coverage dimension.
+ * Compatible with Jenkins, GitLab CI, and other JUnit-aware CI systems.
  */
 export interface JUnitOutputConfig {
   /** @default true */
   enabled?: boolean;
   /**
-   * File name for the JUnit XML report.
+   * Output file name inside `outputDir`.
    * @default 'playswag-junit.xml'
    */
   fileName?: string;
@@ -301,11 +356,26 @@ export interface JUnitOutputConfig {
 
 /**
  * SVG badge configuration.
+ *
+ * Generates a Shields.io-compatible flat SVG badge showing the coverage percentage
+ * for a chosen dimension. Useful for README badges.
+ *
+ * @example
+ * ```ts
+ * badge: {
+ *   dimension: 'endpoints',
+ *   label: 'API Coverage',
+ *   fileName: 'coverage-badge.svg',
+ * }
+ * ```
  */
 export interface BadgeConfig {
   /** @default true */
   enabled?: boolean;
-  /** @default 'playswag-badge.svg' */
+  /**
+   * Output file name inside `outputDir`.
+   * @default 'playswag-badge.svg'
+   */
   fileName?: string;
   /**
    * Which coverage dimension to reflect in the badge value.
@@ -321,16 +391,39 @@ export interface BadgeConfig {
 
 /**
  * Main configuration object for the Playswag reporter.
- * Pass this as the second argument in the reporter array in playwright.config.ts.
+ * Pass this as the second argument in the reporter tuple in `playwright.config.ts`.
  *
- * @example
+ * You can import this type for full intellisense:
  * ```ts
- * reporter: [['@michalfidor/playswag/reporter', {
- *   specs: ['./openapi.yaml', 'https://api.example.com/swagger.json'],
+ * import type { PlayswagConfiguration } from '@michalfidor/playswag';
+ *
+ * const playswagConfig: PlayswagConfiguration = {
+ *   specs: './openapi.yaml',
  *   outputDir: './playswag-coverage',
- *   threshold: { endpoints: 80, statusCodes: 60 },
- *   failOnThreshold: false,
- * }]]
+ *   outputFormats: ['console', 'json', 'html'],
+ *
+ *   threshold: {
+ *     endpoints: 80,
+ *     statusCodes: { min: 60, fail: true },
+ *   },
+ *   failOnThreshold: true,
+ *
+ *   consoleOutput: {
+ *     showUncoveredOnly: false,
+ *     showOperations: true,
+ *     showParams: true,
+ *     showBodyProperties: true,
+ *     showResponseProperties: true,
+ *     showTags: true,
+ *   },
+ *
+ *   badge: { dimension: 'endpoints', label: 'API Coverage' },
+ *   history: { maxEntries: 30 },
+ * };
+ *
+ * export default defineConfig({
+ *   reporter: [['@michalfidor/playswag/reporter', playswagConfig]],
+ * });
  * ```
  */
 export interface PlayswagConfig {
@@ -412,7 +505,39 @@ export interface PlayswagConfig {
 }
 
 /**
- * Per-test / per-project fixture options that can be overridden via test.use().
+ * Alias for {@link PlayswagConfig}. Preferred name for use in `playwright.config.ts`
+ * since it avoids collision with Playwright's own `Config` type.
+ *
+ * @example
+ * ```ts
+ * import type { PlayswagConfiguration } from '@michalfidor/playswag';
+ *
+ * const playswagConfig: PlayswagConfiguration = {
+ *   specs: './openapi.yaml',
+ *   outputFormats: ['console', 'html', 'json'],
+ *   threshold: { endpoints: 80, statusCodes: { min: 60, fail: true } },
+ *   failOnThreshold: true,
+ *   consoleOutput: { showResponseProperties: true, showTags: true },
+ * };
+ *
+ * export default defineConfig({
+ *   reporter: [['@michalfidor/playswag/reporter', playswagConfig]],
+ * });
+ * ```
+ */
+export type PlayswagConfiguration = PlayswagConfig;
+
+/**
+ * Per-test / per-project fixture options that can be overridden via `test.use()`.
+ *
+ * @example
+ * ```ts
+ * // Disable tracking for a specific test file:
+ * test.use({ playswagEnabled: false });
+ *
+ * // Opt out of response body capture for files with large binary payloads:
+ * test.use({ captureResponseBody: false });
+ * ```
  */
 export interface PlayswagFixtureOptions {
   /**
