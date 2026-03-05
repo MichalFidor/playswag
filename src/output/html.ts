@@ -84,23 +84,46 @@ function responseBadges(op: OperationCoverage): string {
   }).join(' ');
 }
 
-function operationRows(ops: OperationCoverage[]): string {
-  return ops.map((op, i) => {
-    const tags = (op.tags ?? []).join(',');
-    const scCovered = Object.values(op.statusCodes).filter((s) => s.covered).length;
-    const scTotal = Object.keys(op.statusCodes).length;
-    const paramTotal = op.parameters.length + op.bodyProperties.length;
-    const paramCovered = op.parameters.filter((p) => p.covered).length + op.bodyProperties.filter((b) => b.covered).length;
-    const paramRatio = paramTotal === 0 ? '<span class="muted">—</span>' : `${paramCovered}/${paramTotal}`;
-    const testRefsHtml = op.testRefs.length > 0
-      ? op.testRefs.map((r) => `<span class="testref">${esc(r)}</span>`).join('')
-      : '<em class="muted">none</em>';
+/** Combined coverage percentage for a single operation across all sub-dimensions. */
+function operationCoveragePct(op: OperationCoverage): number {
+  const scCovered = Object.values(op.statusCodes).filter((s) => s.covered).length;
+  const scTotal = Object.keys(op.statusCodes).length;
+  const paramCovered = op.parameters.filter((p) => p.covered).length
+    + op.bodyProperties.filter((b) => b.covered).length;
+  const paramTotal = op.parameters.length + op.bodyProperties.length;
+  const respCovered = op.responseProperties.filter((r) => r.covered).length;
+  const respTotal = op.responseProperties.length;
+  const numerator = scCovered + paramCovered + respCovered;
+  const denominator = scTotal + paramTotal + respTotal;
+  return denominator === 0 ? (op.covered ? 100 : 0) : (numerator / denominator) * 100;
+}
 
-    const tagBadges = (op.tags ?? []).length > 0
-      ? (op.tags ?? []).map((t) => `<span class="tag-badge">${esc(t)}</span>`).join('')
-      : '';
+function miniProgressBar(pct: number, covered: boolean): string {
+  const cls = pct >= 80 ? 'green' : pct >= 50 ? 'yellow' : 'red';
+  const icon = covered ? '<span class="tick green">✓</span>' : '<span class="tick red">✗</span>';
+  return `<div class="mini-bar-wrap">
+          <div class="mini-bar-track"><div class="mini-bar ${cls}" style="width:${Math.min(pct, 100).toFixed(1)}%"></div></div>
+          ${icon}
+        </div>`;
+}
 
-    return `<tr class="op-row" data-covered="${op.covered}" data-tags="${esc(tags)}" data-idx="${i}">
+function operationDetailRow(op: OperationCoverage, i: number, gid: number): string {
+  const tags = (op.tags ?? []).join(',');
+  const scCovered = Object.values(op.statusCodes).filter((s) => s.covered).length;
+  const scTotal = Object.keys(op.statusCodes).length;
+  const paramTotal = op.parameters.length + op.bodyProperties.length;
+  const paramCovered = op.parameters.filter((p) => p.covered).length
+    + op.bodyProperties.filter((b) => b.covered).length;
+  const paramRatio = paramTotal === 0 ? '<span class="muted">—</span>' : `${paramCovered}/${paramTotal}`;
+  const testRefsHtml = op.testRefs.length > 0
+    ? op.testRefs.map((r) => `<span class="testref">${esc(r)}</span>`).join('')
+    : '<em class="muted">none</em>';
+  const tagBadges = (op.tags ?? []).length > 0
+    ? (op.tags ?? []).map((t) => `<span class="tag-badge">${esc(t)}</span>`).join('')
+    : '';
+  const covPct = operationCoveragePct(op);
+
+  return `<tr class="op-row" data-covered="${op.covered}" data-tags="${esc(tags)}" data-idx="${i}" data-gid="${gid}">
         <td class="td-method"><span class="method m-${op.method.toLowerCase()}">${esc(op.method)}</span></td>
         <td class="td-path">
           <span class="path-text">${esc(op.path)}</span>
@@ -109,10 +132,10 @@ function operationRows(ops: OperationCoverage[]): string {
         </td>
         <td class="td-center">${scCovered}/${scTotal}</td>
         <td class="td-center">${paramRatio}</td>
-        <td class="td-center">${op.covered ? '<span class="tick green">✓</span>' : '<span class="tick red">✗</span>'}</td>
+        <td class="td-coverage">${miniProgressBar(covPct, op.covered)}</td>
         <td class="td-chevron"><span class="chevron" id="chev-${i}">›</span></td>
       </tr>
-      <tr class="op-detail" id="detail-${i}">
+      <tr class="op-detail" id="detail-${i}" data-gid="${gid}">
         <td colspan="6">
           <div class="detail-inner">
             <div class="detail-section">
@@ -138,7 +161,60 @@ function operationRows(ops: OperationCoverage[]): string {
           </div>
         </td>
       </tr>`;
-  }).join('\n  ');
+}
+
+/**
+ * Renders operations grouped by their first tag (alphabetical), with a
+ * collapsible group-header row before each group. Tagless operations appear
+ * last under a "General" group.
+ */
+function tagGroupedRows(ops: OperationCoverage[]): string {
+  const opIndexMap = new Map(ops.map((op, i) => [op, i]));
+
+  const groups = new Map<string, OperationCoverage[]>();
+  for (const op of ops) {
+    const tag = (op.tags && op.tags.length > 0) ? op.tags[0]! : '__general__';
+    if (!groups.has(tag)) groups.set(tag, []);
+    groups.get(tag)!.push(op);
+  }
+
+  const sortedTags = [...groups.keys()].sort((a, b) => {
+    if (a === '__general__') return 1;
+    if (b === '__general__') return -1;
+    return a.localeCompare(b);
+  });
+
+  const rows: string[] = [];
+  let gid = 0;
+
+  for (const tag of sortedTags) {
+    const groupOps = groups.get(tag)!;
+    const displayTag = tag === '__general__' ? 'General' : tag;
+    const covered = groupOps.filter((op) => op.covered).length;
+    const total = groupOps.length;
+    const pct = total > 0 ? (covered / total) * 100 : 0;
+    const cls = pct >= 80 ? 'green' : pct >= 50 ? 'yellow' : 'red';
+
+    rows.push(`<tr class="tag-group-header" data-gid="${gid}">
+        <td colspan="6">
+          <div class="group-inner">
+            <span class="group-chev open" id="gchev-${gid}">›</span>
+            <span class="group-name">${esc(displayTag)}</span>
+            <span class="count">${covered}/${total}</span>
+            <div class="group-mini-bar"><div class="group-mini-fill ${cls}" style="width:${pct.toFixed(1)}%"></div></div>
+            <span class="group-pct ${cls}">${pct.toFixed(0)}%</span>
+          </div>
+        </td>
+      </tr>`);
+
+    for (const op of groupOps) {
+      rows.push(operationDetailRow(op, opIndexMap.get(op)!, gid));
+    }
+
+    gid++;
+  }
+
+  return rows.join('\n  ');
 }
 
 function tagFilterButtons(ops: OperationCoverage[]): string {
@@ -197,7 +273,7 @@ export function generateHtmlReport(
   const timeStr = d.toLocaleTimeString('en-GB', { hour12: false });
 
   const logoHtml = logoDataUrl
-    ? `<img src="${logoDataUrl}" alt="playswag logo" class="logo" width="36" height="36">`
+    ? `<img src="${logoDataUrl}" alt="playswag logo" class="logo" width="64" height="64">`
     : '';
 
   // Overall score: average of all five percentages
@@ -262,19 +338,22 @@ export function generateHtmlReport(
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; }
 
+/* ── Accent bar ── */
+.accent-bar { height: 3px; background: linear-gradient(90deg, #2563eb 0%, #7c3aed 100%); }
+
 /* ── Header ── */
-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; box-shadow: var(--shadow); position: sticky; top: 0; z-index: 100; }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.logo { border-radius: 6px; flex-shrink: 0; }
-.header-brand { display: flex; flex-direction: column; gap: 1px; }
-.brand-name { font-size: 17px; font-weight: 800; color: var(--blue); letter-spacing: -.3px; line-height: 1.2; }
-.brand-title { font-size: 13px; color: var(--text2); font-weight: 500; }
-.header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.meta-pills { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.meta-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 11px; color: var(--muted); white-space: nowrap; }
-.meta-pill code { background: none; font-family: ui-monospace, monospace; color: var(--text2); font-size: 11px; }
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; box-shadow: var(--shadow); position: sticky; top: 3px; z-index: 100; }
+.header-left { display: flex; align-items: center; gap: 14px; }
+.logo { border-radius: 8px; flex-shrink: 0; }
+.header-brand { display: flex; flex-direction: column; gap: 2px; }
+.brand-name { font-size: 22px; font-weight: 800; color: var(--blue); letter-spacing: -.5px; line-height: 1.1; }
+.brand-subtitle { font-size: 13px; color: var(--text2); font-weight: 500; line-height: 1.3; }
 .theme-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; color: var(--text2); font-size: 12px; font-weight: 500; transition: all .15s; white-space: nowrap; }
 .theme-btn:hover { border-color: var(--blue); color: var(--blue); }
+/* ── Meta bar ── */
+.meta-bar { background: var(--surface2); border-bottom: 1px solid var(--border); padding: 8px 32px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.meta-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.meta-pill code { background: none; font-family: ui-monospace, monospace; color: var(--text2); font-size: 11px; }
 
 /* ── Main ── */
 main { max-width: 1280px; margin: 0 auto; padding: 28px 32px; }
@@ -293,7 +372,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 28px 32px; }
 .score-pct.red { color: var(--red); }
 
 /* ── Summary cards ── */
-.summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
+.summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); border-left: 4px solid var(--border2); }
 .card.green { border-left-color: var(--green); }
 .card.yellow { border-left-color: var(--yellow); }
@@ -392,6 +471,38 @@ th { text-align: left; padding: 10px 16px; font-size: 11px; text-transform: uppe
 .spark-line.yellow { stroke: var(--yellow); opacity: .55; }
 .spark-line.red { stroke: var(--red); opacity: .55; }
 
+/* ── Tag group headers ── */
+.tag-group-header { cursor: pointer; user-select: none; }
+.tag-group-header td { padding: 0; }
+.group-inner { display: flex; align-items: center; gap: 10px; padding: 9px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); border-left: 3px solid var(--border2); transition: background .1s; }
+.tag-group-header:hover .group-inner { background: var(--border); }
+.tag-group-header.collapsed .group-inner { border-left-color: var(--muted); }
+.group-chev { font-size: 15px; color: var(--muted); transition: transform .2s; display: inline-block; line-height: 1; }
+.group-chev.open { transform: rotate(90deg); }
+.group-name { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .07em; }
+.group-mini-bar { flex: 1; max-width: 100px; background: var(--border); border-radius: 3px; height: 4px; overflow: hidden; }
+.group-mini-fill { height: 4px; border-radius: 3px; }
+.group-mini-fill.green { background: var(--green); }
+.group-mini-fill.yellow { background: var(--yellow); }
+.group-mini-fill.red { background: var(--red); }
+.group-pct { font-size: 11px; font-weight: 700; white-space: nowrap; }
+.group-pct.green { color: var(--green); }
+.group-pct.yellow { color: var(--yellow); }
+.group-pct.red { color: var(--red); }
+
+/* ── Per-operation mini progress bar ── */
+.td-coverage { text-align: center; white-space: nowrap; }
+.mini-bar-wrap { display: inline-flex; align-items: center; gap: 6px; }
+.mini-bar-track { width: 56px; background: var(--border); border-radius: 3px; height: 5px; overflow: hidden; }
+.mini-bar { height: 5px; border-radius: 3px; }
+.mini-bar.green { background: var(--green); }
+.mini-bar.yellow { background: var(--yellow); }
+.mini-bar.red { background: var(--red); }
+
+/* ── Card hover ── */
+.card { transition: box-shadow .15s, transform .15s; }
+.card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+
 /* ── Misc ── */
 .muted { color: var(--muted); }
 .green { color: var(--green); }
@@ -403,8 +514,8 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
 .footer-logo { opacity: .5; border-radius: 4px; }
 
 /* ── Responsive ── */
-@media(max-width: 900px) { .summary { grid-template-columns: 1fr 1fr; } main { padding: 16px; } header { padding: 14px 16px; } }
-@media(max-width: 480px) { .summary { grid-template-columns: 1fr; } .meta-pills { display: none; } .detail-inner { grid-template-columns: 1fr; } }`.trim();
+@media(max-width: 900px) { main { padding: 16px; } header { padding: 14px 16px; } }
+@media(max-width: 480px) { .summary { grid-template-columns: 1fr; } .meta-bar { display: none; } .detail-inner { grid-template-columns: 1fr; } }`.trim();
 
   const js = `
 (function(){
@@ -415,14 +526,46 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
   applyTheme(dark);
   btn.addEventListener('click',function(){applyTheme(!dark);});
 
+  // Tag group collapse
+  document.querySelectorAll('.tag-group-header').forEach(function(header){
+    header.addEventListener('click',function(){
+      var gid=header.getAttribute('data-gid');
+      var collapsed=header.classList.toggle('collapsed');
+      var chev=document.getElementById('gchev-'+gid);
+      if(chev)chev.classList.toggle('open',!collapsed);
+      // Toggle op-rows and op-detail rows belonging to this group
+      document.querySelectorAll('.op-row[data-gid="'+gid+'"]').forEach(function(row){
+        row.classList.toggle('hidden',collapsed);
+        if(collapsed){
+          var idx=row.getAttribute('data-idx');
+          var det=document.getElementById('detail-'+idx);
+          var ch=document.getElementById('chev-'+idx);
+          if(det){det.classList.remove('open');}
+          if(ch){ch.classList.remove('open');}
+        }
+      });
+      document.querySelectorAll('.op-detail[data-gid="'+gid+'"]').forEach(function(det){
+        if(collapsed)det.classList.remove('open');
+      });
+    });
+  });
+
+  // Filter buttons — applying a filter expands all groups first
   var filterBtns=document.querySelectorAll('.filter-btn');
-  var rows=document.querySelectorAll('.op-row');
+  var opRows=document.querySelectorAll('.op-row');
   filterBtns.forEach(function(b){
     b.addEventListener('click',function(){
       filterBtns.forEach(function(x){x.classList.remove('active');});
       b.classList.add('active');
       var f=b.getAttribute('data-filter');
-      rows.forEach(function(row){
+      // Expand all groups before filtering
+      document.querySelectorAll('.tag-group-header').forEach(function(h){
+        h.classList.remove('collapsed');
+        var gid=h.getAttribute('data-gid');
+        var chev=document.getElementById('gchev-'+gid);
+        if(chev)chev.classList.add('open');
+      });
+      opRows.forEach(function(row){
         var show=f==='all'||
           (f==='covered'&&row.getAttribute('data-covered')==='true')||
           (f==='uncovered'&&row.getAttribute('data-covered')==='false')||
@@ -430,12 +573,23 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
         row.classList.toggle('hidden',!show);
         var idx=row.getAttribute('data-idx');
         var det=document.getElementById('detail-'+idx);
-        if(det&&!show){det.classList.remove('open');document.getElementById('chev-'+idx).classList.remove('open');}
+        var ch=document.getElementById('chev-'+idx);
+        if(det&&!show){det.classList.remove('open');}
+      });
+      // Hide group headers that have no visible rows
+      document.querySelectorAll('.tag-group-header').forEach(function(header){
+        var gid=header.getAttribute('data-gid');
+        var anyVisible=false;
+        document.querySelectorAll('.op-row[data-gid="'+gid+'"]').forEach(function(row){
+          if(!row.classList.contains('hidden'))anyVisible=true;
+        });
+        header.classList.toggle('hidden',!anyVisible);
       });
     });
   });
 
-  rows.forEach(function(row){
+  // Operation row expand
+  opRows.forEach(function(row){
     row.addEventListener('click',function(){
       var idx=row.getAttribute('data-idx');
       var det=document.getElementById('detail-'+idx);
@@ -470,23 +624,22 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
 <style>${css}</style>
 </head>
 <body>
+<div class="accent-bar"></div>
 <header>
   <div class="header-left">
     ${logoHtml}
     <div class="header-brand">
       <span class="brand-name">playswag</span>
-      <span class="brand-title">${esc(title)}</span>
+      <span class="brand-subtitle">${esc(title)}</span>
     </div>
   </div>
-  <div class="header-right">
-    <div class="meta-pills">
-      <span class="meta-pill">📅 ${dateStr}, ${timeStr}</span>
-      ${result.specFiles.map((f) => `<span class="meta-pill">📄 <code>${esc(f)}</code></span>`).join('')}
-      <span class="meta-pill">🧪 ${result.totalTestCount} test${result.totalTestCount !== 1 ? 's' : ''}</span>
-    </div>
-    <button class="theme-btn" id="theme-btn">🌙 Dark</button>
-  </div>
+  <button class="theme-btn" id="theme-btn">🌙 Dark</button>
 </header>
+<div class="meta-bar">
+  <span class="meta-pill">📅 ${dateStr}, ${timeStr}</span>
+  ${result.specFiles.map((f) => `<span class="meta-pill">📄 <code>${esc(f)}</code></span>`).join('')}
+  <span class="meta-pill">🧪 ${result.totalTestCount} test${result.totalTestCount !== 1 ? 's' : ''}</span>
+</div>
 <main>
   <div class="score-bar">
     <span class="score-label">Overall</span>
@@ -523,12 +676,12 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
             <th>Path / Operation</th>
             <th style="text-align:center">Status</th>
             <th style="text-align:center">Params</th>
-            <th style="text-align:center">Hit</th>
+            <th style="text-align:center">Coverage</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-  ${operationRows(result.operations)}
+  ${tagGroupedRows(result.operations)}
         </tbody>
       </table>
     </div>
@@ -537,7 +690,7 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
   ${unmatchedSection(result)}
 </main>
 <footer>
-  ${logoDataUrl ? `<img src="${logoDataUrl}" alt="" class="footer-logo" width="20" height="20">` : ''}
+  ${logoDataUrl ? `<img src="${logoDataUrl}" alt="" class="footer-logo" width="24" height="24">` : ''}
   <span>Generated by <strong>playswag</strong> v${esc(result.playswagVersion)} &middot; Playwright v${esc(result.playwrightVersion)} &middot; ${dateStr} ${timeStr}</span>
 </footer>
 <script>${js}</script>

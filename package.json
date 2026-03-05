@@ -1,6 +1,6 @@
 {
   "name": "@michalfidor/playswag",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "author": "Michał Fidor <michal.fidor@gmail.com>",
   "description": "Playwright API coverage tracking against Swagger/OpenAPI specifications",
   "keywords": [
@@ -64,6 +64,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
+    "demo": "npm run build && node scripts/demo-report.mjs && open demo-report.html",
     "link": "npm install && npm run build && npm link @playwright/test && npm link",
     "prepublishOnly": "npm run build",
     "prepare": "husky"

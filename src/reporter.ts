@@ -42,14 +42,14 @@ function tryReadVersion(packageName: string): string {
 
 function readPlayswagVersion(): string {
   try {
-    const pkgPath = fileURLToPath(new URL('../package.json', import.meta.url));
+    const pkgPath = fileURLToPath(new URL('../../package.json', import.meta.url));
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { version?: string };
     return pkg.version ?? 'unknown';
   } catch {
     try {
       const require = createRequire(import.meta.url);
       const currentDir = dirname(fileURLToPath(import.meta.url));
-      const pkgPath = resolve(currentDir, '../package.json');
+      const pkgPath = resolve(currentDir, '../../package.json');
       const pkg: { version?: string } = require(pkgPath);
       return pkg.version ?? 'unknown';
     } catch (err) {

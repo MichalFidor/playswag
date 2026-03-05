@@ -7,6 +7,35 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.5.4] — 2026-03-05
+
+**Theme:** HTML report redesign + version display bug fix.
+
+### Added
+- **HTML report redesign** — collapsible tag-group rows (operations grouped by
+  their first OpenAPI tag; tagless operations under "General"); mini per-operation
+  progress bar + ✓/✗ icon in the Coverage column; accent gradient strip at the
+  top of the page; auto-fill summary card grid; larger 64 × 64 logo in the
+  header; dark-mode aware card hover animation.
+- **Separated meta-bar** — date/time, spec file names, and test count pills now
+  live in a slim bar below the sticky header rather than inside it, keeping the
+  header clean.
+- **`npm run demo` script** — builds the project and generates a rich
+  self-contained `demo-report.html` with 18 operations across 5 tag groups,
+  realistic coverage data, and 6 mocked history entries so sparklines are
+  always visible.
+- **Coverage history README section** expanded — documents the JSON file format,
+  the 2-entry threshold for sparklines/delta indicators, and two CI persistence
+  strategies (commit-to-git and Actions cache).
+
+### Fixed
+- **`vunknown` footer bug** — `readPlayswagVersion()` in the Playwright reporter
+  resolved `../package.json` relative to the built `dist/esm/reporter.js`,
+  pointing at the non-existent `dist/package.json`. Both the `readFileSync` and
+  `createRequire` fallback paths now correctly use `../../package.json`.
+
+---
+
 ## [1.5.3] — 2026-03-05
 
 Re-release of 1.5.0 — no code changes. See [1.5.0] for full release notes.
