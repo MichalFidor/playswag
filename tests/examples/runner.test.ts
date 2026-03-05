@@ -20,8 +20,6 @@ const CONFIGS_DIR = resolve(__dirname, 'configs');
 const OUTPUT_DIR = resolve(__dirname, 'output');
 const PLAYWRIGHT_BIN = join(ROOT_DIR, 'node_modules', '.bin', 'playwright');
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function run(configFile: string): { exitCode: number; stdout: string; stderr: string } {
   const result = spawnSync(
     PLAYWRIGHT_BIN,
@@ -30,7 +28,7 @@ function run(configFile: string): { exitCode: number; stdout: string; stderr: st
       cwd: ROOT_DIR,
       encoding: 'utf8',
       timeout: 60_000,
-      env: { ...process.env, CI: '1' }, // CI=1 removes file:// links from output
+      env: { ...process.env, CI: '1' },
     }
   );
   return {
@@ -48,15 +46,9 @@ function readReport(scenario: string, fileName = 'playswag-coverage.json'): Cove
   return JSON.parse(readFileSync(output(scenario, fileName), 'utf8')) as CoverageResult;
 }
 
-// ─── Setup ───────────────────────────────────────────────────────────────────
-
 beforeAll(() => {
-  // Start each scenario from scratch so stale output from a previous run
-  // cannot mask failures.
   rmSync(OUTPUT_DIR, { recursive: true, force: true });
 });
-
-// ─── Output formats ──────────────────────────────────────────────────────────
 
 describe('output formats', () => {
   it('all five output files are created when all formats are enabled', { timeout: 60_000 }, () => {
@@ -70,8 +62,6 @@ describe('output formats', () => {
   });
 });
 
-// ─── JSON options ─────────────────────────────────────────────────────────────
-
 describe('JSON options', () => {
   it('writes to a custom fileName with pretty: false (minified)', { timeout: 60_000 }, () => {
     const { exitCode } = run('json-options.config.ts');
@@ -81,12 +71,9 @@ describe('JSON options', () => {
     expect(existsSync(filePath)).toBe(true);
 
     const raw = readFileSync(filePath, 'utf8');
-    // pretty: false → serialised as a single line (no embedded newlines)
     expect(raw.includes('\n')).toBe(false);
   });
 });
-
-// ─── HTML options ─────────────────────────────────────────────────────────────
 
 describe('HTML options', () => {
   it('writes to custom fileName and injects the custom title', { timeout: 60_000 }, () => {
@@ -99,8 +86,6 @@ describe('HTML options', () => {
   });
 });
 
-// ─── Badge options ────────────────────────────────────────────────────────────
-
 describe('badge options', () => {
   it('writes to custom fileName and embeds the custom label', { timeout: 60_000 }, () => {
     const { exitCode } = run('badge-options.config.ts');
@@ -111,8 +96,6 @@ describe('badge options', () => {
     expect(readFileSync(filePath, 'utf8')).toContain('Status Coverage');
   });
 });
-
-// ─── JUnit options ────────────────────────────────────────────────────────────
 
 describe('JUnit options', () => {
   it('writes to custom fileName with valid JUnit XML', { timeout: 60_000 }, () => {
@@ -125,8 +108,6 @@ describe('JUnit options', () => {
   });
 });
 
-// ─── Thresholds ───────────────────────────────────────────────────────────────
-
 describe('thresholds', () => {
   it('exits 0 when all thresholds are satisfied', { timeout: 60_000 }, () => {
     const { exitCode } = run('thresholds-pass.config.ts');
@@ -134,8 +115,6 @@ describe('thresholds', () => {
   });
 
   it('exits 1 when a threshold is violated and failOnThreshold is true', { timeout: 60_000 }, () => {
-    // statusCodes threshold is 100% but actual coverage is ~80%
-    // (GET /api/users → 400, POST /api/users → 400 are never returned by the mock)
     const { exitCode } = run('thresholds-fail.config.ts');
     expect(exitCode).toBe(1);
   });
@@ -149,15 +128,12 @@ describe('thresholds', () => {
   });
 });
 
-// ─── Filter patterns ──────────────────────────────────────────────────────────
-
 describe('filter patterns', () => {
   it('includePatterns: only the matched path is counted as covered', { timeout: 60_000 }, () => {
     const { exitCode } = run('filter-include.config.ts');
     expect(exitCode).toBe(0);
 
     const report = readReport('filter-include');
-    // Only GET /api/health passes the '/api/health' include filter
     expect(report.summary.endpoints.covered).toBe(1);
   });
 
@@ -171,13 +147,9 @@ describe('filter patterns', () => {
       (op) => op.method === 'GET' && op.path === '/api/health'
     );
     expect(healthOp?.covered).toBe(false);
-
-    // All 5 operations visible, but health is uncovered
     expect(report.summary.endpoints.covered).toBe(4);
   });
 });
-
-// ─── Console options ──────────────────────────────────────────────────────────
 
 describe('console options', () => {
   it('all showXxx options enabled — exits 0 without throwing', { timeout: 60_000 }, () => {
@@ -185,8 +157,6 @@ describe('console options', () => {
     expect(exitCode).toBe(0);
   });
 });
-
-// ─── History options ──────────────────────────────────────────────────────────
 
 describe('history options', () => {
   it('creates the history file with one entry after first run', { timeout: 60_000 }, () => {
@@ -202,18 +172,12 @@ describe('history options', () => {
   });
 });
 
-// ─── Fixture options ──────────────────────────────────────────────────────────
-
 describe('fixture options', () => {
   it('playswagEnabled:false excludes those tests from coverage', { timeout: 60_000 }, () => {
     const { exitCode } = run('fixture-options.config.ts');
     expect(exitCode).toBe(0);
 
     const report = readReport('fixture-options');
-
-    // Only GET /api/users/{id} and GET /api/health generate hits (2 covered).
-    // GET /api/users and POST /api/users are called with playswagEnabled:false
-    // so their hits are never attached → those operations remain uncovered.
     expect(report.summary.endpoints.covered).toBe(2);
 
     const usersListOp = report.operations.find(
@@ -228,16 +192,12 @@ describe('fixture options', () => {
   });
 
   it('captureResponseBody:false: hit recorded but response props not covered', { timeout: 60_000 }, () => {
-    // fixture-options config already ran above; the JSON is already on disk.
     const report = readReport('fixture-options');
 
     const getUserOp = report.operations.find(
       (op) => op.method === 'GET' && op.path === '/api/users/{id}'
     );
-    expect(getUserOp?.covered).toBe(true); // endpoint IS covered
-
-    // id/name/email response properties should all be uncovered because the
-    // body was not captured (captureResponseBody: false fixture option)
+    expect(getUserOp?.covered).toBe(true);
     const coveredRespProps = getUserOp?.responseProperties.filter((p) => p.covered) ?? [];
     expect(coveredRespProps.length).toBe(0);
   });

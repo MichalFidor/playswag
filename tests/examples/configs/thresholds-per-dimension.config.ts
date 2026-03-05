@@ -32,12 +32,9 @@ export default defineConfig({
         outputDir: resolve(examplesDir, 'output/thresholds-per-dimension'),
         outputFormats: ['json'],
         baseURL: 'http://localhost:3457',
-        // Global default: threshold violations are warnings, not failures
         failOnThreshold: false,
         threshold: {
-          // Shorthand: just specify the minimum percentage
           endpoints: 80,
-          // Full form: override the fail behaviour for this dimension only
           statusCodes: { min: 70, fail: true },
           parameters: { min: 50, fail: false },
           bodyProperties: 50,

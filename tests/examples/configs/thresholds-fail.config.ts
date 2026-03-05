@@ -31,7 +31,7 @@ export default defineConfig({
         outputFormats: ['json'],
         baseURL: 'http://localhost:3457',
         threshold: {
-          statusCodes: 100,   // 80 % actual → violation
+          statusCodes: 100,
         },
         failOnThreshold: true,
       },
