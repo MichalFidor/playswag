@@ -64,15 +64,20 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
-          if [ -z "$PREV_TAG" ]; then
-            LOG=$(git log --pretty=format:"- %s (%h)" HEAD)
-          else
-            LOG=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD")
+          VERSION="${{ steps.meta.outputs.version }}"
+          # Extract the section for this version from CHANGELOG.md
+          # Matches from "## [VERSION]" up to (but not including) the next "## [" heading
+          awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md \
+            > /tmp/changelog.md
+          # Fall back to git log if the section was empty
+          if [ ! -s /tmp/changelog.md ]; then
+            PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
+            if [ -z "$PREV_TAG" ]; then
+              git log --pretty=format:"- %s (%h)" HEAD > /tmp/changelog.md
+            else
+              git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD" > /tmp/changelog.md
+            fi
           fi
-          # Write to file to preserve newlines
-          echo "${LOG}" > /tmp/changelog.md
-          echo "prev_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
         run: npm publish --access public --provenance
