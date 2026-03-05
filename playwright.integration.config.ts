@@ -7,8 +7,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   testDir: './tests/integration',
   testMatch: '**/*.spec.ts',
-  fullyParallel: true,
-  workers: 2,
+  fullyParallel: false,
+  workers: 1,
   reporter: [
     ['list'],
     [
