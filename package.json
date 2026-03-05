@@ -58,6 +58,7 @@
     "build:watch": "tsup --watch",
     "test": "npm run test:unit",
     "test:unit": "vitest run tests/unit",
+    "test:examples": "vitest run --config vitest.examples.config.ts",
     "test:integration": "playwright test --config=playwright.integration.config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
