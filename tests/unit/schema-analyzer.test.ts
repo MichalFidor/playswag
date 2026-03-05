@@ -130,6 +130,21 @@ describe('analyzeBodyProperties', () => {
     expect(result.every((b) => !b.covered)).toBe(true);
   });
 
+  it('returns all uncovered when body is a JSON primitive number', () => {
+    const result = analyzeBodyProperties(postOp, '42');
+    expect(result.every((b) => !b.covered)).toBe(true);
+  });
+
+  it('returns all uncovered when body is a JSON primitive boolean', () => {
+    const result = analyzeBodyProperties(postOp, 'true');
+    expect(result.every((b) => !b.covered)).toBe(true);
+  });
+
+  it('returns all uncovered when body is a JSON primitive string', () => {
+    const result = analyzeBodyProperties(postOp, '"hello"');
+    expect(result.every((b) => !b.covered)).toBe(true);
+  });
+
   it('merges properties from allOf sub-schemas', () => {
     const op: NormalizedOperation = {
       pathTemplate: '/api/widgets',

@@ -36,8 +36,10 @@ async function readHistory(filePath: string): Promise<HistoryEntry[]> {
   try {
     const raw = await readFile(filePath, 'utf8');
     return JSON.parse(raw) as HistoryEntry[];
-  } catch {
-    // File doesn't exist yet or is malformed — start fresh
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn(`[playswag] Could not read history file "${filePath}": ${(err as Error).message}`);
+    }
     return [];
   }
 }

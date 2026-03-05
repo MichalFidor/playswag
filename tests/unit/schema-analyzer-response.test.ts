@@ -120,5 +120,20 @@ describe('analyzeResponseProperties', () => {
       const result = analyzeResponseProperties(opEmptySchema, '200', { anything: true });
       expect(result).toHaveLength(0);
     });
+
+    it('returns all uncovered when responseBody is a JSON primitive number string', () => {
+      const result = analyzeResponseProperties(opWithSchema, '200', '42');
+      expect(result.every((r) => !r.covered)).toBe(true);
+    });
+
+    it('returns all uncovered when responseBody is a JSON primitive boolean string', () => {
+      const result = analyzeResponseProperties(opWithSchema, '200', 'true');
+      expect(result.every((r) => !r.covered)).toBe(true);
+    });
+
+    it('returns all uncovered when responseBody is a JSON quoted string', () => {
+      const result = analyzeResponseProperties(opWithSchema, '200', '"hello"');
+      expect(result.every((r) => !r.covered)).toBe(true);
+    });
   });
 });

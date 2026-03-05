@@ -52,7 +52,7 @@ export default defineConfig({
 
       // Optional
       outputDir: './playswag-coverage',
-      outputFormats: ['console', 'json'],   // also: 'html', 'badge'
+      outputFormats: ['console', 'json'],   // also: 'html', 'badge', 'junit'
 
       threshold: {
         endpoints: 80,         // warn / fail if < 80% of endpoints are hit
@@ -96,7 +96,7 @@ interface PlayswagConfiguration {
   outputDir?: string;
 
   /** Which output formats to produce. @default ['console', 'json'] */
-  outputFormats?: Array<'console' | 'json' | 'html' | 'badge'>;
+  outputFormats?: Array<'console' | 'json' | 'html' | 'badge' | 'junit'>;
 
   /**
    * Base URL of the API under test.

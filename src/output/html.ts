@@ -9,7 +9,8 @@ async function loadLogoDataUrl(): Promise<string> {
     const assetPath = fileURLToPath(new URL('../../assets/logo.png', import.meta.url));
     const buf = await readFile(assetPath);
     return `data:image/png;base64,${buf.toString('base64')}`;
-  } catch {
+  } catch (err) {
+    console.warn(`[playswag] Could not load logo asset: ${(err as Error).message}`);
     return '';
   }
 }

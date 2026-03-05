@@ -5,6 +5,7 @@ import { parseSpecs } from '../../src/openapi/parser.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_YAML = join(__dirname, '../fixtures/sample-openapi.yaml');
+const FIXTURE_V2 = join(__dirname, '../fixtures/sample-swagger2.yaml');
 
 describe('parseSpecs', () => {
   it('parses an OAS3 YAML file and returns the expected operations', async () => {
@@ -118,5 +119,126 @@ describe('parseSpecs', () => {
     // 404 response has no schema in the fixture
     const resp404 = getUser?.responses['404'];
     expect(resp404?.schema).toBeUndefined();
+  });
+});
+
+describe('parseSpecs (OAS2 / Swagger 2.0)', () => {
+  it('parses an OAS2 YAML file and returns the expected operations', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    expect(spec.sources).toEqual([FIXTURE_V2]);
+    expect(spec.operations.length).toBeGreaterThan(0);
+  });
+
+  it('extracts all expected operation method+path combos', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const keys = spec.operations.map((op) => `${op.method}:${op.pathTemplate}`);
+    expect(keys).toContain('GET:/api/products');
+    expect(keys).toContain('POST:/api/products');
+    expect(keys).toContain('GET:/api/products/{id}');
+    expect(keys).toContain('DELETE:/api/products/{id}');
+    expect(keys).toContain('GET:/api/health');
+  });
+
+  it('sets serverBasePath from OAS2 basePath field', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const op = spec.operations[0];
+    expect(op?.serverBasePath).toBe('/v1');
+  });
+
+  it('sets operationId when defined in the spec', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const listProducts = spec.operations.find(
+      (op) => op.method === 'GET' && op.pathTemplate === '/api/products'
+    );
+    expect(listProducts?.operationId).toBe('listProducts');
+  });
+
+  it('normalizes query parameters', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const listProducts = spec.operations.find(
+      (op) => op.method === 'GET' && op.pathTemplate === '/api/products'
+    );
+    const paramNames = listProducts?.parameters.map((p) => p.name) ?? [];
+    expect(paramNames).toContain('category');
+    expect(paramNames).toContain('limit');
+  });
+
+  it('marks path parameters as required', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const getProduct = spec.operations.find(
+      (op) => op.method === 'GET' && op.pathTemplate === '/api/products/{id}'
+    );
+    const idParam = getProduct?.parameters.find((p) => p.name === 'id');
+    expect(idParam?.in).toBe('path');
+    expect(idParam?.required).toBe(true);
+  });
+
+  it('normalizes header parameters', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const deleteProduct = spec.operations.find(
+      (op) => op.method === 'DELETE' && op.pathTemplate === '/api/products/{id}'
+    );
+    const headerParam = deleteProduct?.parameters.find((p) => p.name === 'X-Request-Id');
+    expect(headerParam?.in).toBe('header');
+  });
+
+  it('extracts request body schema from OAS2 body parameter', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const createProduct = spec.operations.find(
+      (op) => op.method === 'POST' && op.pathTemplate === '/api/products'
+    );
+    expect(createProduct?.requestBodySchema).toBeDefined();
+    expect(createProduct?.requestBodySchema?.properties).toHaveProperty('name');
+    expect(createProduct?.requestBodySchema?.properties).toHaveProperty('price');
+    expect(createProduct?.requestBodySchema?.required).toContain('name');
+    expect(createProduct?.requestBodySchema?.required).toContain('price');
+  });
+
+  it('extracts response codes from the spec', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const createProduct = spec.operations.find(
+      (op) => op.method === 'POST' && op.pathTemplate === '/api/products'
+    );
+    expect(Object.keys(createProduct?.responses ?? {})).toContain('201');
+    expect(Object.keys(createProduct?.responses ?? {})).toContain('422');
+  });
+
+  it('extracts response body schema directly from OAS2 response object', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const getProduct = spec.operations.find(
+      (op) => op.method === 'GET' && op.pathTemplate === '/api/products/{id}'
+    );
+    const resp200 = getProduct?.responses['200'];
+    expect(resp200?.schema).toBeDefined();
+    expect(resp200?.schema?.properties).toHaveProperty('id');
+    expect(resp200?.schema?.properties).toHaveProperty('name');
+    expect(resp200?.schema?.properties).toHaveProperty('price');
+    expect(resp200?.schema?.required).toContain('id');
+    expect(resp200?.schema?.required).toContain('name');
+  });
+
+  it('leaves response schema undefined when no schema is defined for a response', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const getProduct = spec.operations.find(
+      (op) => op.method === 'GET' && op.pathTemplate === '/api/products/{id}'
+    );
+    const resp404 = getProduct?.responses['404'];
+    expect(resp404?.schema).toBeUndefined();
+  });
+
+  it('does not include OAS2 body parameter in the parameters array', async () => {
+    const spec = await parseSpecs(FIXTURE_V2);
+    const createProduct = spec.operations.find(
+      (op) => op.method === 'POST' && op.pathTemplate === '/api/products'
+    );
+    const bodyParam = createProduct?.parameters.find((p) => p.name === 'body');
+    expect(bodyParam).toBeUndefined();
+  });
+
+  it('merges OAS2 and OAS3 specs when both are provided', async () => {
+    const spec = await parseSpecs([FIXTURE_YAML, FIXTURE_V2]);
+    const keys = spec.operations.map((op) => `${op.method}:${op.pathTemplate}`);
+    expect(keys).toContain('GET:/api/users');
+    expect(keys).toContain('GET:/api/products');
   });
 });

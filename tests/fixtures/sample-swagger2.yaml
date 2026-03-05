@@ -1,0 +1,115 @@
+swagger: '2.0'
+info:
+  title: Sample Swagger 2.0 API
+  version: '1.0.0'
+host: localhost:3456
+basePath: /v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+
+paths:
+  /api/products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      parameters:
+        - name: category
+          in: query
+          type: string
+        - name: limit
+          in: query
+          type: integer
+      responses:
+        '200':
+          description: List of products
+          schema:
+            type: object
+            properties:
+              items:
+                type: array
+                items:
+                  type: object
+              total:
+                type: integer
+            required:
+              - items
+        '400':
+          description: Bad request
+
+    post:
+      operationId: createProduct
+      tags: [products]
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required: [name, price]
+            properties:
+              name:
+                type: string
+              price:
+                type: number
+              description:
+                type: string
+      responses:
+        '201':
+          description: Product created
+        '400':
+          description: Validation error
+        '422':
+          description: Unprocessable entity
+
+  /api/products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Product found
+          schema:
+            type: object
+            required: [id, name]
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              price:
+                type: number
+        '404':
+          description: Product not found
+
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          type: string
+        - name: X-Request-Id
+          in: header
+          type: string
+      responses:
+        '204':
+          description: Product deleted
+        '404':
+          description: Product not found
+
+  /api/health:
+    get:
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy

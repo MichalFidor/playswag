@@ -86,9 +86,12 @@ export function analyzeResponseProperties(
     bodyObj = responseBody as Record<string, unknown>;
   } else if (typeof responseBody === 'string') {
     try {
-      bodyObj = JSON.parse(responseBody);
+      const parsed: unknown = JSON.parse(responseBody);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        bodyObj = parsed as Record<string, unknown>;
+      }
     } catch {
-      // Not JSON — treat as no body
+      console.warn(`[playswag] Could not parse response body as JSON for ${operation.method}:${operation.pathTemplate} (status ${statusCode})`);
     }
   }
 
@@ -125,9 +128,12 @@ export function analyzeBodyProperties(
     bodyObj = requestBody as Record<string, unknown>;
   } else if (typeof requestBody === 'string') {
     try {
-      bodyObj = JSON.parse(requestBody);
+      const parsed: unknown = JSON.parse(requestBody);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        bodyObj = parsed as Record<string, unknown>;
+      }
     } catch {
-      // requestBody is not valid JSON — treat as if no body was provided
+      console.warn(`[playswag] Could not parse request body as JSON for ${operation.method}:${operation.pathTemplate}`);
     }
   }
 
