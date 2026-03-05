@@ -63,11 +63,17 @@ function buildTrackedRequest<T extends APIRequestContext>(
 
         const requestBody = options?.['data'] ?? options?.['form'] ?? options?.['multipart'] ?? undefined;
 
-        // Capture the response body JSON for response coverage (opt-out via captureResponseBody: false)
+        // Capture the response body JSON for response coverage (opt-out via captureResponseBody: false).
+        // We use response.body() + JSON.parse rather than response.json() because Playwright's
+        // json() throws on any Content-Type that isn't exactly 'application/json'
+        // (e.g. 'application/json; charset=utf-8', 'application/hal+json', etc.).
         let responseBody: unknown | undefined;
         if (captureResponseBody) {
           try {
-            responseBody = await response.json();
+            const raw = await response.body();
+            if (raw.length > 0) {
+              responseBody = JSON.parse(raw.toString('utf8'));
+            }
           } catch {
             // Non-JSON or empty response — skip body capture
           }
