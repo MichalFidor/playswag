@@ -82,6 +82,13 @@ function paramRatio(op: OperationCoverage): string {
   return `${covered}/${total}`;
 }
 
+function respRatio(op: OperationCoverage): string {
+  const total = op.responseProperties.length;
+  if (total === 0) return '—';
+  const covered = op.responseProperties.filter((r) => r.covered).length;
+  return `${covered}/${total}`;
+}
+
 /**
  * Check whether any threshold is breached and return structured violation objects.
  *
@@ -154,6 +161,7 @@ export async function printConsoleReport(
     showOperations = true,
     showParams = false,
     showBodyProperties = false,
+    showResponseProperties = false,
     showTags = false,
   } = config;
 
@@ -284,9 +292,10 @@ export async function printConsoleReport(
       c.bold('Path'),
       c.bold('Status Codes'),
       c.bold('Params'),
+      c.bold('Resp Props'),
       c.bold('✓'),
     ],
-    colWidths: [10, 45, 30, 10, 5],
+    colWidths: [10, 45, 30, 10, 12, 5],
     wordWrap: true,
     style: { head: [], border: [] },
     chars: TABLE_CHARS,
@@ -299,6 +308,7 @@ export async function printConsoleReport(
       op.path,
       summaryCodes(c, op.statusCodes),
       paramRatio(op),
+      respRatio(op),
       colorBool(c, op.covered),
     ]);
 
@@ -306,14 +316,30 @@ export async function printConsoleReport(
       const paramLines = op.parameters
         .map((p) => `  ${colorBool(c, p.covered)} ${p.in}:${p.name}${p.required ? ' *' : ''}`)
         .join('\n');
-      opsTable.push([{ content: paramLines, colSpan: 5 }]);
+      opsTable.push([{ content: paramLines, colSpan: 6 }]);
     }
 
     if (showBodyProperties && op.bodyProperties.length > 0) {
       const bodyLines = op.bodyProperties
         .map((b) => `  ${colorBool(c, b.covered)} body.${b.name}${b.required ? ' *' : ''}`)
         .join('\n');
-      opsTable.push([{ content: bodyLines, colSpan: 5 }]);
+      opsTable.push([{ content: bodyLines, colSpan: 6 }]);
+    }
+
+    if (showResponseProperties && op.responseProperties.length > 0) {
+      const grouped = new Map<string, typeof op.responseProperties>();
+      for (const r of op.responseProperties) {
+        if (!grouped.has(r.statusCode)) grouped.set(r.statusCode, []);
+        grouped.get(r.statusCode)!.push(r);
+      }
+      const lines: string[] = [];
+      for (const [code, props] of grouped) {
+        lines.push(`  ${c.dim(code)}:`);
+        for (const r of props) {
+          lines.push(`    ${colorBool(c, r.covered)} resp.${r.name}${r.required ? ' *' : ''}`);
+        }
+      }
+      opsTable.push([{ content: lines.join('\n'), colSpan: 6 }]);
     }
   }
 

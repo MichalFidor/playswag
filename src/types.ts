@@ -232,6 +232,8 @@ export interface ConsoleOutputConfig {
   showParams?: boolean;
   /** Expand request body property coverage per operation @default false */
   showBodyProperties?: boolean;
+  /** Expand response body property coverage per operation @default false */
+  showResponseProperties?: boolean;
   /**
    * Print a per-tag summary table after the overall summary.
    * @default false
