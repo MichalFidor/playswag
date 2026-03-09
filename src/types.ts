@@ -276,6 +276,12 @@ export interface ConsoleOutputConfig {
    * @default false
    */
   showTags?: boolean;
+  /**
+   * Append the `operationId` after the path in the operations table.
+   * Useful for quickly correlating coverage rows with spec definitions.
+   * @default false
+   */
+  showOperationId?: boolean;
 }
 
 /**
@@ -514,6 +520,13 @@ export interface PlayswagConfig {
    * calculations. Supports picomatch glob patterns (e.g. `'internal*'`).
    */
   excludeTags?: string[];
+
+  /**
+   * When `true`, only required parameters are counted towards the parameters
+   * coverage dimension. Optional parameters are ignored.
+   * @default false
+   */
+  requiredParamsOnly?: boolean;
 
   /** Console output options */
   consoleOutput?: ConsoleOutputConfig;

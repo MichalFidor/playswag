@@ -96,7 +96,7 @@ interface PlayswagConfiguration {
   outputDir?: string;
 
   /** Which output formats to produce. @default ['console', 'json'] */
-  outputFormats?: Array<'console' | 'json' | 'html' | 'badge' | 'junit'>;
+  outputFormats?: Array<'console' | 'json' | 'html' | 'badge' | 'junit' | 'markdown'>;
 
   /**
    * Base URL of the API under test.
@@ -110,6 +110,21 @@ interface PlayswagConfiguration {
   /** Ignore API calls whose paths match these glob patterns. */
   excludePatterns?: string[];
 
+  /**
+   * Only include spec operations with at least one of these OAS tags.
+   * Supports picomatch glob patterns. Operations with no tags are excluded.
+   */
+  includeTags?: string[];
+
+  /** Exclude spec operations that carry any of these OAS tags. Supports picomatch globs. */
+  excludeTags?: string[];
+
+  /**
+   * When true, only required parameters count towards parameter coverage.
+   * Optional parameters are ignored. @default false
+   */
+  requiredParamsOnly?: boolean;
+
   consoleOutput?: {
     enabled?: boolean;                  // @default true
     showUncoveredOnly?: boolean;        // @default false
@@ -118,6 +133,7 @@ interface PlayswagConfiguration {
     showBodyProperties?: boolean;       // @default false
     showResponseProperties?: boolean;   // @default false — expand response body fields per status code
     showTags?: boolean;                 // @default false — per-tag summary table
+    showOperationId?: boolean;          // @default false — append operationId after path in ops table
   };
 
   jsonOutput?: {
@@ -166,6 +182,17 @@ interface PlayswagConfiguration {
   junitOutput?: {
     enabled?: boolean;  // @default true
     fileName?: string;  // @default 'playswag-junit.xml'
+  };
+
+  /**
+   * Markdown report options.
+   * Enable by adding 'markdown' to outputFormats.
+   */
+  markdownOutput?: {
+    enabled?: boolean;              // @default true
+    fileName?: string;              // @default 'playswag-coverage.md'
+    title?: string;                 // @default 'API Coverage Report'
+    showUncoveredOperations?: boolean; // @default true
   };
 
   threshold?: {
@@ -442,6 +469,24 @@ junitOutput: {
 ```
 
 Each coverage dimension becomes a `<testcase>`. Threshold violations produce `<failure>` elements, making the report compatible with Jenkins, GitLab CI, and other JUnit-aware systems.
+
+---
+
+## Markdown output
+
+Add `'markdown'` to `outputFormats` to write a GitHub-flavoured Markdown coverage report:
+
+```ts
+outputFormats: ['console', 'json', 'markdown'],
+markdownOutput: {
+  fileName: 'playswag-coverage.md',  // written to outputDir
+  title: 'API Coverage Report',
+  showUncoveredOperations: true,
+},
+```
+
+The report contains a five-dimension summary table, a per-tag breakdown, and a list of uncovered
+operations. It renders correctly in GitHub pull requests, wiki pages, and `$GITHUB_STEP_SUMMARY`.
 
 ---
 

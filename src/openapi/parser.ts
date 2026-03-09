@@ -131,8 +131,23 @@ function extractRequestBodySchema(requestBody: unknown): NormalizedSchema | unde
 function extractServerBasePath(servers: unknown): string | undefined {
   if (!Array.isArray(servers) || servers.length === 0) return undefined;
   const first = (servers as Array<Record<string, unknown>>)[0];
-  const url = typeof first?.['url'] === 'string' ? first['url'] : undefined;
+  let url = typeof first?.['url'] === 'string' ? first['url'] : undefined;
   if (!url) return undefined;
+
+  // Substitute OAS3 server URL variables: {varName} → variable.default
+  const variables = first['variables'];
+  if (variables && typeof variables === 'object') {
+    const vars = variables as Record<string, { default?: string }>;
+    url = url.replace(/\{([^}]+)\}/g, (_, name: string) => {
+      const v = vars[name];
+      if (!v?.default) {
+        log.warn(`[playswag] Server URL variable "{${name}}" has no default — using literal placeholder`);
+        return `{${name}}`;
+      }
+      return v.default;
+    });
+  }
+
   try {
     const pathname = new URL(url).pathname;
     const normalized = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;

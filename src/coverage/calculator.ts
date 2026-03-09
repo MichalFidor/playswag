@@ -35,6 +35,7 @@ export function calculateCoverage(
     playwrightVersion?: string;
     playswagVersion?: string;
     totalTestCount?: number;
+    requiredParamsOnly?: boolean;
   } = {}
 ): CoverageResult {
   if (process.env['PLAYSWAG_DEBUG']) {
@@ -59,7 +60,10 @@ export function calculateCoverage(
       statusCodes[code] = { covered: false, testRefs: [] };
     }
 
-    const parameters: ParamCoverage[] = op.parameters.map((p) => ({
+    const paramsToTrack = options.requiredParamsOnly
+      ? op.parameters.filter((p) => p.required)
+      : op.parameters;
+    const parameters: ParamCoverage[] = paramsToTrack.map((p) => ({
       name: p.name,
       in: p.in,
       required: p.required,

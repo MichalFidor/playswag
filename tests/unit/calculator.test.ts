@@ -228,6 +228,35 @@ describe('calculateCoverage', () => {
     const op = result.operations.find((o) => o.path === '/api/users' && o.method === 'GET');
     expect(op?.parameters.find((p) => p.name === 'limit')?.covered).toBe(true);
   });
+
+  it('requiredParamsOnly: excludes optional parameters from tracking', () => {
+    // GET /api/users has 1 optional (limit); with requiredParamsOnly it should have 0 params
+    const result = calculateCoverage([], spec, { baseURL, requiredParamsOnly: true });
+    const op = result.operations.find((o) => o.path === '/api/users' && o.method === 'GET');
+    expect(op?.parameters).toHaveLength(0);
+  });
+
+  it('requiredParamsOnly: keeps required parameters', () => {
+    // GET /api/users/{id} has 1 required (id); with requiredParamsOnly it stays
+    const result = calculateCoverage([], spec, { baseURL, requiredParamsOnly: true });
+    const op = result.operations.find((o) => o.path === '/api/users/{id}' && o.method === 'GET');
+    expect(op?.parameters).toHaveLength(1);
+    expect(op?.parameters[0]?.name).toBe('id');
+    expect(op?.parameters[0]?.required).toBe(true);
+  });
+
+  it('requiredParamsOnly: summary.parameters.total counts only required params', () => {
+    // Spec has optional: limit (GET /api/users); required: id×2 (GET+DELETE /api/users/{id})
+    // With requiredParamsOnly the total should be 2 (id params only)
+    const result = calculateCoverage([], spec, { baseURL, requiredParamsOnly: true });
+    expect(result.summary.parameters.total).toBe(2);
+  });
+
+  it('requiredParamsOnly: false (default) includes all params', () => {
+    const result = calculateCoverage([], spec, { baseURL, requiredParamsOnly: false });
+    // total: limit(1) + id(2) = 3
+    expect(result.summary.parameters.total).toBe(3);
+  });
 });
 
 // ─── tagCoverage ─────────────────────────────────────────────────────────────

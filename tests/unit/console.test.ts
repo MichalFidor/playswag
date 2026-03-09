@@ -212,4 +212,50 @@ describe('printConsoleReport', () => {
     const allArgs = logSpy.mock.calls.flat().join('\n');
     expect(allArgs).toContain('All thresholds met');
   });
+
+  it('showOperationId: appends operationId to the path column when enabled', async () => {
+    const result: CoverageResult = {
+      ...makeResult(100, 100, 100, 100),
+      operations: [
+        {
+          path: '/api/users',
+          method: 'GET',
+          operationId: 'listUsers',
+          covered: true,
+          statusCodes: { '200': { covered: true, testRefs: [] } },
+          parameters: [],
+          bodyProperties: [],
+          responseProperties: [],
+          testRefs: [],
+        },
+      ],
+      uncoveredOperations: [],
+    };
+    await printConsoleReport(result, { showOperationId: true });
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).toContain('listUsers');
+  });
+
+  it('showOperationId: does not print operationId when disabled (default)', async () => {
+    const result: CoverageResult = {
+      ...makeResult(100, 100, 100, 100),
+      operations: [
+        {
+          path: '/api/users',
+          method: 'GET',
+          operationId: 'listUsers',
+          covered: true,
+          statusCodes: { '200': { covered: true, testRefs: [] } },
+          parameters: [],
+          bodyProperties: [],
+          responseProperties: [],
+          testRefs: [],
+        },
+      ],
+      uncoveredOperations: [],
+    };
+    await printConsoleReport(result);
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).not.toContain('listUsers');
+  });
 });

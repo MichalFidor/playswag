@@ -1,0 +1,22 @@
+openapi: "3.0.3"
+info:
+  title: Server Variables Test API
+  version: "1.0.0"
+servers:
+  - url: "https://{host}/v{version}"
+    variables:
+      host:
+        default: "api.example.com"
+        description: API host
+      version:
+        default: "2"
+        enum: ["1", "2"]
+paths:
+  /users:
+    get:
+      operationId: listUsers
+      summary: List users
+      parameters: []
+      responses:
+        "200":
+          description: OK

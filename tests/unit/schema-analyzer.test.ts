@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { analyzeParameters, analyzeBodyProperties } from '../../src/coverage/schema-analyzer.js';
-import type { NormalizedOperation } from '../../src/types.js';
+import type { NormalizedOperation, NormalizedSchema } from '../../src/types.js';
 
 const baseOp: NormalizedOperation = {
   pathTemplate: '/api/users/{id}',
@@ -206,5 +206,78 @@ describe('analyzeBodyProperties', () => {
     expect(result.find((b) => b.name === 'name')?.covered).toBe(true);
     expect(result.find((b) => b.name === 'weight')?.covered).toBe(false);
     expect(result.find((b) => b.name === 'weight')?.required).toBe(true);
+  });
+
+  it('tracks nested object properties using dot notation (depth 1)', () => {
+    const op: NormalizedOperation = {
+      pathTemplate: '/api/orders',
+      method: 'POST',
+      parameters: [],
+      requestBodySchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          address: {
+            type: 'object',
+            properties: {
+              street: { type: 'string' },
+              city: { type: 'string' },
+            },
+            required: ['street'],
+          },
+        },
+        required: ['id'],
+      },
+      responses: {},
+    };
+    const result = analyzeBodyProperties(op, { id: '1', address: { street: '123 Main St' } });
+    const names = result.map((b) => b.name);
+    expect(names).toContain('id');
+    expect(names).toContain('address');
+    expect(names).toContain('address.street');
+    expect(names).toContain('address.city');
+    expect(result.find((b) => b.name === 'id')?.covered).toBe(true);
+    expect(result.find((b) => b.name === 'address')?.covered).toBe(true);
+    expect(result.find((b) => b.name === 'address.street')?.covered).toBe(true);
+    expect(result.find((b) => b.name === 'address.city')?.covered).toBe(false);
+  });
+
+  it('marks nested properties as uncovered when parent is absent', () => {
+    const op: NormalizedOperation = {
+      pathTemplate: '/api/orders',
+      method: 'POST',
+      parameters: [],
+      requestBodySchema: {
+        type: 'object',
+        properties: {
+          address: {
+            type: 'object',
+            properties: { street: { type: 'string' } },
+          },
+        },
+      },
+      responses: {},
+    };
+    const result = analyzeBodyProperties(op, {});
+    expect(result.find((b) => b.name === 'address')?.covered).toBe(false);
+    expect(result.find((b) => b.name === 'address.street')?.covered).toBe(false);
+  });
+
+  it('does not recurse beyond depth 3', () => {
+    const deepSchema: NormalizedSchema = { type: 'object', properties: { b: { type: 'object', properties: { c: { type: 'object', properties: { d: { type: 'object', properties: { e: { type: 'string' } } } } } } } } };
+    const op: NormalizedOperation = {
+      pathTemplate: '/api/deep',
+      method: 'POST',
+      parameters: [],
+      requestBodySchema: deepSchema,
+      responses: {},
+    };
+    const result = analyzeBodyProperties(op, {});
+    const names = result.map((b) => b.name);
+    // a.b.c.d = depth 3 from root should appear, but a.b.c.d.e at depth 4 should not
+    expect(names).toContain('b');
+    expect(names).toContain('b.c');
+    expect(names).toContain('b.c.d');
+    expect(names).not.toContain('b.c.d.e');
   });
 });

@@ -163,6 +163,7 @@ export async function printConsoleReport(
     showBodyProperties = false,
     showResponseProperties = false,
     showTags = false,
+    showOperationId = false,
   } = config;
 
   const SEP = c.dim('─'.repeat(80));
@@ -303,7 +304,8 @@ export async function printConsoleReport(
 
   for (const op of opsToShow) {
     const methodColor = op.covered ? c.green(op.method) : c.red(op.method);
-    const pathLabel = op.deprecated ? `${op.path} ${c.dim('[deprecated]')}` : op.path;
+    let pathLabel = op.deprecated ? `${op.path} ${c.dim('[deprecated]')}` : op.path;
+    if (showOperationId && op.operationId) pathLabel += ` ${c.dim(op.operationId)}`;
     opsTable.push([
       methodColor,
       pathLabel,

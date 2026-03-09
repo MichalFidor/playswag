@@ -317,6 +317,7 @@ class PlayswagReporter implements Reporter {
       playwrightVersion: tryReadVersion('@playwright/test'),
       playswagVersion: readPlayswagVersion(),
       totalTestCount: this.totalTestCount,
+      requiredParamsOnly: this.config.requiredParamsOnly,
     });
 
     const historyConfig = this.config.history ? { enabled: true, ...this.config.history } : undefined;

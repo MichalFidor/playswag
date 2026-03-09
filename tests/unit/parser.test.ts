@@ -278,3 +278,23 @@ describe('parseSpecs — URL without scheme', () => {
     warnSpy.mockRestore();
   });
 });
+
+describe('parseSpecs — OAS3 server URL variable substitution', () => {
+  const FIXTURE_VARS = join(__dirname, '../fixtures/sample-openapi-server-vars.yaml');
+
+  it('substitutes server URL variables with their defaults to derive serverBasePath', async () => {
+    const spec = await parseSpecs(FIXTURE_VARS);
+    // servers[0].url is 'https://{host}/v{version}' with host=api.example.com, version=2
+    // → resolved URL: https://api.example.com/v2  → serverBasePath = '/v2'
+    const op = spec.operations.find((o) => o.pathTemplate === '/users');
+    expect(op?.serverBasePath).toBe('/v2');
+  });
+
+  it('strips the resolved base path when matching URLs', async () => {
+    const spec = await parseSpecs(FIXTURE_VARS);
+    const op = spec.operations.find((o) => o.pathTemplate === '/users');
+    // With serverBasePath = '/v2', the full URL path is /v2/users
+    expect(op?.serverBasePath).toBe('/v2');
+    expect(op?.pathTemplate).toBe('/users');
+  });
+});

@@ -7,6 +7,39 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.6.0] — 2026-03-09
+
+**Theme:** Spec fidelity — surface spec information previously silently ignored.
+
+### Added
+- **Deprecated operation visibility** — `deprecated?: boolean` carried through `NormalizedOperation`
+  → `OperationCoverage`; console ops table shows a dim `[deprecated]` suffix; HTML report shows an
+  amber `deprecated` badge and strikethrough styling.
+- **Cookie parameter coverage** — `case 'cookie'` in `schema-analyzer.ts` parses the `Cookie`
+  request header (`name1=val1; name2=val2`) and marks parameters covered by name.
+- **Markdown output format** — `outputFormats: ['markdown']` writes `playswag-coverage.md`;
+  five-dimension summary table + per-tag breakdown + uncovered operations list.
+  Configurable via `markdownOutput: { title, fileName, showUncoveredOperations }`.
+- **Tag-based operation filtering** — `includeTags`/`excludeTags` in `PlayswagConfig` filter the
+  spec operations counted in coverage; supports picomatch glob patterns (e.g. `'internal*'`).
+- **Server URL variable substitution** — OAS3 `servers[0].url` entries with `{variable}`
+  placeholders are now resolved using `servers[0].variables[name].default` before extracting the
+  base path. If a variable has no `default`, a warning is emitted and the literal placeholder is
+  kept.
+- **`consoleOutput.showOperationId`** — when `true`, the `operationId` is appended (dimmed) after
+  the path in the operations table, making it easy to correlate console rows with spec definitions.
+  `@default false`.
+- **`requiredParamsOnly`** — new top-level `PlayswagConfig` option; when `true`, only
+  `required: true` parameters are tracked in the parameters coverage dimension, reducing noise
+  from optional query parameters that are rarely supplied. `@default false`.
+- **Nested body property tracking** — request and response body property coverage now recurses
+  up to **3 levels deep** into nested objects. Sub-properties are reported with dot-notation names
+  (e.g. `address.street`, `address.street.number`). Top-level-only schemas are unaffected.
+- **11 new unit tests** across `parser`, `calculator`, `schema-analyzer`, and `console` suites.
+  Total: **344 tests**.
+
+---
+
 ## [1.5.4] — 2026-03-05
 
 **Theme:** HTML report redesign + version display bug fix.
