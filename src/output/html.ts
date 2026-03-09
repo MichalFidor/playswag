@@ -107,14 +107,8 @@ function miniProgressBar(pct: number, covered: boolean): string {
         </div>`;
 }
 
-function operationDetailRow(op: OperationCoverage, i: number, gid: number): string {
+function operationBlock(op: OperationCoverage, i: number, gid: number): string {
   const tags = (op.tags ?? []).join(',');
-  const scCovered = Object.values(op.statusCodes).filter((s) => s.covered).length;
-  const scTotal = Object.keys(op.statusCodes).length;
-  const paramTotal = op.parameters.length + op.bodyProperties.length;
-  const paramCovered = op.parameters.filter((p) => p.covered).length
-    + op.bodyProperties.filter((b) => b.covered).length;
-  const paramRatio = paramTotal === 0 ? '<span class="muted">—</span>' : `${paramCovered}/${paramTotal}`;
   const testRefsHtml = op.testRefs.length > 0
     ? op.testRefs.map((r) => `<span class="testref">${esc(r)}</span>`).join('')
     : '<em class="muted">none</em>';
@@ -123,52 +117,52 @@ function operationDetailRow(op: OperationCoverage, i: number, gid: number): stri
     : '';
   const covPct = operationCoveragePct(op);
 
-  return `<tr class="op-row" data-covered="${op.covered}" data-tags="${esc(tags)}" data-idx="${i}" data-gid="${gid}">
-        <td class="td-method"><span class="method m-${op.method.toLowerCase()}">${esc(op.method)}</span></td>
-        <td class="td-path">
-          <span class="path-text">${esc(op.path)}</span>
+  return `<div class="op-block" data-covered="${op.covered}" data-tags="${esc(tags)}" data-idx="${i}" data-gid="${gid}">
+      <div class="op-row m-${op.method.toLowerCase()}">
+        <div class="op-row-left">
+          <span class="method m-${op.method.toLowerCase()}">${esc(op.method)}</span>
+          <span class="op-path">${esc(op.path)}</span>
           ${op.operationId ? `<span class="opid">${esc(op.operationId)}</span>` : ''}
           ${tagBadges ? `<span class="tag-wrap">${tagBadges}</span>` : ''}
-        </td>
-        <td class="td-center">${scCovered}/${scTotal}</td>
-        <td class="td-center">${paramRatio}</td>
-        <td class="td-coverage">${miniProgressBar(covPct, op.covered)}</td>
-        <td class="td-chevron"><span class="chevron" id="chev-${i}">›</span></td>
-      </tr>
-      <tr class="op-detail" id="detail-${i}" data-gid="${gid}">
-        <td colspan="6">
-          <div class="detail-inner">
-            <div class="detail-section">
-              <div class="detail-label">Status Codes</div>
-              <div class="detail-content">${statusCodeBadges(op)}</div>
-            </div>
-            <div class="detail-section">
-              <div class="detail-label">Parameters</div>
-              <div class="detail-content">${paramBadges(op)}</div>
-            </div>
-            <div class="detail-section">
-              <div class="detail-label">Body Properties</div>
-              <div class="detail-content">${bodyBadges(op)}</div>
-            </div>
-            <div class="detail-section">
-              <div class="detail-label">Response Properties</div>
-              <div class="detail-content">${responseBadges(op)}</div>
-            </div>
-            <div class="detail-section detail-tests">
-              <div class="detail-label">Tests <span class="detail-count">${op.testRefs.length}</span></div>
-              <div class="detail-content">${testRefsHtml}</div>
-            </div>
+        </div>
+        <div class="op-row-right">
+          ${miniProgressBar(covPct, op.covered)}
+          <span class="chevron" id="chev-${i}">›</span>
+        </div>
+      </div>
+      <div class="op-detail" id="detail-${i}">
+        <div class="detail-inner">
+          <div class="detail-section">
+            <div class="detail-label">Status Codes</div>
+            <div class="detail-content">${statusCodeBadges(op)}</div>
           </div>
-        </td>
-      </tr>`;
+          <div class="detail-section">
+            <div class="detail-label">Parameters</div>
+            <div class="detail-content">${paramBadges(op)}</div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">Body Properties</div>
+            <div class="detail-content">${bodyBadges(op)}</div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">Response Properties</div>
+            <div class="detail-content">${responseBadges(op)}</div>
+          </div>
+          <div class="detail-section detail-tests">
+            <div class="detail-label">Tests <span class="detail-count">${op.testRefs.length}</span></div>
+            <div class="detail-content">${testRefsHtml}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
 
 /**
  * Renders operations grouped by their first tag (alphabetical), with a
- * collapsible group-header row before each group. Tagless operations appear
+ * collapsible group-header div before each group. Tagless operations appear
  * last under a "General" group.
  */
-function tagGroupedRows(ops: OperationCoverage[]): string {
+function tagGroupedBlocks(ops: OperationCoverage[]): string {
   const opIndexMap = new Map(ops.map((op, i) => [op, i]));
 
   const groups = new Map<string, OperationCoverage[]>();
@@ -184,7 +178,7 @@ function tagGroupedRows(ops: OperationCoverage[]): string {
     return a.localeCompare(b);
   });
 
-  const rows: string[] = [];
+  const blocks: string[] = [];
   let gid = 0;
 
   for (const tag of sortedTags) {
@@ -195,26 +189,24 @@ function tagGroupedRows(ops: OperationCoverage[]): string {
     const pct = total > 0 ? (covered / total) * 100 : 0;
     const cls = pct >= 80 ? 'green' : pct >= 50 ? 'yellow' : 'red';
 
-    rows.push(`<tr class="tag-group-header" data-gid="${gid}">
-        <td colspan="6">
-          <div class="group-inner">
-            <span class="group-chev open" id="gchev-${gid}">›</span>
-            <span class="group-name">${esc(displayTag)}</span>
-            <span class="count">${covered}/${total}</span>
-            <div class="group-mini-bar"><div class="group-mini-fill ${cls}" style="width:${pct.toFixed(1)}%"></div></div>
-            <span class="group-pct ${cls}">${pct.toFixed(0)}%</span>
-          </div>
-        </td>
-      </tr>`);
+    blocks.push(`<div class="tag-group-header" data-gid="${gid}">
+  <div class="group-inner">
+    <span class="group-chev open" id="gchev-${gid}">›</span>
+    <span class="group-name">${esc(displayTag)}</span>
+    <span class="count">${covered}/${total}</span>
+    <div class="group-mini-bar"><div class="group-mini-fill ${cls}" style="width:${pct.toFixed(1)}%"></div></div>
+    <span class="group-pct ${cls}">${pct.toFixed(0)}%</span>
+  </div>
+</div>`);
 
     for (const op of groupOps) {
-      rows.push(operationDetailRow(op, opIndexMap.get(op)!, gid));
+      blocks.push(operationBlock(op, opIndexMap.get(op)!, gid));
     }
 
     gid++;
   }
 
-  return rows.join('\n  ');
+  return blocks.join('\n');
 }
 
 function tagFilterButtons(ops: OperationCoverage[]): string {
@@ -311,6 +303,11 @@ export function generateHtmlReport(
   --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
   --shadow-md: 0 4px 6px rgba(0,0,0,.05), 0 2px 4px rgba(0,0,0,.04);
   --radius: 10px;
+  --sw-get:    #49cc90;
+  --sw-post:   #61affe;
+  --sw-put:    #fca130;
+  --sw-patch:  #50e3c2;
+  --sw-delete: #f93e3e;
 }
 [data-theme=dark] {
   --bg: #0f1117;
@@ -350,6 +347,7 @@ header { background: var(--surface); border-bottom: 1px solid var(--border); pad
 .brand-subtitle { font-size: 13px; color: var(--text2); font-weight: 500; line-height: 1.3; }
 .theme-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; color: var(--text2); font-size: 12px; font-weight: 500; transition: all .15s; white-space: nowrap; }
 .theme-btn:hover { border-color: var(--blue); color: var(--blue); }
+
 /* ── Meta bar ── */
 .meta-bar { background: var(--surface2); border-bottom: 1px solid var(--border); padding: 8px 32px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .meta-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 11px; color: var(--muted); white-space: nowrap; }
@@ -373,7 +371,8 @@ main { max-width: 1280px; margin: 0 auto; padding: 28px 32px; }
 
 /* ── Summary cards ── */
 .summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); border-left: 4px solid var(--border2); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); border-left: 4px solid var(--border2); transition: box-shadow .15s, transform .15s; }
+.card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .card.green { border-left-color: var(--green); }
 .card.yellow { border-left-color: var(--yellow); }
 .card.red { border-left-color: var(--red); }
@@ -391,7 +390,7 @@ main { max-width: 1280px; margin: 0 auto; padding: 28px 32px; }
 .bar.yellow { background: var(--yellow); }
 .bar.red { background: var(--red); }
 
-/* ── Section ── */
+/* ── Section wrapper ── */
 .section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 20px; overflow: hidden; box-shadow: var(--shadow); }
 .section-warn { border-color: var(--warn-border); background: var(--warn-bg); }
 .section-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -399,55 +398,77 @@ main { max-width: 1280px; margin: 0 auto; padding: 28px 32px; }
 .section-title { font-size: 14px; font-weight: 700; color: var(--text); }
 .section-hint { font-size: 12px; color: var(--muted); }
 .warn-icon { font-size: 16px; }
-.count { background: var(--border); border-radius: 20px; padding: 1px 9px; font-size: 11px; font-weight: 700; color: var(--text2); }
+.count { background: var(--border); border-radius: 20px; padding: 1px 9px; font-size: 11px; font-weight: 700; color: var(--text2); white-space: nowrap; }
 .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; }
 .filter-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 13px; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text2); transition: all .15s; }
 .filter-btn.active, .filter-btn:hover { background: var(--blue); border-color: var(--blue); color: #fff; }
 
-/* ── Table ── */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 10px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--surface2); white-space: nowrap; font-weight: 600; }
-.op-row td { padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; cursor: pointer; color: var(--text); transition: background .1s; }
-.op-row:hover td { background: var(--surface2); }
-.op-row.hidden { display: none; }
-.op-row[data-covered="false"] .path-text { color: var(--muted); }
-.op-detail { display: none; }
-.op-detail.open { display: table-row; }
-.op-detail td { padding: 0; border-bottom: 1px solid var(--border); background: var(--surface2); }
+/* ── Swagger-style ops list ── */
+.ops-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }
 
-/* ── Detail inner ── */
-.detail-inner { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0; border-top: 2px solid var(--blue); }
-.detail-section { padding: 14px 18px; border-right: 1px solid var(--border); }
+/* ── Tag group header ── */
+.tag-group-header { cursor: pointer; user-select: none; }
+.tag-group-header.hidden { display: none; }
+.group-inner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; transition: background .1s; }
+.tag-group-header:hover .group-inner { background: var(--border); }
+.group-chev { font-size: 15px; color: var(--muted); transition: transform .2s; display: inline-block; line-height: 1; }
+.group-chev.open { transform: rotate(90deg); }
+.group-name { font-size: 12px; font-weight: 700; color: var(--text); letter-spacing: .04em; flex: 1; }
+.group-mini-bar { width: 80px; background: var(--border); border-radius: 3px; height: 4px; overflow: hidden; }
+.group-mini-fill { height: 4px; border-radius: 3px; }
+.group-mini-fill.green { background: var(--green); }
+.group-mini-fill.yellow { background: var(--yellow); }
+.group-mini-fill.red { background: var(--red); }
+.group-pct { font-size: 11px; font-weight: 700; white-space: nowrap; }
+.group-pct.green { color: var(--green); }
+.group-pct.yellow { color: var(--yellow); }
+.group-pct.red { color: var(--red); }
+
+/* ── Operation block (Swagger-style) ── */
+.op-block { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-left: 0; }
+.op-block.hidden { display: none; }
+
+/* Op-row: the clickable header bar of each operation */
+.op-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; cursor: pointer; border-left: 4px solid var(--border2); transition: filter .12s; gap: 12px; }
+.op-row:hover { filter: brightness(0.97); }
+.op-row-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.op-row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* Method-specific row tints (Swagger colour palette) */
+.op-row.m-get    { border-left-color: var(--sw-get);    background: rgba(73,204,144,.07);  }
+.op-row.m-post   { border-left-color: var(--sw-post);   background: rgba(97,175,254,.07);  }
+.op-row.m-put    { border-left-color: var(--sw-put);    background: rgba(252,161,48,.07);  }
+.op-row.m-patch  { border-left-color: var(--sw-patch);  background: rgba(80,227,194,.07);  }
+.op-row.m-delete { border-left-color: var(--sw-delete); background: rgba(249,62,62,.07);   }
+.op-row.m-head, .op-row.m-options, .op-row.m-trace { border-left-color: var(--border2); background: var(--surface); }
+
+/* Op-detail: expanded body */
+.op-detail { display: none; border-top: 1px solid var(--border); }
+.op-detail.open { display: block; }
+
+/* ── Method badges (Swagger colour palette) ── */
+.method { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; color: #fff; font-family: ui-monospace, monospace; letter-spacing: .04em; flex-shrink: 0; }
+.m-get    { background: var(--sw-get);    }
+.m-post   { background: var(--sw-post);   }
+.m-put    { background: var(--sw-put);    }
+.m-patch  { background: var(--sw-patch);  color: #1a1a1a; }
+.m-delete { background: var(--sw-delete); }
+.m-head, .m-options, .m-trace { background: #64748b; }
+
+/* ── Op path / info ── */
+.op-path { font-family: ui-monospace, monospace; font-size: 14px; font-weight: 600; color: var(--text); word-break: break-word; }
+.opid { font-size: 10px; color: var(--muted); }
+.tag-wrap { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.tag-badge { background: var(--blue-bg); color: var(--blue); border-radius: 10px; padding: 1px 7px; font-size: 10px; font-weight: 600; }
+
+/* ── Detail inner (expanded panel) ── */
+.detail-inner { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0; border-top: 2px solid var(--blue); background: var(--surface2); }
+.detail-section { padding: 14px 18px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 .detail-section:last-child { border-right: none; }
-.detail-tests { grid-column: span 1; }
+.detail-tests { }
 .detail-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
 .detail-count { background: var(--border); border-radius: 10px; padding: 0 6px; font-size: 10px; font-weight: 700; color: var(--text2); }
 .detail-content { display: flex; flex-wrap: wrap; gap: 4px; }
-
-/* ── Method badges ── */
-.method { display: inline-flex; align-items: center; justify-content: center; min-width: 54px; padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; color: #fff; font-family: ui-monospace, monospace; letter-spacing: .03em; }
-.m-get { background: #16a34a; }
-.m-post { background: #2563eb; }
-.m-put { background: #d97706; }
-.m-patch { background: #7c3aed; }
-.m-delete { background: #dc2626; }
-.m-head, .m-options, .m-trace { background: #64748b; }
-
-/* ── Cells ── */
-.td-method { width: 72px; }
-.td-path { font-family: ui-monospace, monospace; word-break: break-word; }
-.path-text { display: block; font-size: 13px; }
-.opid { display: inline-block; font-size: 10px; color: var(--muted); margin-top: 2px; margin-right: 4px; }
-.tag-wrap { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
-.tag-badge { background: var(--blue-bg); color: var(--blue); border-radius: 10px; padding: 1px 7px; font-size: 10px; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 600; }
-.td-center { text-align: center; white-space: nowrap; color: var(--text2); font-size: 13px; }
-.td-mono { font-family: ui-monospace, monospace; word-break: break-all; font-size: 12px; }
-.td-test { color: var(--text2); font-size: 12px; }
-.td-chevron { width: 28px; text-align: right; }
-.chevron { display: inline-block; font-size: 18px; color: var(--muted); line-height: 1; transition: transform .2s; font-style: normal; user-select: none; }
-.chevron.open { transform: rotate(90deg); }
-.status-code { background: var(--grey-bg); border-radius: 4px; padding: 2px 7px; font-family: ui-monospace, monospace; font-size: 12px; }
 
 /* ── Coverage badges ── */
 .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; font-family: ui-monospace, monospace; border: 1px solid transparent; }
@@ -471,27 +492,7 @@ th { text-align: left; padding: 10px 16px; font-size: 11px; text-transform: uppe
 .spark-line.yellow { stroke: var(--yellow); opacity: .55; }
 .spark-line.red { stroke: var(--red); opacity: .55; }
 
-/* ── Tag group headers ── */
-.tag-group-header { cursor: pointer; user-select: none; }
-.tag-group-header td { padding: 0; }
-.group-inner { display: flex; align-items: center; gap: 10px; padding: 9px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); border-left: 3px solid var(--border2); transition: background .1s; }
-.tag-group-header:hover .group-inner { background: var(--border); }
-.tag-group-header.collapsed .group-inner { border-left-color: var(--muted); }
-.group-chev { font-size: 15px; color: var(--muted); transition: transform .2s; display: inline-block; line-height: 1; }
-.group-chev.open { transform: rotate(90deg); }
-.group-name { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .07em; }
-.group-mini-bar { flex: 1; max-width: 100px; background: var(--border); border-radius: 3px; height: 4px; overflow: hidden; }
-.group-mini-fill { height: 4px; border-radius: 3px; }
-.group-mini-fill.green { background: var(--green); }
-.group-mini-fill.yellow { background: var(--yellow); }
-.group-mini-fill.red { background: var(--red); }
-.group-pct { font-size: 11px; font-weight: 700; white-space: nowrap; }
-.group-pct.green { color: var(--green); }
-.group-pct.yellow { color: var(--yellow); }
-.group-pct.red { color: var(--red); }
-
 /* ── Per-operation mini progress bar ── */
-.td-coverage { text-align: center; white-space: nowrap; }
 .mini-bar-wrap { display: inline-flex; align-items: center; gap: 6px; }
 .mini-bar-track { width: 56px; background: var(--border); border-radius: 3px; height: 5px; overflow: hidden; }
 .mini-bar { height: 5px; border-radius: 3px; }
@@ -499,9 +500,18 @@ th { text-align: left; padding: 10px 16px; font-size: 11px; text-transform: uppe
 .mini-bar.yellow { background: var(--yellow); }
 .mini-bar.red { background: var(--red); }
 
-/* ── Card hover ── */
-.card { transition: box-shadow .15s, transform .15s; }
-.card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+/* ── Chevron ── */
+.chevron { display: inline-block; font-size: 18px; color: var(--muted); line-height: 1; transition: transform .2s; font-style: normal; user-select: none; }
+.chevron.open { transform: rotate(90deg); }
+
+/* ── Unmatched hits table ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--surface2); white-space: nowrap; font-weight: 600; }
+td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
+.td-mono { font-family: ui-monospace, monospace; word-break: break-all; font-size: 12px; }
+.td-test { color: var(--text2); font-size: 12px; }
+.status-code { background: var(--grey-bg); border-radius: 4px; padding: 2px 7px; font-family: ui-monospace, monospace; font-size: 12px; }
 
 /* ── Misc ── */
 .muted { color: var(--muted); }
@@ -533,26 +543,22 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
       var collapsed=header.classList.toggle('collapsed');
       var chev=document.getElementById('gchev-'+gid);
       if(chev)chev.classList.toggle('open',!collapsed);
-      // Toggle op-rows and op-detail rows belonging to this group
-      document.querySelectorAll('.op-row[data-gid="'+gid+'"]').forEach(function(row){
-        row.classList.toggle('hidden',collapsed);
+      document.querySelectorAll('.op-block[data-gid="'+gid+'"]').forEach(function(block){
+        block.classList.toggle('hidden',collapsed);
         if(collapsed){
-          var idx=row.getAttribute('data-idx');
+          var idx=block.getAttribute('data-idx');
           var det=document.getElementById('detail-'+idx);
           var ch=document.getElementById('chev-'+idx);
           if(det){det.classList.remove('open');}
           if(ch){ch.classList.remove('open');}
         }
       });
-      document.querySelectorAll('.op-detail[data-gid="'+gid+'"]').forEach(function(det){
-        if(collapsed)det.classList.remove('open');
-      });
     });
   });
 
-  // Filter buttons — applying a filter expands all groups first
+  // Filter buttons
   var filterBtns=document.querySelectorAll('.filter-btn');
-  var opRows=document.querySelectorAll('.op-row');
+  var opBlocks=document.querySelectorAll('.op-block');
   filterBtns.forEach(function(b){
     b.addEventListener('click',function(){
       filterBtns.forEach(function(x){x.classList.remove('active');});
@@ -565,39 +571,40 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
         var chev=document.getElementById('gchev-'+gid);
         if(chev)chev.classList.add('open');
       });
-      opRows.forEach(function(row){
+      opBlocks.forEach(function(block){
         var show=f==='all'||
-          (f==='covered'&&row.getAttribute('data-covered')==='true')||
-          (f==='uncovered'&&row.getAttribute('data-covered')==='false')||
-          (f.startsWith('tag:')&&row.getAttribute('data-tags').split(',').indexOf(f.slice(4))!==-1);
-        row.classList.toggle('hidden',!show);
-        var idx=row.getAttribute('data-idx');
+          (f==='covered'&&block.getAttribute('data-covered')==='true')||
+          (f==='uncovered'&&block.getAttribute('data-covered')==='false')||
+          (f.startsWith('tag:')&&block.getAttribute('data-tags').split(',').indexOf(f.slice(4))!==-1);
+        block.classList.toggle('hidden',!show);
+        var idx=block.getAttribute('data-idx');
         var det=document.getElementById('detail-'+idx);
-        var ch=document.getElementById('chev-'+idx);
         if(det&&!show){det.classList.remove('open');}
       });
-      // Hide group headers that have no visible rows
+      // Hide group headers that have no visible blocks
       document.querySelectorAll('.tag-group-header').forEach(function(header){
         var gid=header.getAttribute('data-gid');
         var anyVisible=false;
-        document.querySelectorAll('.op-row[data-gid="'+gid+'"]').forEach(function(row){
-          if(!row.classList.contains('hidden'))anyVisible=true;
+        document.querySelectorAll('.op-block[data-gid="'+gid+'"]').forEach(function(block){
+          if(!block.classList.contains('hidden'))anyVisible=true;
         });
         header.classList.toggle('hidden',!anyVisible);
       });
     });
   });
 
-  // Operation row expand
-  opRows.forEach(function(row){
+  // Operation expand/collapse
+  opBlocks.forEach(function(block){
+    var row=block.querySelector('.op-row');
+    if(!row)return;
     row.addEventListener('click',function(){
-      var idx=row.getAttribute('data-idx');
+      var idx=block.getAttribute('data-idx');
       var det=document.getElementById('detail-'+idx);
       var chev=document.getElementById('chev-'+idx);
       if(!det)return;
       var opening=!det.classList.contains('open');
       det.classList.toggle('open',opening);
-      chev.classList.toggle('open',opening);
+      if(chev)chev.classList.toggle('open',opening);
     });
   });
 })();`.trim();
@@ -668,22 +675,8 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
         </div>
       </div>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Method</th>
-            <th>Path / Operation</th>
-            <th style="text-align:center">Status</th>
-            <th style="text-align:center">Params</th>
-            <th style="text-align:center">Coverage</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-  ${tagGroupedRows(result.operations)}
-        </tbody>
-      </table>
+    <div class="ops-list">
+      ${tagGroupedBlocks(result.operations)}
     </div>
   </div>
 
