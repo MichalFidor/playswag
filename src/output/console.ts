@@ -303,9 +303,10 @@ export async function printConsoleReport(
 
   for (const op of opsToShow) {
     const methodColor = op.covered ? c.green(op.method) : c.red(op.method);
+    const pathLabel = op.deprecated ? `${op.path} ${c.dim('[deprecated]')}` : op.path;
     opsTable.push([
       methodColor,
-      op.path,
+      pathLabel,
       summaryCodes(c, op.statusCodes),
       paramRatio(op),
       respRatio(op),

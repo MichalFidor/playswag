@@ -337,6 +337,38 @@ describe('generateHtmlReport', () => {
     const html = generateHtmlReport(makeResult(), {}, '', []);
     expect(html).not.toContain('<polyline');
   });
+
+  // ── Deprecated operations ────────────────────────────────────────────────────
+
+  it('adds the deprecated class to a deprecated operation block', () => {
+    const op = makeOperation({ deprecated: true });
+    const html = generateHtmlReport(makeResult({ operations: [op] }));
+    expect(html).toContain('op-block deprecated');
+  });
+
+  it('does not add the deprecated class to a non-deprecated operation', () => {
+    const op = makeOperation({ deprecated: false });
+    const html = generateHtmlReport(makeResult({ operations: [op] }));
+    expect(html).not.toContain('op-block deprecated');
+  });
+
+  it('renders the deprecated badge for a deprecated operation', () => {
+    const op = makeOperation({ deprecated: true });
+    const html = generateHtmlReport(makeResult({ operations: [op] }));
+    expect(html).toContain('<span class="deprecated-badge">deprecated</span>');
+  });
+
+  it('applies op-path-deprecated class to the path of a deprecated operation', () => {
+    const op = makeOperation({ deprecated: true });
+    const html = generateHtmlReport(makeResult({ operations: [op] }));
+    expect(html).toContain('op-path-deprecated');
+  });
+
+  it('does not render deprecated badge for a non-deprecated operation', () => {
+    const op = makeOperation({ deprecated: false });
+    const html = generateHtmlReport(makeResult({ operations: [op] }));
+    expect(html).not.toContain('<span class="deprecated-badge">');
+  });
 });
 
 describe('writeHtmlReport', () => {

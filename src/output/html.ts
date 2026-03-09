@@ -117,11 +117,12 @@ function operationBlock(op: OperationCoverage, i: number, gid: number): string {
     : '';
   const covPct = operationCoveragePct(op);
 
-  return `<div class="op-block" data-covered="${op.covered}" data-tags="${esc(tags)}" data-idx="${i}" data-gid="${gid}">
+  return `<div class="op-block${op.deprecated ? ' deprecated' : ''}" data-covered="${op.covered}" data-tags="${esc(tags)}" data-idx="${i}" data-gid="${gid}">
       <div class="op-row m-${op.method.toLowerCase()}">
         <div class="op-row-left">
           <span class="method m-${op.method.toLowerCase()}">${esc(op.method)}</span>
-          <span class="op-path">${esc(op.path)}</span>
+          <span class="op-path${op.deprecated ? ' op-path-deprecated' : ''}">${esc(op.path)}</span>
+          ${op.deprecated ? '<span class="deprecated-badge">deprecated</span>' : ''}
           ${op.operationId ? `<span class="opid">${esc(op.operationId)}</span>` : ''}
           ${tagBadges ? `<span class="tag-wrap">${tagBadges}</span>` : ''}
         </div>
@@ -457,9 +458,11 @@ main { max-width: 1280px; margin: 0 auto; padding: 28px 32px; }
 
 /* ── Op path / info ── */
 .op-path { font-family: ui-monospace, monospace; font-size: 14px; font-weight: 600; color: var(--text); word-break: break-word; }
+.op-path-deprecated { text-decoration: line-through; opacity: 0.65; }
 .opid { font-size: 10px; color: var(--muted); }
 .tag-wrap { display: inline-flex; flex-wrap: wrap; gap: 3px; }
 .tag-badge { background: var(--blue-bg); color: var(--blue); border-radius: 10px; padding: 1px 7px; font-size: 10px; font-weight: 600; }
+.deprecated-badge { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow); border-radius: 10px; padding: 1px 8px; font-size: 10px; font-weight: 700; letter-spacing: .03em; font-family: ui-sans-serif, system-ui, sans-serif; }
 
 /* ── Detail inner (expanded panel) ── */
 .detail-inner { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0; border-top: 2px solid var(--blue); background: var(--surface2); }

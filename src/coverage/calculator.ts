@@ -79,6 +79,7 @@ export function calculateCoverage(
       method: op.method,
       operationId: op.operationId,
       tags: op.tags,
+      deprecated: op.deprecated,
       covered: false,
       statusCodes,
       parameters,

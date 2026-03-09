@@ -59,14 +59,58 @@ describe('analyzeParameters', () => {
     expect(analyzeParameters(op, {}, {}, {})).toEqual([]);
   });
 
-  it('cookie parameters are always uncovered', () => {
+  it('marks cookie param as covered when Cookie header contains the cookie name', () => {
     const op: NormalizedOperation = {
       pathTemplate: '/api/login',
       method: 'POST',
       parameters: [{ name: 'session', in: 'cookie', required: false }],
       responses: {},
     };
-    // Even when a matching key is present in query params the cookie param stays uncovered
+    const result = analyzeParameters(op, undefined, {}, { cookie: 'session=abc123; other=x' });
+    expect(result[0]?.covered).toBe(true);
+  });
+
+  it('marks cookie param as uncovered when Cookie header is absent', () => {
+    const op: NormalizedOperation = {
+      pathTemplate: '/api/login',
+      method: 'POST',
+      parameters: [{ name: 'session', in: 'cookie', required: false }],
+      responses: {},
+    };
+    const result = analyzeParameters(op, undefined, {}, {});
+    expect(result[0]?.covered).toBe(false);
+  });
+
+  it('marks cookie param as uncovered when Cookie header does not contain the cookie name', () => {
+    const op: NormalizedOperation = {
+      pathTemplate: '/api/login',
+      method: 'POST',
+      parameters: [{ name: 'session', in: 'cookie', required: false }],
+      responses: {},
+    };
+    const result = analyzeParameters(op, undefined, {}, { cookie: 'other=xyz' });
+    expect(result[0]?.covered).toBe(false);
+  });
+
+  it('cookie param coverage is case-insensitive on the Cookie header key', () => {
+    const op: NormalizedOperation = {
+      pathTemplate: '/api/login',
+      method: 'POST',
+      parameters: [{ name: 'token', in: 'cookie', required: true }],
+      responses: {},
+    };
+    // Header key is upper-cased Cookie
+    const result = analyzeParameters(op, undefined, {}, { Cookie: 'token=my-jwt' });
+    expect(result[0]?.covered).toBe(true);
+  });
+
+  it('query params do not satisfy cookie params', () => {
+    const op: NormalizedOperation = {
+      pathTemplate: '/api/login',
+      method: 'POST',
+      parameters: [{ name: 'session', in: 'cookie', required: false }],
+      responses: {},
+    };
     const result = analyzeParameters(op, { session: '123' }, {}, {});
     expect(result[0]?.covered).toBe(false);
   });

@@ -177,6 +177,7 @@ function normalizeV3(
         method: method.toUpperCase(),
         operationId: operation.operationId,
         tags: operation.tags,
+        deprecated: Boolean(operation.deprecated),
         parameters: Array.from(paramMap.values()),
         requestBodySchema: extractRequestBodySchema(operation.requestBody),
         responses: normalizeResponses(operation.responses),
@@ -187,7 +188,6 @@ function normalizeV3(
   return operations;
 }
 
-/** Convert a dereferenced Swagger 2.0 document into NormalizedOperations. */
 function normalizeV2(doc: OpenAPIV2.Document): NormalizedOperation[] {
   const operations: NormalizedOperation[] = [];
   const methods = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'];
@@ -222,6 +222,7 @@ function normalizeV2(doc: OpenAPIV2.Document): NormalizedOperation[] {
         method: method.toUpperCase(),
         operationId: operation.operationId,
         tags: operation.tags,
+        deprecated: Boolean((operation as Record<string, unknown>)['deprecated']),
         parameters: Array.from(paramMap.values()),
         requestBodySchema: bodyParam ? extractSchema(bodyParam.schema) : undefined,
         responses: normalizeResponses(operation.responses),

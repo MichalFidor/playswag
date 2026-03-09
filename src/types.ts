@@ -58,6 +58,8 @@ export interface OperationCoverage {
   method: string;
   operationId?: string;
   tags?: string[];
+  /** Whether this operation is marked as deprecated in the spec. */
+  deprecated?: boolean;
   covered: boolean;
   /** Defined response codes in spec vs whether they were exercised */
   statusCodes: Record<string, StatusCodeCoverage>;
@@ -121,6 +123,8 @@ export interface NormalizedOperation {
   method: string;
   operationId?: string;
   tags?: string[];
+  /** Whether this operation is marked as deprecated in the spec. */
+  deprecated?: boolean;
   parameters: NormalizedParameter[];
   requestBodySchema?: NormalizedSchema;
   responses: Record<string, NormalizedResponse>;

@@ -54,9 +54,20 @@ export function analyzeParameters(
           Object.keys(headers).some((h) => h.toLowerCase() === lowerName);
         break;
       }
-      case 'cookie':
-        covered = false;
+      case 'cookie': {
+        // Parse the Cookie header: "name1=value1; name2=value2"
+        const cookieHeader = headers != null
+          ? (Object.entries(headers).find(([k]) => k.toLowerCase() === 'cookie')?.[1] ?? '')
+          : '';
+        if (cookieHeader) {
+          covered = cookieHeader.split(';').some((pair) => {
+            const eqIdx = pair.indexOf('=');
+            const name = eqIdx === -1 ? pair.trim() : pair.slice(0, eqIdx).trim();
+            return name === param.name;
+          });
+        }
         break;
+      }
     }
 
     return {
