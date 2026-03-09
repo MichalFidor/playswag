@@ -35,6 +35,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Nested body property tracking** — request and response body property coverage now recurses
   up to **3 levels deep** into nested objects. Sub-properties are reported with dot-notation names
   (e.g. `address.street`, `address.street.number`). Top-level-only schemas are unaffected.
+- **HTML report visual refresh** — the HTML report now closely mirrors the look and feel of the
+  Swagger UI: cleaner typography, tighter spacing, a colour palette aligned with the Swagger colour
+  scheme, and an operation-detail layout that matches the familiar Swagger accordion style.
 - **11 new unit tests** across `parser`, `calculator`, `schema-analyzer`, and `console` suites.
   Total: **344 tests**.
 

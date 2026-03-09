@@ -363,6 +363,7 @@ The report includes:
 - Click any row to expand status codes, parameters, body properties, and the tests that hit it
 - Unmatched hits section (calls that matched no spec operation)
 - Dark / light theme toggle (persisted to `localStorage`)
+- Visual style closely inspired by Swagger UI — familiar colour palette, accordion layout, and typography for teams already using Swagger documentation
 
 ---
 
