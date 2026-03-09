@@ -12,7 +12,7 @@ import type {
   TestResult,
   FullResult,
 } from '@playwright/test/reporter';
-import type { EndpointHit, PlayswagConfig, CoverageResult } from './types.js';
+import type { EndpointHit, PlayswagConfig, CoverageResult, NormalizedSpec } from './types.js';
 import type { HistoryEntry } from './output/history.js';
 import { ATTACHMENT_NAME } from './constants.js';
 import { parseSpecs } from './openapi/parser.js';
@@ -24,6 +24,7 @@ import { writeBadge } from './output/badge.js';
 import { writeJUnitReport } from './output/junit.js';
 import { appendToHistory, loadLastEntry, loadAllEntries, compareCoverage } from './output/history.js';
 import { isGitHubActions, emitAnnotations, writeStepSummary } from './output/github-actions.js';
+import { writeMarkdownReport } from './output/markdown.js';
 
 
 
@@ -265,6 +266,17 @@ class PlayswagReporter implements Reporter {
     }
   }
 
+  private async emitMarkdownOutput(result: CoverageResult, outputDir: string): Promise<void> {
+    const mdConfig = { enabled: true, ...this.config.markdownOutput };
+    if (mdConfig.enabled === false) return;
+    try {
+      const path = await writeMarkdownReport(result, outputDir, mdConfig);
+      log.info(`Markdown report written to ${path}`);
+    } catch (err) {
+      log.error(`Failed to write Markdown report: ${(err as Error).message}`);
+    }
+  }
+
   private async saveHistoryData(
     result: CoverageResult,
     outputDir: string,
@@ -298,6 +310,8 @@ class PlayswagReporter implements Reporter {
       return false;
     }
 
+    spec = this.filterOperationsByTags(spec);
+
     const coverageResult = calculateCoverage(filteredHits, spec, {
       baseURL,
       playwrightVersion: tryReadVersion('@playwright/test'),
@@ -330,10 +344,11 @@ class PlayswagReporter implements Reporter {
       }
     }
 
-    if (formats.includes('json'))   await this.emitJsonOutput(coverageResult, outputDir);
-    if (formats.includes('html'))   await this.emitHtmlOutput(coverageResult, outputDir, historyEntries);
-    if (formats.includes('badge'))  await this.emitBadgeOutput(coverageResult, outputDir);
-    if (formats.includes('junit'))  await this.emitJUnitOutput(coverageResult, outputDir);
+    if (formats.includes('json'))     await this.emitJsonOutput(coverageResult, outputDir);
+    if (formats.includes('html'))     await this.emitHtmlOutput(coverageResult, outputDir, historyEntries);
+    if (formats.includes('badge'))    await this.emitBadgeOutput(coverageResult, outputDir);
+    if (formats.includes('junit'))    await this.emitJUnitOutput(coverageResult, outputDir);
+    if (formats.includes('markdown')) await this.emitMarkdownOutput(coverageResult, outputDir);
 
     // Append to history after all reports are written
     if (historyEnabled) await this.saveHistoryData(coverageResult, outputDir, historyConfig ?? {});
@@ -360,6 +375,26 @@ class PlayswagReporter implements Reporter {
     return formats.includes('console') && consoleEnabled;
   }
 
+
+  private filterOperationsByTags(spec: NormalizedSpec): NormalizedSpec {
+    const { includeTags, excludeTags } = this.config;
+    if (!includeTags?.length && !excludeTags?.length) return spec;
+
+    const operations = spec.operations.filter((op) => {
+      const tags = op.tags ?? [];
+      if (includeTags?.length) {
+        const included = tags.some((t) => includeTags.some((p) => picomatch.isMatch(t, p)));
+        if (!included) return false;
+      }
+      if (excludeTags?.length) {
+        const excluded = tags.some((t) => excludeTags.some((p) => picomatch.isMatch(t, p)));
+        if (excluded) return false;
+      }
+      return true;
+    });
+
+    return { ...spec, operations };
+  }
 
   private filterHits(hits: EndpointHit[]): EndpointHit[] {
     const { includePatterns, excludePatterns } = this.config;

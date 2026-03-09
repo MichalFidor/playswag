@@ -364,6 +364,34 @@ export interface JUnitOutputConfig {
 }
 
 /**
+ * Markdown file output configuration.
+ *
+ * Produces a `playswag-coverage.md` file containing a 5-dimension summary
+ * table, an optional per-tag breakdown, and a list of uncovered operations.
+ * Suitable for committing alongside code, posting as a GitHub PR comment, or
+ * embedding in a non-GitHub CI summary.
+ */
+export interface MarkdownOutputConfig {
+  /** @default true */
+  enabled?: boolean;
+  /**
+   * Output file name inside `outputDir`.
+   * @default 'playswag-coverage.md'
+   */
+  fileName?: string;
+  /**
+   * Heading text at the top of the report.
+   * @default 'API Coverage Report'
+   */
+  title?: string;
+  /**
+   * Append a table of uncovered operations at the end of the report.
+   * @default true
+   */
+  showUncoveredOperations?: boolean;
+}
+
+/**
  * SVG badge configuration.
  *
  * Generates a Shields.io-compatible flat SVG badge showing the coverage percentage
@@ -454,7 +482,7 @@ export interface PlayswagConfig {
    * Which output formats to produce.
    * @default ['console', 'json']
    */
-  outputFormats?: Array<'console' | 'json' | 'html' | 'badge' | 'junit'>;
+  outputFormats?: Array<'console' | 'json' | 'html' | 'badge' | 'junit' | 'markdown'>;
 
   /**
    * Base URL of the API under test. Used to strip the host portion when
@@ -474,6 +502,19 @@ export interface PlayswagConfig {
    */
   excludePatterns?: string[];
 
+  /**
+   * Only include spec operations that carry at least one of these OAS tags in
+   * coverage calculations. Supports picomatch glob patterns (e.g. `'user*'`).
+   * Operations with no tags are excluded when this option is set.
+   */
+  includeTags?: string[];
+
+  /**
+   * Exclude spec operations that carry any of these OAS tags from coverage
+   * calculations. Supports picomatch glob patterns (e.g. `'internal*'`).
+   */
+  excludeTags?: string[];
+
   /** Console output options */
   consoleOutput?: ConsoleOutputConfig;
 
@@ -491,6 +532,9 @@ export interface PlayswagConfig {
 
   /** JUnit XML output options */
   junitOutput?: JUnitOutputConfig;
+
+  /** Markdown file output options */
+  markdownOutput?: MarkdownOutputConfig;
 
   /**
    * Coverage thresholds. When set and `failOnThreshold` is true the

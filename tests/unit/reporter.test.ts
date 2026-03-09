@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import PlayswagReporter from '../../src/reporter.js';
-import type { EndpointHit, PlayswagConfig } from '../../src/types.js';
+import type { EndpointHit, PlayswagConfig, NormalizedSpec } from '../../src/types.js';
 import { ATTACHMENT_NAME } from '../../src/constants.js';
 
 /**
@@ -289,6 +289,87 @@ describe('PlayswagReporter', () => {
       ];
       const filtered = r.filterHits(hits);
       expect(filtered).toHaveLength(1);
+    });
+  });
+
+  describe('filterOperationsByTags', () => {
+    function makeSpec(operations: Array<{ path: string; tags?: string[] }>): NormalizedSpec {
+      return {
+        sources: ['./spec.yaml'],
+        operations: operations.map((op) => ({
+          pathTemplate: op.path,
+          method: 'GET',
+          parameters: [],
+          responses: {},
+          tags: op.tags,
+        })),
+      } as unknown as NormalizedSpec;
+    }
+
+    type Filterer = { filterOperationsByTags: (s: NormalizedSpec) => NormalizedSpec };
+
+    it('returns the spec unchanged when no tag filters are set', () => {
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as Filterer;
+      const spec = makeSpec([{ path: '/a', tags: ['users'] }, { path: '/b', tags: ['admin'] }]);
+      expect(r.filterOperationsByTags(spec).operations).toHaveLength(2);
+    });
+
+    it('filters by includeTags — keeps only matching operations', () => {
+      const r = new PlayswagReporter({ specs: './spec.yaml', includeTags: ['users'] }) as unknown as Filterer;
+      const spec = makeSpec([{ path: '/a', tags: ['users'] }, { path: '/b', tags: ['admin'] }]);
+      const result = r.filterOperationsByTags(spec);
+      expect(result.operations).toHaveLength(1);
+      expect(result.operations[0]?.pathTemplate).toBe('/a');
+    });
+
+    it('filters by excludeTags — removes matching operations', () => {
+      const r = new PlayswagReporter({ specs: './spec.yaml', excludeTags: ['admin'] }) as unknown as Filterer;
+      const spec = makeSpec([{ path: '/a', tags: ['users'] }, { path: '/b', tags: ['admin'] }]);
+      const result = r.filterOperationsByTags(spec);
+      expect(result.operations).toHaveLength(1);
+      expect(result.operations[0]?.pathTemplate).toBe('/a');
+    });
+
+    it('applies both includeTags and excludeTags together', () => {
+      const r = new PlayswagReporter({
+        specs: './spec.yaml',
+        includeTags: ['api'],
+        excludeTags: ['internal'],
+      }) as unknown as Filterer;
+      const spec = makeSpec([
+        { path: '/a', tags: ['api'] },
+        { path: '/b', tags: ['api', 'internal'] },
+        { path: '/c', tags: ['other'] },
+      ]);
+      const result = r.filterOperationsByTags(spec);
+      expect(result.operations).toHaveLength(1);
+      expect(result.operations[0]?.pathTemplate).toBe('/a');
+    });
+
+    it('supports picomatch glob patterns in includeTags', () => {
+      const r = new PlayswagReporter({ specs: './spec.yaml', includeTags: ['user*'] }) as unknown as Filterer;
+      const spec = makeSpec([
+        { path: '/a', tags: ['users'] },
+        { path: '/b', tags: ['userProfile'] },
+        { path: '/c', tags: ['admin'] },
+      ]);
+      const result = r.filterOperationsByTags(spec);
+      expect(result.operations).toHaveLength(2);
+    });
+
+    it('excludes untagged operations when includeTags is set', () => {
+      const r = new PlayswagReporter({ specs: './spec.yaml', includeTags: ['users'] }) as unknown as Filterer;
+      const spec = makeSpec([{ path: '/a', tags: ['users'] }, { path: '/b' }]);
+      const result = r.filterOperationsByTags(spec);
+      expect(result.operations).toHaveLength(1);
+      expect(result.operations[0]?.pathTemplate).toBe('/a');
+    });
+
+    it('preserves the sources array from the original spec', () => {
+      const r = new PlayswagReporter({ specs: './spec.yaml', includeTags: ['users'] }) as unknown as Filterer;
+      const spec = makeSpec([{ path: '/a', tags: ['users'] }]);
+      const result = r.filterOperationsByTags(spec);
+      expect(result.sources).toEqual(spec.sources);
     });
   });
 });
