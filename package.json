@@ -65,6 +65,7 @@
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
     "demo": "npm run build && node scripts/demo-report.mjs && open demo-report.html",
+    "demo:md": "npm run build && node scripts/demo-coverage-md.mjs",
     "link": "npm install && npm run build && npm link @playwright/test && npm link",
     "prepublishOnly": "npm run build",
     "prepare": "husky"

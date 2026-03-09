@@ -1,6 +1,7 @@
 node_modules/
 dist/
 demo-report.html
+demo-coverage.md
 playswag-coverage/
 tests/integration/output/
 tests/examples/output/
