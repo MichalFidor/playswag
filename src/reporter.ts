@@ -25,6 +25,7 @@ import { writeJUnitReport } from './output/junit.js';
 import { appendToHistory, loadLastEntry, loadAllEntries, compareCoverage } from './output/history.js';
 import { isGitHubActions, emitAnnotations, writeStepSummary } from './output/github-actions.js';
 import { writeMarkdownReport } from './output/markdown.js';
+import { startProgress } from './output/progress.js';
 
 
 
@@ -160,21 +161,29 @@ class PlayswagReporter implements Reporter {
   }
 
   async onEnd(_result: FullResult): Promise<{ status?: FullResult['status'] } | void> {
+    const stopProgress = startProgress('Calculating coverage…');
+
     if (this.projectOverrides.size > 0) {
-      return this.runMultiProjectCoverage();
+      stopProgress();
+      const result = await this.runMultiProjectCoverage();
+      log.info('Coverage complete.');
+      return result;
     }
 
     if (!this.config.specs) {
+      stopProgress('Coverage skipped — no specs configured.');
       log.warn('No specs configured — skipping coverage.', 'Set the `specs` option in your reporter config.');
       return;
     }
 
+    stopProgress();
     const failed = await this.runOutputsForGroup(
       this.filterHits(this.aggregatedHits),
       this.config.specs,
       this.baseURL,
       this.config.outputDir,
     );
+    log.info('Coverage complete.');
     if (failed) return { status: 'failed' };
   }
 
@@ -236,19 +245,16 @@ class PlayswagReporter implements Reporter {
     const htmlConfig = { enabled: true, ...this.config.htmlOutput };
     if (htmlConfig.enabled === false) return;
     try {
-      const writtenPath = await writeHtmlReport(result, outputDir, htmlConfig, historyEntries);
-      const absPath = resolve(writtenPath);
-      log.info(process.env['CI'] ? `HTML report written to ${absPath}` : `HTML report → file://${absPath}`);
+      const writtenPath = await writeHtmlReport(result, outputDir, htmlConfig, historyEntries, this.config.responsePropertiesWeight ?? 0.5, this.config.excludeDimensions);
+      log.info(`HTML report written to ${writtenPath}`);
     } catch (err) {
       log.error(`Failed to write HTML report: ${(err as Error).message}`);
     }
   }
 
   private async emitBadgeOutput(result: CoverageResult, outputDir: string): Promise<void> {
-    const badgeConfig = { enabled: true, ...this.config.badge };
-    if (badgeConfig.enabled === false) return;
     try {
-      const path = await writeBadge(result, outputDir, badgeConfig);
+      const path = await writeBadge(result, outputDir, this.config.badge ?? {});
       log.info(`Badge written to ${path}`);
     } catch (err) {
       log.error(`Failed to write badge: ${(err as Error).message}`);
@@ -259,7 +265,7 @@ class PlayswagReporter implements Reporter {
     const junitConfig = { enabled: true, ...this.config.junitOutput };
     if (junitConfig.enabled === false) return;
     try {
-      const path = await writeJUnitReport(result, outputDir, this.config.threshold, junitConfig);
+      const path = await writeJUnitReport(result, outputDir, this.config.threshold, junitConfig, this.config.excludeDimensions);
       log.info(`JUnit report written to ${path}`);
     } catch (err) {
       log.error(`Failed to write JUnit report: ${(err as Error).message}`);
@@ -270,7 +276,7 @@ class PlayswagReporter implements Reporter {
     const mdConfig = { enabled: true, ...this.config.markdownOutput };
     if (mdConfig.enabled === false) return;
     try {
-      const path = await writeMarkdownReport(result, outputDir, mdConfig);
+      const path = await writeMarkdownReport(result, outputDir, mdConfig, this.config.excludeDimensions);
       log.info(`Markdown report written to ${path}`);
     } catch (err) {
       log.error(`Failed to write Markdown report: ${(err as Error).message}`);
@@ -341,7 +347,7 @@ class PlayswagReporter implements Reporter {
     if (formats.includes('console')) {
       const consoleConfig = { enabled: true, ...this.config.consoleOutput };
       if (consoleConfig.enabled !== false) {
-        await printConsoleReport(coverageResult, consoleConfig, this.config.threshold, this.config.failOnThreshold, delta);
+        await printConsoleReport(coverageResult, consoleConfig, this.config.threshold, this.config.failOnThreshold, delta, this.config.excludeDimensions);
       }
     }
 
@@ -355,7 +361,7 @@ class PlayswagReporter implements Reporter {
     if (historyEnabled) await this.saveHistoryData(coverageResult, outputDir, historyConfig ?? {});
 
     const violations = this.config.threshold
-      ? checkThresholds(coverageResult, this.config.threshold, this.config.failOnThreshold)
+      ? checkThresholds(coverageResult, this.config.threshold, this.config.failOnThreshold, this.config.excludeDimensions)
       : [];
 
     if (isGitHubActions()) {

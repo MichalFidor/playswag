@@ -31,7 +31,7 @@ describe.skipIf(!isBuilt)('CJS .d.cts declarations (requires npm run build)', ()
   it('index.d.cts exports key public symbols', () => {
     const content = readFileSync(join(TYPES_DIR, 'index.d.cts'), 'utf8');
     // Core fixture exports
-    expect(content).toContain('PlayswagConfig');
+    expect(content).toContain('PlayswagConfiguration');
     expect(content).toContain('PlayswagFixtureOptions');
     expect(content).toContain('defineConfig');
   });

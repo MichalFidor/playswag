@@ -1,5 +1,5 @@
 import Table from 'cli-table3';
-import type { CoverageResult, OperationCoverage, ConsoleOutputConfig, ThresholdConfig, ThresholdEntry } from '../types.js';
+import type { CoverageResult, OperationCoverage, ConsoleOutputConfig, ThresholdConfig, ThresholdEntry, CoverageDimension } from '../types.js';
 import type { CoverageDelta } from './history.js';
 
 const TABLE_CHARS = {
@@ -92,15 +92,17 @@ function respRatio(op: OperationCoverage): string {
 /**
  * Check whether any threshold is breached and return structured violation objects.
  *
- * @param result     - The coverage result to check.
- * @param threshold  - Per-dimension threshold configuration.
- * @param globalFail - Default for the `fail` flag when a dimension's entry does not
- *                     specify its own value. Corresponds to `PlayswagConfig.failOnThreshold`.
+ * @param result            - The coverage result to check.
+ * @param threshold         - Per-dimension threshold configuration.
+ * @param globalFail        - Default for the `fail` flag when a dimension's entry does not
+ *                            specify its own value. Corresponds to `PlayswagConfig.failOnThreshold`.
+ * @param excludeDimensions - Dimensions to skip when evaluating thresholds.
  */
 export function checkThresholds(
   result: CoverageResult,
   threshold: ThresholdConfig,
-  globalFail = false
+  globalFail = false,
+  excludeDimensions?: CoverageDimension[]
 ): ThresholdViolation[] {
   const violations: ThresholdViolation[] = [];
 
@@ -113,6 +115,7 @@ export function checkThresholds(
   ];
 
   for (const [key, actual, label] of checks) {
+    if (excludeDimensions?.includes(key as CoverageDimension)) continue;
     const resolved = resolveEntry(threshold[key], globalFail);
     if (resolved !== null && actual < resolved.min) {
       violations.push({
@@ -153,7 +156,8 @@ export async function printConsoleReport(
   config: ConsoleOutputConfig = {},
   threshold?: ThresholdConfig,
   globalFail = false,
-  delta?: CoverageDelta
+  delta?: CoverageDelta,
+  excludeDimensions?: CoverageDimension[]
 ): Promise<void> {
   const c = await getChalk();
   const {
@@ -164,6 +168,7 @@ export async function printConsoleReport(
     showResponseProperties = false,
     showTags = false,
     showOperationId = false,
+    showStatusCodeBreakdown = false,
   } = config;
 
   const SEP = c.dim('─'.repeat(80));
@@ -186,73 +191,112 @@ export async function printConsoleReport(
   console.log('');
 
   // ── Summary table (always visible) ──────────────────────────────────────────
-  const rows: [string, string, string, string][] = [
+  type SummaryRow = [string, string, string, string, CoverageDimension];
+  const allSummaryRows: SummaryRow[] = [
     [
       'Endpoints',
       `${result.summary.endpoints.covered}/${result.summary.endpoints.total}`,
       colorPercent(c, result.summary.endpoints.percentage) + formatDelta(c, delta?.endpoints),
       progressBar(result.summary.endpoints.percentage),
+      'endpoints',
     ],
     [
       'Status Codes',
       `${result.summary.statusCodes.covered}/${result.summary.statusCodes.total}`,
       colorPercent(c, result.summary.statusCodes.percentage) + formatDelta(c, delta?.statusCodes),
       progressBar(result.summary.statusCodes.percentage),
+      'statusCodes',
     ],
     [
       'Parameters',
       `${result.summary.parameters.covered}/${result.summary.parameters.total}`,
       colorPercent(c, result.summary.parameters.percentage) + formatDelta(c, delta?.parameters),
       progressBar(result.summary.parameters.percentage),
+      'parameters',
     ],
     [
       'Body Props',
       `${result.summary.bodyProperties.covered}/${result.summary.bodyProperties.total}`,
       colorPercent(c, result.summary.bodyProperties.percentage) + formatDelta(c, delta?.bodyProperties),
       progressBar(result.summary.bodyProperties.percentage),
+      'bodyProperties',
     ],
     [
       'Resp Props',
       `${result.summary.responseProperties.covered}/${result.summary.responseProperties.total}`,
       colorPercent(c, result.summary.responseProperties.percentage) + formatDelta(c, delta?.responseProperties),
       progressBar(result.summary.responseProperties.percentage),
+      'responseProperties',
     ],
   ];
+  const rows = allSummaryRows.filter(([,,,,dim]) => !excludeDimensions?.includes(dim));
 
   const summaryTable = new Table({
     head: [c.bold('Dimension'), c.bold('Covered'), c.bold('%'), c.bold('Progress')],
     style: { head: [], border: [] },
     chars: TABLE_CHARS,
   });
-  for (const row of rows) summaryTable.push(row);
+  for (const [label, covered, pct, bar] of rows) summaryTable.push([label, covered, pct, bar]);
   console.log(summaryTable.toString());
+  console.log(c.dim('  ●') + ' ' + c.green('sent') + c.dim('      request body / param exercised by test'));
+  console.log(c.dim('  ●') + ' ' + c.cyan('observed') + c.dim('  response field returned by API (test may not assert)'));
+  console.log(c.dim('  ●') + ' ' + c.dim('missing') + c.dim('   never seen in any recorded call'));
 
-  // ── Per-tag summary ──────────────────────────────────────────────────────────
+  // ── Status code breakdown ────────────────────────────────────────────────────
+  if (showStatusCodeBreakdown) {
+    const scAgg = new Map<string, { total: number; covered: number }>();
+    for (const op of result.operations) {
+      for (const [code, sc] of Object.entries(op.statusCodes)) {
+        if (!scAgg.has(code)) scAgg.set(code, { total: 0, covered: 0 });
+        const entry = scAgg.get(code)!;
+        entry.total++;
+        if (sc.covered) entry.covered++;
+      }
+    }
+    const sorted = [...scAgg.entries()].sort(([a], [b]) => Number(a) - Number(b));
+    if (sorted.length > 0) {
+      console.log('');
+      console.log(c.bold('  Status Codes by Code'));
+      console.log('');
+      const scTable = new Table({
+        head: [c.bold('Code'), c.bold('Covered'), c.bold('%'), c.bold('Progress')],
+        style: { head: [], border: [] },
+        chars: TABLE_CHARS,
+      });
+      for (const [code, { total, covered }] of sorted) {
+        const pct = total === 0 ? 0 : (covered / total) * 100;
+        scTable.push([code, `${covered}/${total}`, colorPercent(c, pct), progressBar(pct)]);
+      }
+      console.log(scTable.toString());
+    }
+  }
   if (showTags && result.tagCoverage && Object.keys(result.tagCoverage).length > 0) {
     console.log('');
     console.log(c.bold('  Coverage by Tag'));
     console.log('');
+    type TagDimDef = [string, CoverageDimension, (tc: (typeof result.tagCoverage)[string]) => string];
+    const tagDimDefs: TagDimDef[] = [
+      ['Endpoints',    'endpoints',          tc => colorPercent(c, tc.endpoints.percentage)],
+      ['Status Codes', 'statusCodes',        tc => colorPercent(c, tc.statusCodes.percentage)],
+      ['Parameters',   'parameters',         tc => colorPercent(c, tc.parameters.percentage)],
+      ['Body Props',   'bodyProperties',     tc => colorPercent(c, tc.bodyProperties.percentage)],
+      ['Resp Props',   'responseProperties', tc => colorPercent(c, tc.responseProperties.percentage)],
+    ];
+    const activeDims = tagDimDefs.filter(([, key]) => !excludeDimensions?.includes(key));
     const tagTable = new Table({
-      head: [c.bold('Tag'), c.bold('Endpoints'), c.bold('Status Codes'), c.bold('Parameters'), c.bold('Body Props'), c.bold('Resp Props')],
+      head: [c.bold('Tag'), ...activeDims.map(([label]) => c.bold(label))],
       style: { head: [], border: [] },
       chars: TABLE_CHARS,
     });
     for (const [tag, tc] of Object.entries(result.tagCoverage)) {
-      tagTable.push([
-        tag,
-        colorPercent(c, tc.endpoints.percentage),
-        colorPercent(c, tc.statusCodes.percentage),
-        colorPercent(c, tc.parameters.percentage),
-        colorPercent(c, tc.bodyProperties.percentage),
-        colorPercent(c, tc.responseProperties.percentage),
-      ]);
+      tagTable.push([tag, ...activeDims.map(([,, getValue]) => getValue(tc))]);
     }
     console.log(tagTable.toString());
   }
 
   // ── Threshold results ────────────────────────────────────────────────────────
   if (threshold) {
-    const violations = checkThresholds(result, threshold, globalFail);
+    const violations = checkThresholds(result, threshold, globalFail, excludeDimensions);
     if (violations.length > 0) {
       console.log('');
       for (const v of violations) {

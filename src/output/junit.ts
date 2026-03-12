@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import type { CoverageResult, JUnitOutputConfig, ThresholdConfig } from '../types.js';
+import type { CoverageResult, JUnitOutputConfig, ThresholdConfig, CoverageDimension } from '../types.js';
 
 function xmlEscape(value: string): string {
   return value
@@ -53,7 +53,8 @@ export async function writeJUnitReport(
   result: CoverageResult,
   outputDir: string,
   threshold: ThresholdConfig | undefined,
-  config: JUnitOutputConfig = {}
+  config: JUnitOutputConfig = {},
+  excludeDimensions?: CoverageDimension[]
 ): Promise<string> {
   const { fileName = 'playswag-junit.xml' } = config;
   const outputPath = join(outputDir, fileName);
@@ -64,13 +65,14 @@ export async function writeJUnitReport(
     return typeof entry === 'number' ? entry : entry.min;
   }
 
-  const dimensions: Array<{ label: string; key: keyof ThresholdConfig; actual: number }> = [
+  const allDimensions: Array<{ label: string; key: keyof ThresholdConfig; actual: number }> = [
     { label: 'Endpoint Coverage',          key: 'endpoints',          actual: result.summary.endpoints.percentage },
     { label: 'Status Code Coverage',       key: 'statusCodes',        actual: result.summary.statusCodes.percentage },
     { label: 'Parameter Coverage',         key: 'parameters',         actual: result.summary.parameters.percentage },
     { label: 'Body Property Coverage',     key: 'bodyProperties',     actual: result.summary.bodyProperties.percentage },
     { label: 'Response Property Coverage', key: 'responseProperties', actual: result.summary.responseProperties.percentage },
   ];
+  const dimensions = allDimensions.filter(d => !excludeDimensions?.includes(d.key as CoverageDimension));
 
   let failures = 0;
   const cases: DimensionCase[] = dimensions.map(({ label, key, actual }) => {

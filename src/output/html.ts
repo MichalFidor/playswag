@@ -1,7 +1,7 @@
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { CoverageResult, HtmlOutputConfig, OperationCoverage } from '../types.js';
+import type { CoverageResult, HtmlOutputConfig, OperationCoverage, CoverageDimension } from '../types.js';
 import type { HistoryEntry } from './history.js';
 import { log } from '../log.js';
 
@@ -79,13 +79,15 @@ function bodyBadges(op: OperationCoverage): string {
 function responseBadges(op: OperationCoverage): string {
   if (op.responseProperties.length === 0) return '<em class="muted">none</em>';
   return op.responseProperties.map((r) => {
-    const cls = r.covered ? 'green' : (r.required ? 'red' : 'grey');
+    // Covered response props are shown as blue ("observed") not green ("sent")
+    // to signal a different coverage signal type — the API returned them, but the test may not have verified them.
+    const cls = r.covered ? 'blue' : (r.required ? 'red' : 'grey');
     return `<span class="badge ${cls}" title="${esc(r.statusCode)}">${esc(r.name)}${r.required ? '*' : ''}</span>`;
   }).join(' ');
 }
 
 /** Combined coverage percentage for a single operation across all sub-dimensions. */
-function operationCoveragePct(op: OperationCoverage): number {
+function operationCoveragePct(op: OperationCoverage, respWeight = 0.5): number {
   const scCovered = Object.values(op.statusCodes).filter((s) => s.covered).length;
   const scTotal = Object.keys(op.statusCodes).length;
   const paramCovered = op.parameters.filter((p) => p.covered).length
@@ -93,8 +95,8 @@ function operationCoveragePct(op: OperationCoverage): number {
   const paramTotal = op.parameters.length + op.bodyProperties.length;
   const respCovered = op.responseProperties.filter((r) => r.covered).length;
   const respTotal = op.responseProperties.length;
-  const numerator = scCovered + paramCovered + respCovered;
-  const denominator = scTotal + paramTotal + respTotal;
+  const numerator = scCovered + paramCovered + respWeight * respCovered;
+  const denominator = scTotal + paramTotal + respWeight * respTotal;
   return denominator === 0 ? (op.covered ? 100 : 0) : (numerator / denominator) * 100;
 }
 
@@ -107,7 +109,7 @@ function miniProgressBar(pct: number, covered: boolean): string {
         </div>`;
 }
 
-function operationBlock(op: OperationCoverage, i: number, gid: number): string {
+function operationBlock(op: OperationCoverage, i: number, gid: number, respWeight = 0.5): string {
   const tags = (op.tags ?? []).join(',');
   const testRefsHtml = op.testRefs.length > 0
     ? op.testRefs.map((r) => `<span class="testref">${esc(r)}</span>`).join('')
@@ -115,7 +117,7 @@ function operationBlock(op: OperationCoverage, i: number, gid: number): string {
   const tagBadges = (op.tags ?? []).length > 0
     ? (op.tags ?? []).map((t) => `<span class="tag-badge">${esc(t)}</span>`).join('')
     : '';
-  const covPct = operationCoveragePct(op);
+  const covPct = operationCoveragePct(op, respWeight);
 
   return `<div class="op-block${op.deprecated ? ' deprecated' : ''}" data-covered="${op.covered}" data-tags="${esc(tags)}" data-idx="${i}" data-gid="${gid}">
       <div class="op-row m-${op.method.toLowerCase()}">
@@ -146,7 +148,7 @@ function operationBlock(op: OperationCoverage, i: number, gid: number): string {
             <div class="detail-content">${bodyBadges(op)}</div>
           </div>
           <div class="detail-section">
-            <div class="detail-label">Response Properties</div>
+            <div class="detail-label">Response Properties <span class="observed-label" title="These fields were observed in the response body. The test may not have explicitly asserted their values.">observed</span></div>
             <div class="detail-content">${responseBadges(op)}</div>
           </div>
           <div class="detail-section detail-tests">
@@ -163,7 +165,7 @@ function operationBlock(op: OperationCoverage, i: number, gid: number): string {
  * collapsible group-header div before each group. Tagless operations appear
  * last under a "General" group.
  */
-function tagGroupedBlocks(ops: OperationCoverage[]): string {
+function tagGroupedBlocks(ops: OperationCoverage[], respWeight = 0.5): string {
   const opIndexMap = new Map(ops.map((op, i) => [op, i]));
 
   const groups = new Map<string, OperationCoverage[]>();
@@ -201,7 +203,7 @@ function tagGroupedBlocks(ops: OperationCoverage[]): string {
 </div>`);
 
     for (const op of groupOps) {
-      blocks.push(operationBlock(op, opIndexMap.get(op)!, gid));
+      blocks.push(operationBlock(op, opIndexMap.get(op)!, gid, respWeight));
     }
 
     gid++;
@@ -258,7 +260,9 @@ export function generateHtmlReport(
   result: CoverageResult,
   config: HtmlOutputConfig = {},
   logoDataUrl = '',
-  historyEntries: HistoryEntry[] = []
+  historyEntries: HistoryEntry[] = [],
+  responsePropertiesWeight = 0.5,
+  excludeDimensions?: CoverageDimension[]
 ): string {
   const title = config.title ?? 'API Coverage Report';
   const d = new Date(result.timestamp);
@@ -269,14 +273,16 @@ export function generateHtmlReport(
     ? `<img src="${logoDataUrl}" alt="playswag logo" class="logo" width="64" height="64">`
     : '';
 
-  // Overall score: average of all five percentages
-  const overallPct = (
-    result.summary.endpoints.percentage +
-    result.summary.statusCodes.percentage +
-    result.summary.parameters.percentage +
-    result.summary.bodyProperties.percentage +
-    result.summary.responseProperties.percentage
-  ) / 5;
+  // Overall score: average of all included (non-excluded) dimension percentages
+  const dimScores: [CoverageDimension, number][] = [
+    ['endpoints',          result.summary.endpoints.percentage],
+    ['statusCodes',        result.summary.statusCodes.percentage],
+    ['parameters',         result.summary.parameters.percentage],
+    ['bodyProperties',     result.summary.bodyProperties.percentage],
+    ['responseProperties', result.summary.responseProperties.percentage],
+  ];
+  const includedScores = dimScores.filter(([dim]) => !excludeDimensions?.includes(dim));
+  const overallPct = includedScores.reduce((sum, [, pct]) => sum + pct, 0) / (includedScores.length || 1);
 
   const css = `
 :root {
@@ -477,8 +483,14 @@ main { max-width: 1280px; margin: 0 auto; padding: 28px 32px; }
 .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; font-family: ui-monospace, monospace; border: 1px solid transparent; }
 .badge.green { background: var(--green-bg); color: var(--green); border-color: color-mix(in srgb, var(--green) 20%, transparent); }
 .badge.red { background: var(--red-bg); color: var(--red); border-color: color-mix(in srgb, var(--red) 20%, transparent); }
-.badge.yellow { background: var(--yellow-bg); color: var(--yellow); }
+.badge.yellow { background: var(--yellow-bg); color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 20%, transparent); }
+.badge.blue { background: var(--blue-bg); color: var(--blue); border-color: color-mix(in srgb, var(--blue) 20%, transparent); }
 .badge.grey { background: var(--grey-bg); color: var(--muted); }
+.observed-label { font-size: 10px; font-weight: 600; color: var(--blue); background: var(--blue-bg); padding: 1px 6px; border-radius: 10px; margin-left: 6px; vertical-align: middle; cursor: default; }
+.coverage-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 10px 16px; background: var(--surface2); border-radius: 8px; margin-bottom: 16px; font-size: 12px; color: var(--text2); }
+.legend-title { font-weight: 700; color: var(--text1); }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-badge { font-size: 10px; padding: 2px 7px; pointer-events: none; }
 
 /* ── Test refs ── */
 .testref { display: inline-block; background: var(--border); color: var(--text2); border-radius: 4px; padding: 2px 8px; font-size: 11px; font-family: ui-monospace, monospace; }
@@ -659,10 +671,17 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
 
   <div class="summary">
     ${summaryCard('Endpoints', result.summary.endpoints.covered, result.summary.endpoints.total, result.summary.endpoints.percentage, sparkVals('endpoints'))}
-    ${summaryCard('Status Codes', result.summary.statusCodes.covered, result.summary.statusCodes.total, result.summary.statusCodes.percentage, sparkVals('statusCodes'))}
-    ${summaryCard('Parameters', result.summary.parameters.covered, result.summary.parameters.total, result.summary.parameters.percentage, sparkVals('parameters'))}
-    ${summaryCard('Body Properties', result.summary.bodyProperties.covered, result.summary.bodyProperties.total, result.summary.bodyProperties.percentage, sparkVals('bodyProperties'))}
-    ${summaryCard('Response Properties', result.summary.responseProperties.covered, result.summary.responseProperties.total, result.summary.responseProperties.percentage, sparkVals('responseProperties'))}
+    ${!excludeDimensions?.includes('statusCodes') ? summaryCard('Status Codes', result.summary.statusCodes.covered, result.summary.statusCodes.total, result.summary.statusCodes.percentage, sparkVals('statusCodes')) : ''}
+    ${!excludeDimensions?.includes('parameters') ? summaryCard('Parameters', result.summary.parameters.covered, result.summary.parameters.total, result.summary.parameters.percentage, sparkVals('parameters')) : ''}
+    ${!excludeDimensions?.includes('bodyProperties') ? summaryCard('Body Properties', result.summary.bodyProperties.covered, result.summary.bodyProperties.total, result.summary.bodyProperties.percentage, sparkVals('bodyProperties')) : ''}
+    ${!excludeDimensions?.includes('responseProperties') ? summaryCard('Response Properties', result.summary.responseProperties.covered, result.summary.responseProperties.total, result.summary.responseProperties.percentage, sparkVals('responseProperties')) : ''}
+  </div>
+
+  <div class="coverage-legend">
+    <span class="legend-title">Coverage signal:</span>
+    <span class="legend-item"><span class="badge green legend-badge">sent</span> Request body / param exercised by test</span>
+    <span class="legend-item"><span class="badge blue legend-badge">observed</span> Response property present in API response (not necessarily asserted)</span>
+    <span class="legend-item"><span class="badge grey legend-badge">missing</span> Never seen in any test run</span>
   </div>
 
   <div class="section">
@@ -679,7 +698,7 @@ footer { text-align: center; padding: 24px 32px; color: var(--muted); font-size:
       </div>
     </div>
     <div class="ops-list">
-      ${tagGroupedBlocks(result.operations)}
+      ${tagGroupedBlocks(result.operations, responsePropertiesWeight)}
     </div>
   </div>
 
@@ -701,12 +720,14 @@ export async function writeHtmlReport(
   result: CoverageResult,
   outputDir: string,
   config: HtmlOutputConfig = {},
-  historyEntries: HistoryEntry[] = []
+  historyEntries: HistoryEntry[] = [],
+  responsePropertiesWeight = 0.5,
+  excludeDimensions?: CoverageDimension[]
 ): Promise<string> {
   const { fileName = 'playswag-coverage.html' } = config;
   const outputPath = join(outputDir, fileName);
   await mkdir(dirname(outputPath), { recursive: true });
   const logoDataUrl = await loadLogoDataUrl();
-  await writeFile(outputPath, generateHtmlReport(result, config, logoDataUrl, historyEntries), 'utf8');
+  await writeFile(outputPath, generateHtmlReport(result, config, logoDataUrl, historyEntries, responsePropertiesWeight, excludeDimensions), 'utf8');
   return outputPath;
 }

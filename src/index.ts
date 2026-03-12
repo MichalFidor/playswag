@@ -65,9 +65,9 @@ export { test, expect, ATTACHMENT_NAME, defineConfig } from './fixture.js';
 export type { PlayswagFixtures } from './fixture.js';
 
 export type {
-  PlayswagConfig,
   PlayswagConfiguration,
   PlayswagFixtureOptions,
+  CoverageDimension,
   CoverageResult,
   OperationCoverage,
   EndpointHit,
@@ -85,16 +85,7 @@ export type {
   BadgeConfig,
   HistoryConfig,
   JUnitOutputConfig,
-  NormalizedSpec,
-  NormalizedOperation,
   MarkdownOutputConfig,
 } from './types.js';
 
-export type { ThresholdViolation } from './output/console.js';
-export { generateHtmlReport } from './output/html.js';
-export { generateBadgeSvg } from './output/badge.js';
-export { writeJUnitReport } from './output/junit.js';
 export type { HistoryEntry, CoverageDelta } from './output/history.js';
-export { compareCoverage, appendToHistory, loadLastEntry, loadAllEntries } from './output/history.js';
-export { isGitHubActions, emitAnnotations, writeStepSummary } from './output/github-actions.js';
-export { generateMarkdownReport, writeMarkdownReport } from './output/markdown.js';

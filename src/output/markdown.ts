@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import type { CoverageResult, MarkdownOutputConfig } from '../types.js';
+import type { CoverageResult, MarkdownOutputConfig, CoverageDimension } from '../types.js';
 
 function badge(pct: number): string {
   if (pct >= 80) return '🟢';
@@ -20,35 +20,52 @@ function pct(v: number): string {
  */
 export function generateMarkdownReport(
   result: CoverageResult,
-  config: MarkdownOutputConfig = {}
+  config: MarkdownOutputConfig = {},
+  excludeDimensions?: CoverageDimension[]
 ): string {
   const title = config.title ?? 'API Coverage Report';
   const { summary } = result;
+
+  type SummaryRowDef = [string, string, CoverageDimension | null];
+  const summaryDefs: SummaryRowDef[] = [
+    [`| Endpoints | ${summary.endpoints.covered} | ${summary.endpoints.total} | ${badge(summary.endpoints.percentage)} ${pct(summary.endpoints.percentage)} |`, 'Endpoints', null],
+    [`| Status Codes | ${summary.statusCodes.covered} | ${summary.statusCodes.total} | ${badge(summary.statusCodes.percentage)} ${pct(summary.statusCodes.percentage)} |`, 'Status Codes', 'statusCodes'],
+    [`| Parameters | ${summary.parameters.covered} | ${summary.parameters.total} | ${badge(summary.parameters.percentage)} ${pct(summary.parameters.percentage)} |`, 'Parameters', 'parameters'],
+    [`| Body Properties | ${summary.bodyProperties.covered} | ${summary.bodyProperties.total} | ${badge(summary.bodyProperties.percentage)} ${pct(summary.bodyProperties.percentage)} |`, 'Body Properties', 'bodyProperties'],
+    [`| Response Properties | ${summary.responseProperties.covered} | ${summary.responseProperties.total} | ${badge(summary.responseProperties.percentage)} ${pct(summary.responseProperties.percentage)} |`, 'Response Properties', 'responseProperties'],
+  ];
+  const activeSummaryRows = summaryDefs
+    .filter(([, , dim]) => !dim || !excludeDimensions?.includes(dim))
+    .map(([row]) => row);
 
   const lines: string[] = [
     `# ${title}`,
     '',
     `| Dimension | Covered | Total | Coverage |`,
     `|-----------|--------:|------:|---------:|`,
-    `| Endpoints | ${summary.endpoints.covered} | ${summary.endpoints.total} | ${badge(summary.endpoints.percentage)} ${pct(summary.endpoints.percentage)} |`,
-    `| Status Codes | ${summary.statusCodes.covered} | ${summary.statusCodes.total} | ${badge(summary.statusCodes.percentage)} ${pct(summary.statusCodes.percentage)} |`,
-    `| Parameters | ${summary.parameters.covered} | ${summary.parameters.total} | ${badge(summary.parameters.percentage)} ${pct(summary.parameters.percentage)} |`,
-    `| Body Properties | ${summary.bodyProperties.covered} | ${summary.bodyProperties.total} | ${badge(summary.bodyProperties.percentage)} ${pct(summary.bodyProperties.percentage)} |`,
-    `| Response Properties | ${summary.responseProperties.covered} | ${summary.responseProperties.total} | ${badge(summary.responseProperties.percentage)} ${pct(summary.responseProperties.percentage)} |`,
+    ...activeSummaryRows,
     '',
   ];
 
   // Per-tag coverage table
   const tags = Object.entries(result.tagCoverage).filter(([t]) => t !== '(untagged)');
   if (tags.length > 0) {
+    type TagDimDef = [string, CoverageDimension, (tc: (typeof result.tagCoverage)[string]) => string];
+    const tagDimDefs: TagDimDef[] = [
+      ['Endpoints',    'endpoints',          tc => `${badge(tc.endpoints.percentage)} ${pct(tc.endpoints.percentage)}`],
+      ['Status Codes', 'statusCodes',        tc => `${badge(tc.statusCodes.percentage)} ${pct(tc.statusCodes.percentage)}`],
+      ['Parameters',   'parameters',         tc => `${badge(tc.parameters.percentage)} ${pct(tc.parameters.percentage)}`],
+      ['Body Props',   'bodyProperties',     tc => `${badge(tc.bodyProperties.percentage)} ${pct(tc.bodyProperties.percentage)}`],
+      ['Resp Props',   'responseProperties', tc => `${badge(tc.responseProperties.percentage)} ${pct(tc.responseProperties.percentage)}`],
+    ];
+    const activeDims = tagDimDefs.filter(([, key]) => !excludeDimensions?.includes(key));
+
     lines.push('## Coverage by Tag');
     lines.push('');
-    lines.push('| Tag | Endpoints | Status Codes | Parameters | Body Props | Resp Props |');
-    lines.push('|-----|----------:|-------------:|-----------:|-----------:|-----------:|');
+    lines.push(`| Tag | ${activeDims.map(([label]) => label).join(' | ')} |`);
+    lines.push(`|-----|${activeDims.map(() => '---------:').join('|')}|`);
     for (const [tag, tc] of tags) {
-      lines.push(
-        `| \`${tag}\` | ${badge(tc.endpoints.percentage)} ${pct(tc.endpoints.percentage)} | ${badge(tc.statusCodes.percentage)} ${pct(tc.statusCodes.percentage)} | ${badge(tc.parameters.percentage)} ${pct(tc.parameters.percentage)} | ${badge(tc.bodyProperties.percentage)} ${pct(tc.bodyProperties.percentage)} | ${badge(tc.responseProperties.percentage)} ${pct(tc.responseProperties.percentage)} |`
-      );
+      lines.push(`| \`${tag}\` | ${activeDims.map(([,, getValue]) => getValue(tc)).join(' | ')} |`);
     }
     lines.push('');
   }
@@ -79,11 +96,12 @@ export function generateMarkdownReport(
 export async function writeMarkdownReport(
   result: CoverageResult,
   outputDir: string,
-  config: MarkdownOutputConfig = {}
+  config: MarkdownOutputConfig = {},
+  excludeDimensions?: CoverageDimension[]
 ): Promise<string> {
   const { fileName = 'playswag-coverage.md' } = config;
   const outputPath = join(outputDir, fileName);
   await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, generateMarkdownReport(result, config), 'utf8');
+  await writeFile(outputPath, generateMarkdownReport(result, config, excludeDimensions), 'utf8');
   return outputPath;
 }

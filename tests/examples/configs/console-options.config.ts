@@ -7,6 +7,7 @@
  * - showBodyProperties: true  — expand request body fields per op
  * - showResponseProperties: true — expand response body fields grouped by status code
  * - showTags: true            — append a per-tag summary table
+ * - showStatusCodeBreakdown: true — append a per-HTTP-code coverage table
  *
  * Verified by runner.test.ts:
  *   ✓ exit code 0
@@ -37,6 +38,7 @@ export default defineConfig({
           showBodyProperties: true,
           showResponseProperties: true,
           showTags: true,
+          showStatusCodeBreakdown: true,
         },
       },
     ],

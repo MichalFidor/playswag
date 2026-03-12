@@ -95,6 +95,7 @@ describe('badge options', () => {
     expect(existsSync(filePath)).toBe(true);
     expect(readFileSync(filePath, 'utf8')).toContain('Status Coverage');
   });
+
 });
 
 describe('JUnit options', () => {
@@ -200,6 +201,17 @@ describe('fixture options', () => {
     expect(getUserOp?.covered).toBe(true);
     const coveredRespProps = getUserOp?.responseProperties.filter((p) => p.covered) ?? [];
     expect(coveredRespProps.length).toBe(0);
+  });
+});
+
+describe('excludeDimensions', () => {
+  it('exits 0 and JSON report still contains responseProperties data', { timeout: 60_000 }, () => {
+    const { exitCode } = run('exclude-dimensions.config.ts');
+    expect(exitCode).toBe(0);
+
+    const report = readReport('exclude-dimensions');
+    expect(report.summary.responseProperties).toBeDefined();
+    expect(report.summary.responseProperties.total).toBeGreaterThan(0);
   });
 });
 

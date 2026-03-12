@@ -558,6 +558,65 @@ No configuration required. Both features activate only inside GitHub Actions.
 
 ---
 
+## Public API reference
+
+Everything exported from `@michalfidor/playswag`:
+
+### Fixtures & helpers
+
+| Export | Kind | When to use |
+|---|---|---|
+| `test` | Playwright fixture | Drop-in replacement for `@playwright/test`. All `request` calls are auto-tracked. |
+| `expect` | Playwright helper | Re-exported from `@playwright/test` for convenience — no differences. |
+| `defineConfig` | function | Typed wrapper around Playwright's `defineConfig`. Needed when using `playswagSpecs` inside `use` blocks (per-project specs). |
+| `trackRequest` | fixture | Wrap a manually-created `APIRequestContext` so its calls are recorded too. See [Tracking custom request contexts](#tracking-custom-request-contexts). |
+| `ATTACHMENT_NAME` | constant | The attachment key playswag uses to pass hit data between workers and the reporter. Useful if you write a custom downstream reporter that consumes playswag attachments. |
+
+### Config types
+
+| Export | Use in |
+|---|---|
+| `PlayswagConfiguration` | `playwright.config.ts` — the top-level reporter config object |
+| `PlayswagFixtureOptions` | `test.use({ … })` — per-test fixture options (`playswagEnabled`, `captureResponseBody`) |
+| `PlayswagFixtures` | Custom fixture type extension — extend this when building fixtures on top of playswag |
+| `ConsoleOutputConfig` | `consoleOutput: { … }` sub-object |
+| `JsonOutputConfig` | `jsonOutput: { … }` sub-object |
+| `HtmlOutputConfig` | `htmlOutput: { … }` sub-object |
+| `BadgeConfig` | `badge: { … }` sub-object |
+| `HistoryConfig` | `history: { … }` sub-object |
+| `JUnitOutputConfig` | `junitOutput: { … }` sub-object |
+| `MarkdownOutputConfig` | `markdownOutput: { … }` sub-object |
+| `ThresholdConfig` | `threshold: { … }` sub-object |
+| `ThresholdEntry` | Individual `{ min, fail }` threshold entry inside `ThresholdConfig` |
+| `CoverageDimension` | Union type of all five dimension keys: `'endpoints' \| 'statusCodes' \| 'parameters' \| 'bodyProperties' \| 'responseProperties'`. Useful when typing `excludeDimensions` arrays. |
+
+### Coverage result types
+
+Returned as part of the JSON report and the `CoverageResult` passed to `onEnd`. Useful if you consume the JSON output programmatically.
+
+| Export | Represents |
+|---|---|
+| `CoverageResult` | Root object of the JSON report |
+| `CoverageSummary` | The five top-level `{ endpoints, statusCodes, … }` percentages |
+| `CoverageSummaryItem` | A single `{ covered, total, pct }` dimension entry |
+| `OperationCoverage` | Per-operation breakdown (method, path, params, body props, …) |
+| `StatusCodeCoverage` | Coverage of a single response status code for an operation |
+| `ParamCoverage` | Coverage of a single query / path / header parameter |
+| `BodyPropertyCoverage` | Coverage of a single request body property |
+| `ResponsePropertyCoverage` | Coverage of a single response body property |
+| `EndpointHit` | A single recorded API call (method, url, status, headers, body) |
+
+### History types
+
+Useful if you read the `playswag-history.json` file from a script or dashboard.
+
+| Export | Represents |
+|---|---|
+| `HistoryEntry` | A single run's summary snapshot appended to the history file |
+| `CoverageDelta` | Difference between two consecutive `CoverageSummary` values (used for `↑ / ↓` indicators) |
+
+---
+
 ## How it works
 
 ```

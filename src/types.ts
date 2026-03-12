@@ -206,6 +206,12 @@ export interface ThresholdEntry {
 }
 
 /**
+ * A single coverage dimension tracked by playswag.
+ * Used in {@link PlayswagConfig.excludeDimensions} to opt out of specific dimensions.
+ */
+export type CoverageDimension = 'endpoints' | 'statusCodes' | 'parameters' | 'bodyProperties' | 'responseProperties';
+
+/**
  * Threshold configuration for coverage dimensions.
  * Each key accepts either a plain number (minimum %) or a {@link ThresholdEntry} for
  * fine-grained per-dimension fail control.
@@ -282,6 +288,12 @@ export interface ConsoleOutputConfig {
    * @default false
    */
   showOperationId?: boolean;
+  /**
+   * Print a per-status-code breakdown table below the summary, showing how many
+   * operations in the spec define and cover each HTTP status code.
+   * @default false
+   */
+  showStatusCodeBreakdown?: boolean;
 }
 
 /**
@@ -413,8 +425,6 @@ export interface MarkdownOutputConfig {
  * ```
  */
 export interface BadgeConfig {
-  /** @default true */
-  enabled?: boolean;
   /**
    * Output file name inside `outputDir`.
    * @default 'playswag-badge.svg'
@@ -527,6 +537,29 @@ export interface PlayswagConfig {
    * @default false
    */
   requiredParamsOnly?: boolean;
+
+  /**
+   * Weight applied to the response-properties dimension when computing per-operation
+   * coverage percentages in the HTML report. A value of `1.0` treats response
+   * properties the same as request body properties; `0` excludes them from the
+   * per-operation score entirely. Use values between `0` and `1` to indicate
+   * that response properties represent weaker coverage signal than sent fields.
+   * @default 0.5
+   */
+  responsePropertiesWeight?: number;
+
+  /**
+   * Dimensions to exclude from the summary display and threshold checks.
+   * Raw data for excluded dimensions is still collected and present in the JSON
+   * output — only the display rows and threshold evaluations are suppressed.
+   *
+   * `'endpoints'` cannot be excluded (it is the core metric).
+   *
+   * @example
+   * // Array-returning endpoints make responseProperties structurally uncoverable:
+   * excludeDimensions: ['responseProperties']
+   */
+  excludeDimensions?: Exclude<CoverageDimension, 'endpoints'>[];
 
   /** Console output options */
   consoleOutput?: ConsoleOutputConfig;

@@ -7,6 +7,51 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.7.0] — 2026-03-12
+
+**Theme:** Signal quality — distinguish observed response properties from actively sent request fields, surface coverage confidence, and tighten the public API surface.
+
+### Added
+- **Progress indicator** — a styled `[playswag] ⠼  Calculating coverage…` spinner (cyan tag,
+  dim frame — matching all other log output) is shown between test completion and the coverage
+  report. On CI / non-TTY / `NO_COLOR` environments it degrades to plain lines.
+- **Response property observation tier** — response body properties are now visually
+  distinguished from request fields in both the HTML report (yellow badges instead of green)
+  and the console legend. A pill labelled "observed" appears on the "Response Properties"
+  section header, and a legend (`● sent / ● observed / ● missing`) is printed below the
+  console summary table.
+- **Coverage confidence legend** — the HTML report now includes a legend block above the
+  operations list explaining the `sent` / `observed` / `missing` badge tiers.
+- **`responsePropertiesWeight`** — new `PlayswagConfiguration` option (`number`, `@default 0.5`).
+  Controls how much weight response-property coverage contributes to the per-operation score
+  shown in the HTML mini progress bar. Set to `0` to exclude response properties from the
+  score; set to `1` to weight them equally with request dimensions.
+- **`excludeDimensions`** — new `PlayswagConfiguration` option
+  (`Array<'statusCodes' | 'parameters' | 'bodyProperties' | 'responseProperties'>`).
+  Hides the specified dimensions from the console summary table, HTML summary cards, Markdown
+  report, and JUnit test cases, and skips them when evaluating `threshold`. Raw data is still
+  collected; `summary` and per-operation arrays in the JSON report are unaffected.
+- **Public API reference** — new section in README documenting every export with its purpose
+  and the context in which it is used.
+
+### Fixed
+- **HTML report log link** — the post-run log line now prints the relative path
+  (`HTML report written to test-results/…/playswag-coverage.html`) instead of an absolute
+  `file://` URL. Relative paths are auto-linked by VS Code's terminal; `file://` URLs are not.
+
+### Removed
+- **`badge.enabled`** — removed from `BadgeConfig`. Use `outputFormats: ['badge']` to generate
+  the badge (consistent with every other output format).
+- **`PlayswagConfig`** — removed export alias. Use `PlayswagConfiguration` in
+  `playwright.config.ts`. The underlying interface shape is unchanged.
+- **Internal exports** — the following were never part of the intended public API and have been
+  removed from the package entry point: `generateHtmlReport`, `generateBadgeSvg`,
+  `writeJUnitReport`, `generateMarkdownReport`, `writeMarkdownReport`, `compareCoverage`,
+  `appendToHistory`, `loadLastEntry`, `loadAllEntries`, `isGitHubActions`, `emitAnnotations`,
+  `writeStepSummary`, `NormalizedSpec`, `NormalizedOperation`, `ThresholdViolation`.
+
+---
+
 ## [1.6.0] — 2026-03-09
 
 **Theme:** Spec fidelity — surface spec information previously silently ignored.
