@@ -8,6 +8,8 @@
  * - showResponseProperties: true — expand response body fields grouped by status code
  * - showTags: true            — append a per-tag summary table
  * - showStatusCodeBreakdown: true — append a per-HTTP-code coverage table
+ * - showOperationId: true     — print the operationId next to each path
+ * - showUnmatchedHits: true   — show calls that matched no spec operation (default: true)
  *
  * Verified by runner.test.ts:
  *   ✓ exit code 0
@@ -39,6 +41,8 @@ export default defineConfig({
           showResponseProperties: true,
           showTags: true,
           showStatusCodeBreakdown: true,
+          showOperationId: true,
+          showUnmatchedHits: true,
         },
       },
     ],

@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import type { CoverageResult, MarkdownOutputConfig, CoverageDimension } from '../types.js';
+import type { CoverageDelta } from './history.js';
 
 function badge(pct: number): string {
   if (pct >= 80) return '🟢';
@@ -12,6 +13,11 @@ function pct(v: number): string {
   return `${v.toFixed(1)}%`;
 }
 
+function deltaStr(d: number | undefined): string {
+  if (d === undefined || d === 0) return '';
+  return d > 0 ? ` ↑${d.toFixed(1)}%` : ` ↓${Math.abs(d).toFixed(1)}%`;
+}
+
 /**
  * Render a Markdown coverage report from a {@link CoverageResult}.
  *
@@ -21,18 +27,19 @@ function pct(v: number): string {
 export function generateMarkdownReport(
   result: CoverageResult,
   config: MarkdownOutputConfig = {},
-  excludeDimensions?: CoverageDimension[]
+  excludeDimensions?: CoverageDimension[],
+  delta?: CoverageDelta
 ): string {
   const title = config.title ?? 'API Coverage Report';
   const { summary } = result;
 
   type SummaryRowDef = [string, string, CoverageDimension | null];
   const summaryDefs: SummaryRowDef[] = [
-    [`| Endpoints | ${summary.endpoints.covered} | ${summary.endpoints.total} | ${badge(summary.endpoints.percentage)} ${pct(summary.endpoints.percentage)} |`, 'Endpoints', null],
-    [`| Status Codes | ${summary.statusCodes.covered} | ${summary.statusCodes.total} | ${badge(summary.statusCodes.percentage)} ${pct(summary.statusCodes.percentage)} |`, 'Status Codes', 'statusCodes'],
-    [`| Parameters | ${summary.parameters.covered} | ${summary.parameters.total} | ${badge(summary.parameters.percentage)} ${pct(summary.parameters.percentage)} |`, 'Parameters', 'parameters'],
-    [`| Body Properties | ${summary.bodyProperties.covered} | ${summary.bodyProperties.total} | ${badge(summary.bodyProperties.percentage)} ${pct(summary.bodyProperties.percentage)} |`, 'Body Properties', 'bodyProperties'],
-    [`| Response Properties | ${summary.responseProperties.covered} | ${summary.responseProperties.total} | ${badge(summary.responseProperties.percentage)} ${pct(summary.responseProperties.percentage)} |`, 'Response Properties', 'responseProperties'],
+    [`| Endpoints | ${summary.endpoints.covered} | ${summary.endpoints.total} | ${badge(summary.endpoints.percentage)} ${pct(summary.endpoints.percentage)} | ${deltaStr(delta?.endpoints)} |`, 'Endpoints', null],
+    [`| Status Codes | ${summary.statusCodes.covered} | ${summary.statusCodes.total} | ${badge(summary.statusCodes.percentage)} ${pct(summary.statusCodes.percentage)} | ${deltaStr(delta?.statusCodes)} |`, 'Status Codes', 'statusCodes'],
+    [`| Parameters | ${summary.parameters.covered} | ${summary.parameters.total} | ${badge(summary.parameters.percentage)} ${pct(summary.parameters.percentage)} | ${deltaStr(delta?.parameters)} |`, 'Parameters', 'parameters'],
+    [`| Body Properties | ${summary.bodyProperties.covered} | ${summary.bodyProperties.total} | ${badge(summary.bodyProperties.percentage)} ${pct(summary.bodyProperties.percentage)} | ${deltaStr(delta?.bodyProperties)} |`, 'Body Properties', 'bodyProperties'],
+    [`| Response Properties | ${summary.responseProperties.covered} | ${summary.responseProperties.total} | ${badge(summary.responseProperties.percentage)} ${pct(summary.responseProperties.percentage)} | ${deltaStr(delta?.responseProperties)} |`, 'Response Properties', 'responseProperties'],
   ];
   const activeSummaryRows = summaryDefs
     .filter(([, , dim]) => !dim || !excludeDimensions?.includes(dim))
@@ -41,8 +48,8 @@ export function generateMarkdownReport(
   const lines: string[] = [
     `# ${title}`,
     '',
-    `| Dimension | Covered | Total | Coverage |`,
-    `|-----------|--------:|------:|---------:|`,
+    `| Dimension | Covered | Total | Coverage | Change |`,
+    `|-----------|--------:|------:|---------:|-------:|`,
     ...activeSummaryRows,
     '',
   ];
@@ -97,11 +104,12 @@ export async function writeMarkdownReport(
   result: CoverageResult,
   outputDir: string,
   config: MarkdownOutputConfig = {},
-  excludeDimensions?: CoverageDimension[]
+  excludeDimensions?: CoverageDimension[],
+  delta?: CoverageDelta
 ): Promise<string> {
   const { fileName = 'playswag-coverage.md' } = config;
   const outputPath = join(outputDir, fileName);
   await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, generateMarkdownReport(result, config, excludeDimensions), 'utf8');
+  await writeFile(outputPath, generateMarkdownReport(result, config, excludeDimensions, delta), 'utf8');
   return outputPath;
 }

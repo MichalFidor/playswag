@@ -258,4 +258,24 @@ describe('printConsoleReport', () => {
     const allArgs = logSpy.mock.calls.flat().join('\n');
     expect(allArgs).not.toContain('listUsers');
   });
+
+  it('showUnmatchedHits: shows unmatched hits section by default', async () => {
+    const result: CoverageResult = {
+      ...makeResult(100, 100, 100, 100),
+      unmatchedHits: [{ method: 'GET', url: 'http://api.example.com/unknown', statusCode: 404, testTitle: 't', testFile: 'f.spec.ts' }],
+    };
+    await printConsoleReport(result);
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).toContain('did not match any spec operation');
+  });
+
+  it('showUnmatchedHits: suppresses unmatched hits section when set to false', async () => {
+    const result: CoverageResult = {
+      ...makeResult(100, 100, 100, 100),
+      unmatchedHits: [{ method: 'GET', url: 'http://api.example.com/unknown', statusCode: 404, testTitle: 't', testFile: 'f.spec.ts' }],
+    };
+    await printConsoleReport(result, { showUnmatchedHits: false });
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).not.toContain('did not match any spec operation');
+  });
 });

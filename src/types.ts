@@ -294,6 +294,12 @@ export interface ConsoleOutputConfig {
    * @default false
    */
   showStatusCodeBreakdown?: boolean;
+  /**
+   * Show the unmatched hits section (calls that did not match any spec operation).
+   * Set to `false` to suppress when there are known intentional out-of-spec calls.
+   * @default true
+   */
+  showUnmatchedHits?: boolean;
 }
 
 /**
@@ -379,6 +385,26 @@ export interface JUnitOutputConfig {
    * @default 'playswag-junit.xml'
    */
   fileName?: string;
+}
+
+/**
+ * GitHub Actions step summary and annotations configuration.
+ *
+ * Controls what appears in the GitHub Actions job summary when running under
+ * `GITHUB_ACTIONS=true`. Annotations (errors/warnings for threshold violations)
+ * are always emitted; only the step summary is configurable.
+ */
+export interface GitHubActionsOutputConfig {
+  /**
+   * Append a collapsible section listing uncovered operations to the step summary.
+   * @default false
+   */
+  showUncoveredOperations?: boolean;
+  /**
+   * Append a collapsible section listing unmatched hits (calls not matched to any spec operation).
+   * @default false
+   */
+  showUnmatchedHits?: boolean;
 }
 
 /**
@@ -581,6 +607,9 @@ export interface PlayswagConfig {
 
   /** Markdown file output options */
   markdownOutput?: MarkdownOutputConfig;
+
+  /** GitHub Actions step summary and annotations configuration */
+  githubActionsOutput?: GitHubActionsOutputConfig;
 
   /**
    * Coverage thresholds. When set and `failOnThreshold` is true the
