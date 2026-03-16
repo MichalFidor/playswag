@@ -4,7 +4,7 @@
 
 `playswag` is a zero-config Playwright API coverage tracker. It wraps Playwright's `request` fixture
 to record every outgoing HTTP call during a test run, then compares the recorded calls against one or
-more OpenAPI/Swagger specs to produce a four-dimension coverage report:
+more OpenAPI/Swagger specs to produce a five-dimension coverage report:
 
 | Dimension | Description |
 |-----------|-------------|
@@ -12,6 +12,7 @@ more OpenAPI/Swagger specs to produce a four-dimension coverage report:
 | Status codes | Which response codes defined in the spec were returned |
 | Parameters | Which query/path/header params were supplied |
 | Body properties | Which request body fields were populated |
+| Response properties | Which response body fields were observed (weaker signal — seen, not asserted) |
 
 ---
 
@@ -22,23 +23,33 @@ src/
   index.ts               – public API re-exports
   reporter.ts            – Playwright reporter (aggregates per-worker attachment data)
   fixture.ts             – `trackRequest` / `request` fixture wrapper
+  log.ts                 – coloured logging helpers ([playswag] prefix)
   coverage/
     calculator.ts        – pure function: hits[] + NormalizedSpec → CoverageResult
-    schema-analyzer.ts   – parameter / body-property coverage from a single hit
+    schema-analyzer.ts   – parameter / body-property / response-property coverage
   openapi/
-    matcher.ts           – URL + method → NormalizedOperation lookup
+    matcher.ts           – URL + method → NormalizedOperation lookup (with operation index)
     parser.ts            – YAML/JSON spec → NormalizedSpec (OAS2 + OAS3)
   output/
-    console.ts           – printConsoleReport + checkThresholds
+    console.ts           – printConsoleReport + checkThresholds + legend
     json.ts              – writeJsonReport
+    html.ts              – writeHtmlReport (self-contained single-file)
+    badge.ts             – writeBadge (shields.io-compatible SVG)
+    junit.ts             – writeJUnitReport (CI-compatible XML)
+    markdown.ts          – writeMarkdownReport
+    progress.ts          – spinner/progress indicator for reporter onEnd
+    github-actions.ts    – annotations + step summary (auto-detected)
+    history.ts           – coverage trend persistence + delta comparison
   types.ts               – all shared TypeScript interfaces
 
 tests/
   unit/                  – vitest unit tests (no Playwright, no network)
   integration/           – full Playwright tests run against a mock HTTP server
   examples/              – one config per scenario + E2E runner (npm run test:examples)
+  fixtures/              – sample OpenAPI specs (YAML + JSON)
 
 dist/                    – tsup output (ESM + CJS + .d.ts), gitignored
+docs/                    – internal docs (ROADMAP, ideas), gitignored
 ```
 
 ---
@@ -66,6 +77,12 @@ operation knows its own prefix.
 are all pure synchronous functions — easy to unit-test. All I/O (file reads, network, stdout) lives at
 the edges (`reporter.ts`, `console.ts`, `json.ts`).
 
+### Coverage signal tiers
+Response properties are tracked as **observed** (API returned them) rather than **sent** (like request
+body/params). The console uses cyan, the HTML report uses blue to visually distinguish this weaker
+signal from green "sent" fields. Grey means never seen. The `responsePropertiesWeight` config
+(default `0.5`) controls how response properties contribute to per-operation scores.
+
 ### Build: dual ESM + CJS via tsup
 `tsup.config.ts` produces:
 - `dist/esm/` — native ESM (`.js`)
@@ -92,6 +109,10 @@ Target runtime: **Node ≥ 18** (`"engines": { "node": ">=18.0.0" }`).
   loops over each dimension.
 - **Glob matching** — use `picomatch.isMatch(path, pattern)` (imported as default from `picomatch`).
   Never hand-roll regex-based glob substitution.
+- **ANSI output** — `src/log.ts` and `src/output/progress.ts` use raw ANSI escape codes (no chalk
+  dependency). Respect `NO_COLOR`, `FORCE_COLOR`, and `process.stdout.isTTY` for graceful degradation.
+- **Progress spinner** — stop the spinner before emitting `log.info` lines in `onEnd` to avoid
+  interleaved output.
 
 ---
 
@@ -140,7 +161,7 @@ vitest.examples.config.ts    – sequential forks pool (maxForks: 1), 90 s per-t
 
 | Config file | What it demonstrates |
 |---|---|
-| `output-formats.config.ts` | All five output formats enabled simultaneously |
+| `output-formats.config.ts` | All output formats enabled simultaneously |
 | `json-options.config.ts` | `jsonOutput.fileName`, `jsonOutput.pretty: false` |
 | `html-options.config.ts` | `htmlOutput.fileName`, `htmlOutput.title` |
 | `badge-options.config.ts` | `badge.dimension`, `badge.label`, `badge.fileName` |
@@ -150,10 +171,11 @@ vitest.examples.config.ts    – sequential forks pool (maxForks: 1), 90 s per-t
 | `thresholds-per-dimension.config.ts` | `{ min, fail }` per-dimension form |
 | `filter-include.config.ts` | `includePatterns` — only matched paths counted |
 | `filter-exclude.config.ts` | `excludePatterns` — matched paths dropped from coverage |
-| `console-options.config.ts` | All `consoleOutput.showXxx` options |
+| `console-options.config.ts` | All `consoleOutput.showXxx` options including `showStatusCodeBreakdown` |
 | `history-options.config.ts` | `history.maxEntries`, `history.fileName` |
 | `fixture-options.config.ts` | `playswagEnabled: false` + `captureResponseBody: false` |
 | `multi-project.config.ts` | `playswagSpecs` per project — isolated coverage per service |
+| `exclude-dimensions.config.ts` | `excludeDimensions` — suppress dimensions from display + thresholds |
 
 ### Conventions
 
@@ -175,6 +197,8 @@ vitest.examples.config.ts    – sequential forks pool (maxForks: 1), 90 s per-t
 | Adding a CJS `require()` call | Use `import` — tsup converts to CJS for consumers |
 | Glob with custom regex | `picomatch.isMatch(path, pattern)` |
 | Forgetting `.js` in local imports | Node16 resolution requires explicit `.js` extension |
+| Spinner output interleaving with log lines | Stop spinner before emitting `log.info` lines in `onEnd` |
+| Response properties same colour as request | Response = blue/cyan (observed), request = green (sent) |
 
 ---
 
@@ -184,3 +208,16 @@ vitest.examples.config.ts    – sequential forks pool (maxForks: 1), 90 s per-t
 - When adding a dep, prefer one already used by Playwright (e.g. `picomatch`).
 - Avoid deps that don't ship ESM or don't have types.
 - `chalk` is a lazy dynamic import (stdout-only, optional usage pattern).
+- ANSI escape codes in `log.ts` and `progress.ts` are handwritten (no external dep).
+
+---
+
+## Custom Agents
+
+Three agents are available in `.github/agents/`:
+
+| Agent | Purpose | Tools |
+|-------|---------|-------|
+| `playswag` | Full dev + usage — features, bugs, tests, config guidance | read, edit, search, execute, agent, web |
+| `playswag-research` | Read-only codebase exploration and Q&A | read, search |
+| `playswag-release` | Version bumps, changelog, tagging, publishing | read, edit, search, execute |

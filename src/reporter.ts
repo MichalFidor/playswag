@@ -13,7 +13,7 @@ import type {
   FullResult,
 } from '@playwright/test/reporter';
 import type { EndpointHit, PlayswagConfig, CoverageResult, NormalizedSpec } from './types.js';
-import type { HistoryEntry } from './output/history.js';
+import type { HistoryEntry, CoverageDelta } from './output/history.js';
 import { ATTACHMENT_NAME } from './constants.js';
 import { parseSpecs } from './openapi/parser.js';
 import { calculateCoverage } from './coverage/calculator.js';
@@ -272,11 +272,11 @@ class PlayswagReporter implements Reporter {
     }
   }
 
-  private async emitMarkdownOutput(result: CoverageResult, outputDir: string): Promise<void> {
+  private async emitMarkdownOutput(result: CoverageResult, outputDir: string, delta?: CoverageDelta): Promise<void> {
     const mdConfig = { enabled: true, ...this.config.markdownOutput };
     if (mdConfig.enabled === false) return;
     try {
-      const path = await writeMarkdownReport(result, outputDir, mdConfig, this.config.excludeDimensions);
+      const path = await writeMarkdownReport(result, outputDir, mdConfig, this.config.excludeDimensions, delta);
       log.info(`Markdown report written to ${path}`);
     } catch (err) {
       log.error(`Failed to write Markdown report: ${(err as Error).message}`);
@@ -355,7 +355,7 @@ class PlayswagReporter implements Reporter {
     if (formats.includes('html'))     await this.emitHtmlOutput(coverageResult, outputDir, historyEntries);
     if (formats.includes('badge'))    await this.emitBadgeOutput(coverageResult, outputDir);
     if (formats.includes('junit'))    await this.emitJUnitOutput(coverageResult, outputDir);
-    if (formats.includes('markdown')) await this.emitMarkdownOutput(coverageResult, outputDir);
+    if (formats.includes('markdown')) await this.emitMarkdownOutput(coverageResult, outputDir, delta);
 
     // Append to history after all reports are written
     if (historyEnabled) await this.saveHistoryData(coverageResult, outputDir, historyConfig ?? {});
@@ -367,7 +367,13 @@ class PlayswagReporter implements Reporter {
     if (isGitHubActions()) {
       if (violations.length > 0) emitAnnotations(violations);
       try {
-        await writeStepSummary(coverageResult, violations);
+        await writeStepSummary(
+          coverageResult,
+          violations,
+          this.config.githubActionsOutput ?? {},
+          delta,
+          this.config.excludeDimensions,
+        );
       } catch (err) {
         log.warn(`Could not write GitHub step summary: ${(err as Error).message}`);
       }

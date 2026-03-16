@@ -157,6 +157,34 @@ describe('generateMarkdownReport', () => {
     );
     expect(md).not.toContain('## Uncovered Operations');
   });
+
+  it('includes a Change column header in the summary table', () => {
+    const md = generateMarkdownReport(makeResult());
+    expect(md).toContain('| Change |');
+  });
+
+  it('shows a positive delta indicator when delta is provided', () => {
+    const delta = { endpoints: 5, statusCodes: 0, parameters: -2, bodyProperties: 0, responseProperties: 1 };
+    const md = generateMarkdownReport(makeResult(), {}, undefined, delta);
+    expect(md).toContain('↑5.0%');
+    expect(md).toContain('↓2.0%');
+    expect(md).toContain('↑1.0%');
+  });
+
+  it('shows no arrow for zero delta', () => {
+    const delta = { endpoints: 0, statusCodes: 0, parameters: 0, bodyProperties: 0, responseProperties: 0 };
+    const md = generateMarkdownReport(makeResult(), {}, undefined, delta);
+    expect(md).not.toContain('↑0');
+    expect(md).not.toContain('↓0');
+  });
+
+  it('renders an empty Change column when no delta is provided', () => {
+    const md = generateMarkdownReport(makeResult());
+    // header present but no arrows
+    expect(md).toContain('| Change |');
+    expect(md).not.toContain('↑');
+    expect(md).not.toContain('↓');
+  });
 });
 
 // ─── writeMarkdownReport ─────────────────────────────────────────────────────

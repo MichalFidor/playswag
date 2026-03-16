@@ -125,15 +125,32 @@ interface PlayswagConfiguration {
    */
   requiredParamsOnly?: boolean;
 
+  /**
+   * Suppress specific coverage dimensions from the console output, thresholds, and step summary.
+   * Useful when a dimension is not applicable to your API (e.g. no request bodies).
+   */
+  excludeDimensions?: ('endpoints' | 'statusCodes' | 'parameters' | 'bodyProperties' | 'responseProperties')[];
+
+  /**
+   * Weight applied to response property coverage when calculating the per-operation score.
+   * Response properties are an observation signal (API returned them) rather than a
+   * send signal (test exercised them), so they are weighted lower by default.
+   * Set to 0 to exclude response properties from per-operation scores.
+   * @default 0.5
+   */
+  responsePropertiesWeight?: number;
+
   consoleOutput?: {
-    enabled?: boolean;                  // @default true
-    showUncoveredOnly?: boolean;        // @default false
-    showOperations?: boolean;           // @default true — per-operation table
-    showParams?: boolean;               // @default false
-    showBodyProperties?: boolean;       // @default false
-    showResponseProperties?: boolean;   // @default false — expand response body fields per status code
-    showTags?: boolean;                 // @default false — per-tag summary table
-    showOperationId?: boolean;          // @default false — append operationId after path in ops table
+    enabled?: boolean;                   // @default true
+    showUncoveredOnly?: boolean;         // @default false
+    showOperations?: boolean;            // @default true — per-operation table
+    showParams?: boolean;                // @default false
+    showBodyProperties?: boolean;        // @default false
+    showResponseProperties?: boolean;    // @default false — expand response body fields per status code
+    showTags?: boolean;                  // @default false — per-tag summary table
+    showOperationId?: boolean;           // @default false — append operationId after path in ops table
+    showStatusCodeBreakdown?: boolean;   // @default false — breakdown table of covered/total per HTTP status code
+    showUnmatchedHits?: boolean;         // @default true  — calls that matched no spec operation; set false to suppress
   };
 
   jsonOutput?: {
@@ -189,10 +206,20 @@ interface PlayswagConfiguration {
    * Enable by adding 'markdown' to outputFormats.
    */
   markdownOutput?: {
-    enabled?: boolean;              // @default true
-    fileName?: string;              // @default 'playswag-coverage.md'
-    title?: string;                 // @default 'API Coverage Report'
-    showUncoveredOperations?: boolean; // @default true
+    enabled?: boolean;                    // @default true
+    fileName?: string;                    // @default 'playswag-coverage.md'
+    title?: string;                       // @default 'API Coverage Report'
+    showUncoveredOperations?: boolean;    // @default true
+  };
+
+  /**
+   * GitHub Actions step summary and annotations configuration.
+   * Only takes effect when GITHUB_ACTIONS=true.
+   * Annotations are always emitted; these options control the step summary content.
+   */
+  githubActionsOutput?: {
+    showUncoveredOperations?: boolean; // @default false — collapsible section listing uncovered operations
+    showUnmatchedHits?: boolean;       // @default false — collapsible section listing unmatched API calls
   };
 
   threshold?: {
@@ -486,7 +513,7 @@ markdownOutput: {
 },
 ```
 
-The report contains a five-dimension summary table, a per-tag breakdown, and a list of uncovered
+The report contains a five-dimension summary table (with `↑ / ↓` delta indicators when history is enabled), a per-tag breakdown, and a list of uncovered
 operations. It renders correctly in GitHub pull requests, wiki pages, and `$GITHUB_STEP_SUMMARY`.
 
 ---
@@ -496,9 +523,22 @@ operations. It renders correctly in GitHub pull requests, wiki pages, and `$GITH
 When `GITHUB_ACTIONS=true` playswag automatically:
 
 1. **Emits annotations** — threshold violations appear as warning annotations on the summary page.
-2. **Writes a step summary** — a Markdown table with four-dimension coverage results is appended to `$GITHUB_STEP_SUMMARY` and shown in the Actions UI.
+2. **Writes a step summary** — a Markdown table with five-dimension coverage results is appended to `$GITHUB_STEP_SUMMARY` and shown in the Actions UI. The table includes `↑ / ↓` delta indicators when history is enabled.
 
 No configuration required. Both features activate only inside GitHub Actions.
+
+### Optional step summary extras
+
+```ts
+githubActionsOutput: {
+  // Append a collapsible "Uncovered operations" section to the step summary
+  showUncoveredOperations: true,
+
+  // Append a collapsible "Unmatched API calls" section listing calls that
+  // matched no spec operation (useful for debugging coverage gaps)
+  showUnmatchedHits: true,
+},
+```
 
 ---
 
@@ -586,6 +626,7 @@ Everything exported from `@michalfidor/playswag`:
 | `HistoryConfig` | `history: { … }` sub-object |
 | `JUnitOutputConfig` | `junitOutput: { … }` sub-object |
 | `MarkdownOutputConfig` | `markdownOutput: { … }` sub-object |
+| `GitHubActionsOutputConfig` | `githubActionsOutput: { … }` sub-object |
 | `ThresholdConfig` | `threshold: { … }` sub-object |
 | `ThresholdEntry` | Individual `{ min, fail }` threshold entry inside `ThresholdConfig` |
 | `CoverageDimension` | Union type of all five dimension keys: `'endpoints' \| 'statusCodes' \| 'parameters' \| 'bodyProperties' \| 'responseProperties'`. Useful when typing `excludeDimensions` arrays. |

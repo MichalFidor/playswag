@@ -169,6 +169,7 @@ export async function printConsoleReport(
     showTags = false,
     showOperationId = false,
     showStatusCodeBreakdown = false,
+    showUnmatchedHits = true,
   } = config;
 
   const SEP = c.dim('─'.repeat(80));
@@ -309,6 +310,18 @@ export async function printConsoleReport(
   }
 
   if (!showOperations) {
+    if (showUnmatchedHits && result.unmatchedHits.length > 0) {
+      console.log('');
+      console.log(
+        c.yellow(`  ⚠ ${result.unmatchedHits.length} recorded API call(s) did not match any spec operation:`)
+      );
+      for (const hit of result.unmatchedHits.slice(0, 10)) {
+        console.log(c.dim(`    ${hit.method} ${hit.url} [${hit.statusCode}]`));
+      }
+      if (result.unmatchedHits.length > 10) {
+        console.log(c.dim(`    … and ${result.unmatchedHits.length - 10} more`));
+      }
+    }
     console.log('');
     console.log(SEP);
     console.log('');
@@ -322,6 +335,18 @@ export async function printConsoleReport(
 
   if (opsToShow.length === 0) {
     console.log(c.green('\n  All operations covered!\n'));
+    if (showUnmatchedHits && result.unmatchedHits.length > 0) {
+      console.log(
+        c.yellow(`  ⚠ ${result.unmatchedHits.length} recorded API call(s) did not match any spec operation:`)
+      );
+      for (const hit of result.unmatchedHits.slice(0, 10)) {
+        console.log(c.dim(`    ${hit.method} ${hit.url} [${hit.statusCode}]`));
+      }
+      if (result.unmatchedHits.length > 10) {
+        console.log(c.dim(`    … and ${result.unmatchedHits.length - 10} more`));
+      }
+      console.log('');
+    }
     console.log(SEP);
     console.log('');
     return;
@@ -392,7 +417,7 @@ export async function printConsoleReport(
 
   console.log(opsTable.toString());
 
-  if (result.unmatchedHits.length > 0) {
+  if (showUnmatchedHits && result.unmatchedHits.length > 0) {
     console.log('');
     console.log(
       c.yellow(`  ⚠ ${result.unmatchedHits.length} recorded API call(s) did not match any spec operation:`)

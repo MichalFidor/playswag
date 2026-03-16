@@ -9,6 +9,7 @@ import {
 } from '../../src/output/github-actions.js';
 import type { CoverageResult } from '../../src/types.js';
 import type { ThresholdViolation } from '../../src/output/console.js';
+import type { CoverageDelta } from '../../src/output/history.js';
 
 function makeResult(overrides: Partial<CoverageResult> = {}): CoverageResult {
   return {
@@ -219,5 +220,119 @@ describe('writeStepSummary', () => {
     await writeStepSummary(result, []);
     const content = await readFile(summaryPath, 'utf8');
     expect(content).not.toContain('Coverage by Tag');
+  });
+
+  it('omits excluded dimensions from the summary table', async () => {
+    const summaryPath = join(tmpDir, 'summary.md');
+    process.env['GITHUB_STEP_SUMMARY'] = summaryPath;
+
+    await writeStepSummary(makeResult(), [], {}, undefined, ['statusCodes', 'responseProperties']);
+
+    const content = await readFile(summaryPath, 'utf8');
+    expect(content).toContain('Endpoints');
+    expect(content).toContain('Parameters');
+    expect(content).toContain('Body Properties');
+    expect(content).not.toContain('Status Codes');
+    expect(content).not.toContain('Response Properties');
+  });
+
+  it('shows delta indicators next to percentages when delta is provided', async () => {
+    const summaryPath = join(tmpDir, 'summary.md');
+    process.env['GITHUB_STEP_SUMMARY'] = summaryPath;
+
+    const delta: CoverageDelta = {
+      endpoints: 3.5,
+      statusCodes: -2,
+      parameters: 0,
+      bodyProperties: 1,
+      responseProperties: 0,
+    };
+    await writeStepSummary(makeResult(), [], {}, delta);
+
+    const content = await readFile(summaryPath, 'utf8');
+    expect(content).toContain('↑3.5%');
+    expect(content).toContain('↓2.0%');
+    // zero delta suppressed
+    expect(content).not.toContain('↑0');
+    expect(content).not.toContain('↓0');
+  });
+
+  it('includes collapsible uncovered operations when showUncoveredOperations is true', async () => {
+    const summaryPath = join(tmpDir, 'summary.md');
+    process.env['GITHUB_STEP_SUMMARY'] = summaryPath;
+
+    const result = makeResult({
+      uncoveredOperations: [
+        { path: '/api/widgets', method: 'get', covered: false, statusCodes: {}, parameters: [], bodyProperties: [], responseProperties: [], testRefs: [] },
+        { path: '/api/widgets/{id}', method: 'delete', covered: false, statusCodes: {}, parameters: [], bodyProperties: [], responseProperties: [], testRefs: [] },
+      ],
+    });
+    await writeStepSummary(result, [], { showUncoveredOperations: true });
+
+    const content = await readFile(summaryPath, 'utf8');
+    expect(content).toContain('<details>');
+    expect(content).toContain('Uncovered operations (2)');
+    expect(content).toContain('/api/widgets');
+    expect(content).toContain('DELETE');
+  });
+
+  it('does not include uncovered operations section when showUncoveredOperations is false', async () => {
+    const summaryPath = join(tmpDir, 'summary.md');
+    process.env['GITHUB_STEP_SUMMARY'] = summaryPath;
+
+    const result = makeResult({
+      uncoveredOperations: [
+        { path: '/api/widgets', method: 'get', covered: false, statusCodes: {}, parameters: [], bodyProperties: [], responseProperties: [], testRefs: [] },
+      ],
+    });
+    await writeStepSummary(result, [], { showUncoveredOperations: false });
+
+    const content = await readFile(summaryPath, 'utf8');
+    expect(content).not.toContain('<details>');
+    expect(content).not.toContain('Uncovered operations');
+  });
+
+  it('omits excluded dimensions from the tag coverage table columns', async () => {
+    const summaryPath = join(tmpDir, 'summary.md');
+    process.env['GITHUB_STEP_SUMMARY'] = summaryPath;
+
+    await writeStepSummary(makeResult(), [], {}, undefined, ['parameters', 'bodyProperties', 'responseProperties']);
+
+    const content = await readFile(summaryPath, 'utf8');
+    expect(content).toContain('Endpoints');
+    expect(content).toContain('Status Codes');
+    // excluded dimensions must not appear in tag table header
+    expect(content).not.toContain('Parameters');
+    expect(content).not.toContain('Body Props');
+    expect(content).not.toContain('Resp Props');
+  });
+
+  it('does NOT include unmatched hits when showUnmatchedHits is false (default)', async () => {
+    const summaryPath = join(tmpDir, 'summary.md');
+    process.env['GITHUB_STEP_SUMMARY'] = summaryPath;
+    const result = makeResult({
+      unmatchedHits: [{ method: 'GET', url: 'http://api.example.com/unknown', statusCode: 404, testTitle: 't', testFile: 'f.spec.ts' }],
+    });
+    await writeStepSummary(result, [], {});
+    const content = await readFile(summaryPath, 'utf8');
+    expect(content).not.toContain('Unmatched API calls');
+  });
+
+  it('includes collapsible unmatched hits when showUnmatchedHits is true', async () => {
+    const summaryPath = join(tmpDir, 'summary.md');
+    process.env['GITHUB_STEP_SUMMARY'] = summaryPath;
+    const result = makeResult({
+      unmatchedHits: [
+        { method: 'GET', url: 'http://api.example.com/unknown', statusCode: 404, testTitle: 't', testFile: 'f.spec.ts' },
+        { method: 'POST', url: 'http://api.example.com/other', statusCode: 500, testTitle: 't2', testFile: 'f.spec.ts' },
+      ],
+    });
+    await writeStepSummary(result, [], { showUnmatchedHits: true });
+    const content = await readFile(summaryPath, 'utf8');
+    expect(content).toContain('Unmatched API calls (2)');
+    expect(content).toContain('`GET`');
+    expect(content).toContain('`http://api.example.com/unknown`');
+    expect(content).toContain('404');
+    expect(content).toContain('<details>');
   });
 });

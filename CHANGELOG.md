@@ -7,6 +7,26 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.8.0] — 2026-03-16
+
+**Theme:** Visibility parity — surface more signal in every output format and suppress noise when needed.
+
+### Added
+- **Markdown delta indicators** — the Markdown report now includes a `Change` column showing `↑ / ↓` delta percentages when coverage history is enabled. `generateMarkdownReport` and `writeMarkdownReport` accept an optional `delta` parameter.
+- **`consoleOutput.showUnmatchedHits`** — new boolean option (`@default true`) in `ConsoleOutputConfig`. Set to `false` to suppress the "N recorded API call(s) did not match any spec operation" section, useful when known out-of-spec calls are expected.
+- **`githubActionsOutput.showUnmatchedHits`** — new boolean option (`@default false`) in `GitHubActionsOutputConfig`. When enabled, appends a collapsible `<details>` block to the step summary listing all unmatched API calls with their method, URL, and status code.
+- **`githubActionsOutput.showUncoveredOperations`** — new boolean option (`@default false`) in `GitHubActionsOutputConfig`. Appends a collapsible uncovered operations section to the step summary.
+- **`excludeDimensions` + `responsePropertiesWeight`** — documented in README config reference (introduced in v1.7.0 but undocumented).
+- **`GitHubActionsOutputConfig`** — exported from the package entry point so consumers can type the `githubActionsOutput` sub-object.
+
+### Fixed
+- **Console unmatched hits unreachable** — the unmatched hits block was silently skipped when the operations list was empty or `showOperations: false`. It is now shown in all code paths.
+
+### Changed
+- README config reference updated: `consoleOutput` snippet now documents `showStatusCodeBreakdown`, `showOperationId`, and `showUnmatchedHits`; `githubActionsOutput` block added; `GitHubActionsOutputConfig` added to the exported types table.
+
+---
+
 ## [1.7.0] — 2026-03-12
 
 **Theme:** Signal quality — distinguish observed response properties from actively sent request fields, surface coverage confidence, and tighten the public API surface.
