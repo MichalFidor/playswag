@@ -7,6 +7,16 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **Post-reporter hang when specs are fetched over HTTP** — after `SwaggerParser.dereference()` fetched a remote spec, Node.js's built-in `fetch` (undici) kept a keep-alive connection pool timer alive, preventing the event loop from draining. Depending on the spec server's `Keep-Alive` timeout this could delay Playwright's exit by up to ~120 s. Fixed by closing the undici global dispatcher (releasing all pooled connections) at the end of `onEnd()` and replacing it with a fresh `Agent` so subsequent `fetch` calls from other reporters continue to work. The fix is a no-op when specs are file-based or when undici's global dispatcher is not present.
+
+### Performance
+- **Spec-parse caching in multi-project mode** — `parseOne()` now caches its result by resolved URL/path. When multiple Playwright projects reference the same spec file or URL, `SwaggerParser.dereference()` is called only once per process instead of once per project.
+
+---
+
 ## [1.8.0] — 2026-03-16
 
 **Theme:** Visibility parity — surface more signal in every output format and suppress noise when needed.

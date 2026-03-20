@@ -272,8 +272,21 @@ function resolveSource(source: string): string {
   return source;
 }
 
+/** Module-level cache so the same spec file/URL is only dereferenced once per process. */
+const parseOneCache = new Map<string, Promise<ParsedSpec>>();
+
 async function parseOne(source: string): Promise<ParsedSpec> {
   const resolvedSource = resolveSource(source);
+
+  const cached = parseOneCache.get(resolvedSource);
+  if (cached) {
+    if (process.env['PLAYSWAG_DEBUG']) {
+      console.log(`[playswag:debug] parseOne cache hit for "${source}"`);
+    }
+    return cached;
+  }
+
+  const parsePromise = (async (): Promise<ParsedSpec> => {
   const doc = await SwaggerParser.dereference(resolvedSource) as OpenAPI.Document;
 
   if (isV2(doc)) {
@@ -300,6 +313,10 @@ async function parseOne(source: string): Promise<ParsedSpec> {
     }
     return { operations, serverBasePath };
   }
+  })();
+
+  parseOneCache.set(resolvedSource, parsePromise);
+  return parsePromise;
 }
 
 /**

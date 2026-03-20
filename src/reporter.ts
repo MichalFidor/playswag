@@ -166,6 +166,7 @@ class PlayswagReporter implements Reporter {
     if (this.projectOverrides.size > 0) {
       stopProgress();
       const result = await this.runMultiProjectCoverage();
+      await this.releaseHttpConnections();
       log.info('Coverage complete.');
       return result;
     }
@@ -183,6 +184,7 @@ class PlayswagReporter implements Reporter {
       this.baseURL,
       this.config.outputDir,
     );
+    await this.releaseHttpConnections();
     log.info('Coverage complete.');
     if (failed) return { status: 'failed' };
   }
@@ -380,6 +382,41 @@ class PlayswagReporter implements Reporter {
     }
 
     return violations.some((v) => v.fail);
+  }
+
+  /**
+   * After spec parsing (which uses native `fetch` for HTTP URLs internally via
+   * `@apidevtools/json-schema-ref-parser`), the undici connection pool keeps
+   * keep-alive sockets open. These are referenced timers that prevent the
+   * Node.js event loop from draining, causing a hang of up to ~120 s after
+   * `onEnd()` returns — matching the server's Keep-Alive timeout.
+   *
+   * Fix: close the old dispatcher (drains in-flight requests, releases sockets)
+   * and replace the global slot with a fresh Agent so any subsequent `fetch`
+   * calls (e.g. from other Playwright reporters) continue to work.
+   *
+   * This accesses Node.js's internal undici dispatcher via the well-known
+   * Symbol `undici.globalDispatcher.1` (used by `getGlobalDispatcher()` in
+   * undici's public API). Wrapped in try/catch so Node version differences
+   * are handled silently.
+   */
+  private async releaseHttpConnections(): Promise<void> {
+    try {
+      const UNDICI_SYM = 'Symbol(undici.globalDispatcher.1)';
+      const sym = Object.getOwnPropertySymbols(globalThis)
+        .find((s) => s.toString() === UNDICI_SYM);
+      if (!sym) return;
+      const old = (globalThis as Record<symbol, { constructor: new () => unknown; close?: () => Promise<void> }>)[sym];
+      if (!old || typeof old.close !== 'function') return;
+      const fresh = new old.constructor();
+      await old.close();
+      (globalThis as Record<symbol, unknown>)[sym] = fresh;
+      if (process.env['PLAYSWAG_DEBUG']) {
+        console.log('[playswag:debug] releaseHttpConnections: undici keep-alive connections closed');
+      }
+    } catch {
+      // Silently ignore — undici internals differ across Node.js versions
+    }
   }
 
   printsToStdio(): boolean {
