@@ -74,6 +74,19 @@ function buildTrackedRequest<T extends MockAPIRequestContext>(
             Object.entries(rawParams as Record<string, unknown>).map(([k, v]) => [k, String(v)])
           );
         }
+        // Also extract query params from the final response URL so that string-concatenated
+        // ?param=value patterns (e.g. request.get(`/users?limit=${n}`)) are captured.
+        // URL-derived params are merged first; explicit options.params take precedence.
+        try {
+          const urlSearchParams = new URL(response.url()).searchParams;
+          if (urlSearchParams.size > 0) {
+            const fromUrl: Record<string, string> = {};
+            urlSearchParams.forEach((value, key) => { fromUrl[key] = value; });
+            queryParams = { ...fromUrl, ...queryParams };
+          }
+        } catch {
+          // Invalid URL — skip URL param extraction
+        }
 
         let headers: Record<string, string> | undefined;
         const rawHeaders = options?.['headers'];
@@ -183,6 +196,24 @@ describe('buildTrackedRequest (fixture proxy)', () => {
     const tracked = buildTrackedRequest(ctx, hits, testInfo);
     await tracked.get('/api/users', { params: { limit: 10, offset: 0 } });
     expect(hits[0]?.queryParams).toEqual({ limit: '10', offset: '0' });
+  });
+
+  it('extracts query params from URL string when no params option provided', async () => {
+    const hits: EndpointHit[] = [];
+    const resp = makeResponse({ url: 'http://localhost:3456/api/users?limit=5&page=2' });
+    const ctx = makeMockContext(resp);
+    const tracked = buildTrackedRequest(ctx, hits, testInfo);
+    await tracked.get('http://localhost:3456/api/users?limit=5&page=2');
+    expect(hits[0]?.queryParams).toEqual({ limit: '5', page: '2' });
+  });
+
+  it('merges URL query params with params option; params option wins on conflict', async () => {
+    const hits: EndpointHit[] = [];
+    const resp = makeResponse({ url: 'http://localhost:3456/api/users?limit=5&page=2' });
+    const ctx = makeMockContext(resp);
+    const tracked = buildTrackedRequest(ctx, hits, testInfo);
+    await tracked.get('http://localhost:3456/api/users?page=2', { params: { limit: 10 } });
+    expect(hits[0]?.queryParams).toEqual({ limit: '10', page: '2' });
   });
 
   it('records headers when provided', async () => {

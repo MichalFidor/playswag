@@ -73,6 +73,19 @@ function buildTrackedRequest<T extends APIRequestContext>(
             Object.entries(rawParams as Record<string, unknown>).map(([k, v]) => [k, String(v)])
           );
         }
+        // Also extract query params from the final response URL so that string-concatenated
+        // ?param=value patterns (e.g. request.get(`/users?limit=${n}`)) are captured.
+        // URL-derived params are merged first; explicit options.params take precedence.
+        try {
+          const urlSearchParams = new URL(response.url()).searchParams;
+          if (urlSearchParams.size > 0) {
+            const fromUrl: Record<string, string> = {};
+            urlSearchParams.forEach((value, key) => { fromUrl[key] = value; });
+            queryParams = { ...fromUrl, ...queryParams };
+          }
+        } catch {
+          // Invalid URL — skip URL param extraction
+        }
 
         let headers: Record<string, string> | undefined;
         const rawHeaders = options?.['headers'];

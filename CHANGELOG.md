@@ -7,6 +7,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.8.2] — 2026-03-23
+
+**Theme:** Parameter coverage parity — capture query params from URL-string calls.
+
+### Fixed
+- **Query parameters invisible when using URL string concatenation** — when tests used string-concatenated query parameters (e.g. `request.get(\`/users?limit=${n}\`)`) instead of Playwright's `{ params: {} }` option object, playswag recorded zero query-param coverage because only `options.params` was inspected. The fixture now also parses query parameters from `response.url()` (the resolved final URL) via `new URL(...).searchParams`, merging them with any explicit `options.params` (explicit params take precedence on key conflicts). This is a pure-fix with no config changes required.
+
+---
+
 ## [1.8.1] — 2026-03-23
 
 **Theme:** Reliability & performance — eliminate a post-run hang when fetching remote specs, deduplicate spec parsing in multi-project runs, and acknowledge known out-of-spec services.
