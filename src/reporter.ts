@@ -12,7 +12,7 @@ import type {
   TestResult,
   FullResult,
 } from '@playwright/test/reporter';
-import type { EndpointHit, PlayswagConfig, CoverageResult, NormalizedSpec } from './types.js';
+import type { AcknowledgedService, EndpointHit, PlayswagConfig, CoverageResult, NormalizedSpec } from './types.js';
 import type { HistoryEntry, CoverageDelta } from './output/history.js';
 import { ATTACHMENT_NAME } from './constants.js';
 import { parseSpecs } from './openapi/parser.js';
@@ -86,7 +86,7 @@ class PlayswagReporter implements Reporter {
     PlayswagConfig;
 
   private aggregatedHits: EndpointHit[] = [];
-  private readonly projectOverrides = new Map<string, { specs: string | string[]; baseURL?: string }>();
+  private readonly projectOverrides = new Map<string, { specs: string | string[]; baseURL?: string; acknowledgedServices?: AcknowledgedService[] }>();
   private baseURL: string | undefined;
   private totalTestCount = 0;
 
@@ -145,9 +145,10 @@ class PlayswagReporter implements Reporter {
       const use = proj?.use as Record<string, unknown> | undefined;
       const projSpecs = use?.['playswagSpecs'] as string | string[] | undefined;
       const projBaseURL = (use?.['playswagBaseURL'] as string | undefined) ?? proj?.use?.baseURL;
+      const projAcknowledgedServices = use?.['playswagAcknowledgedServices'] as AcknowledgedService[] | undefined;
 
       if (projSpecs && proj?.name) {
-        this.projectOverrides.set(proj.name, { specs: projSpecs, baseURL: projBaseURL });
+        this.projectOverrides.set(proj.name, { specs: projSpecs, baseURL: projBaseURL, acknowledgedServices: projAcknowledgedServices });
       }
 
       for (const hit of hits) {
@@ -209,7 +210,11 @@ class PlayswagReporter implements Reporter {
       const projectHits = this.filterHits(hitsByProject.get(projectName) ?? []);
       const projectOutputDir = join(this.config.outputDir, projectName);
       const projectBaseURL = override.baseURL ?? this.baseURL;
-      const failed = await this.runOutputsForGroup(projectHits, override.specs, projectBaseURL, projectOutputDir);
+      const projectAcknowledgedServices = [
+        ...(this.config.acknowledgedServices ?? []),
+        ...(override.acknowledgedServices ?? []),
+      ];
+      const failed = await this.runOutputsForGroup(projectHits, override.specs, projectBaseURL, projectOutputDir, projectAcknowledgedServices);
       if (failed) anyFailed = true;
     }
 
@@ -304,6 +309,7 @@ class PlayswagReporter implements Reporter {
     specsInput: string | string[],
     baseURL: string | undefined,
     outputDir: string,
+    acknowledgedServices?: AcknowledgedService[],
   ): Promise<boolean> {
     let spec;
     try {
@@ -326,7 +332,7 @@ class PlayswagReporter implements Reporter {
       playswagVersion: readPlayswagVersion(),
       totalTestCount: this.totalTestCount,
       requiredParamsOnly: this.config.requiredParamsOnly,
-      acknowledgedServices: this.config.acknowledgedServices,
+      acknowledgedServices: acknowledgedServices ?? this.config.acknowledgedServices,
     });
 
     const historyConfig = this.config.history ? { enabled: true, ...this.config.history } : undefined;

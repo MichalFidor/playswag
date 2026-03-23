@@ -7,7 +7,7 @@ import {
   type TestInfo,
   type PlaywrightTestConfig,
 } from '@playwright/test';
-import type { EndpointHit, PlayswagFixtureOptions } from './types.js';
+import type { AcknowledgedService, EndpointHit, PlayswagFixtureOptions } from './types.js';
 import { ATTACHMENT_NAME } from './constants.js';
 
 export { expect };
@@ -141,6 +141,8 @@ type PlayswagOptions = {
   playswagSpecs: string | string[] | undefined;
   /** Per-project base URL that overrides `baseURL` when stripping URL prefixes during matching. */
   playswagBaseURL: string | undefined;
+  /** Per-project acknowledged services that merge with the global `acknowledgedServices` config. */
+  playswagAcknowledgedServices: AcknowledgedService[] | undefined;
 };
 
 /**
@@ -183,6 +185,7 @@ export const test = base.extend<PlayswagOptions & PlayswagFixtures>({
   captureResponseBody: [true, { option: true }],
   playswagSpecs: [undefined, { option: true }],
   playswagBaseURL: [undefined, { option: true }],
+  playswagAcknowledgedServices: [undefined, { option: true }],
 
   trackRequest: async (
     { playswagEnabled, captureResponseBody }: { playswagEnabled: boolean; captureResponseBody: boolean },

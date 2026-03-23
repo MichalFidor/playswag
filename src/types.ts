@@ -754,4 +754,27 @@ export interface PlayswagFixtureOptions {
    * Falls back to the project's own `baseURL` if not set, then to the global reporter config.
    */
   playswagBaseURL?: string;
+  /**
+   * Per-project acknowledged services override.
+   *
+   * When set in a project's `use` block, merges with (and takes precedence over) the
+   * global `acknowledgedServices` reporter config for hits originating from that project.
+   * Useful when individual services have different sets of auxiliary calls to exclude.
+   *
+   * @example
+   * ```ts
+   * projects: [
+   *   {
+   *     name: 'orders-service',
+   *     use: {
+   *       playswagSpecs: './specs/orders.yaml',
+   *       playswagAcknowledgedServices: [
+   *         { pattern: 'https://metrics.internal/**', label: 'metrics-sidecar' },
+   *       ],
+   *     },
+   *   },
+   * ]
+   * ```
+   */
+  playswagAcknowledgedServices?: AcknowledgedService[];
 }

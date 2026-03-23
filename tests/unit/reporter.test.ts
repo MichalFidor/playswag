@@ -217,6 +217,17 @@ describe('PlayswagReporter', () => {
       expect(overrides.has('svc-a')).toBe(true);
     });
 
+    it('records playswagAcknowledgedServices in projectOverrides', () => {
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const svc = { pattern: 'https://metrics.internal/**', label: 'metrics' };
+      r['onTestEnd'](
+        makeTestCase({ projectName: 'svc-b', projectUse: { playswagSpecs: './svc-b.yaml', playswagAcknowledgedServices: [svc] } }),
+        makeTestResult([])
+      );
+      const overrides = r['projectOverrides'] as Map<string, { acknowledgedServices?: unknown[] }>;
+      expect(overrides.get('svc-b')?.acknowledgedServices).toEqual([svc]);
+    });
+
     it('increments totalTestCount for each test', () => {
       const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
       r['onTestEnd'](makeTestCase(), makeTestResult([]));
