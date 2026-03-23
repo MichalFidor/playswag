@@ -7,6 +7,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.8.3] — 2026-03-23
+
+**Theme:** Per-project acknowledged services — silence known auxiliary calls at the project level.
+
+### Added
+- **`playswagAcknowledgedServices` per-project fixture option** — a new `use` block option that lets individual Playwright projects declare their own acknowledged services, in addition to the global `acknowledgedServices` reporter config. Per-project entries are merged with the global list (global first, project-specific appended), so they extend rather than replace the top-level config. Useful in multi-project setups where each service has different auxiliary calls to exclude.
+
+---
+
 ## [1.8.2] — 2026-03-23
 
 **Theme:** Parameter coverage parity — capture query params from URL-string calls.
