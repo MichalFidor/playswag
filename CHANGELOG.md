@@ -7,7 +7,12 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [1.8.1] — 2026-03-23
+
+**Theme:** Reliability & performance — eliminate a post-run hang when fetching remote specs, deduplicate spec parsing in multi-project runs, and acknowledge known out-of-spec services.
+
+### Added
+- **`acknowledgedServices`** — new `PlayswagConfig` option that accepts an array of `{ pattern, label? }` entries. Unmatched API calls whose URL matches a declared pattern are silently removed from the yellow unmatched-hits warning and replaced with a brief informational note (e.g. `ℹ  12 call(s) to "auth-service" (**\/auth-service\/**) — excluded from tracking`). Useful when auxiliary services (auth, analytics, telemetry) are deliberately out of scope but would otherwise pollute the report. `AcknowledgedService` and `AcknowledgedServiceHits` are exported from the package entry point. The `acknowledgedHits` array is included in `CoverageResult` for use in custom output consumers.
 
 ### Fixed
 - **Post-reporter hang when specs are fetched over HTTP** — after `SwaggerParser.dereference()` fetched a remote spec, Node.js's built-in `fetch` (undici) kept a keep-alive connection pool timer alive, preventing the event loop from draining. Depending on the spec server's `Keep-Alive` timeout this could delay Playwright's exit by up to ~120 s. Fixed by closing the undici global dispatcher (releasing all pooled connections) at the end of `onEnd()` and replacing it with a fresh `Agent` so subsequent `fetch` calls from other reporters continue to work. The fix is a no-op when specs are file-based or when undici's global dispatcher is not present.
@@ -302,6 +307,7 @@ Initial public release.
 - `includePatterns` / `excludePatterns` glob filtering.
 - `trackRequest` fixture for custom `APIRequestContext` instances.
 
+[1.8.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.8.1
 [1.5.0]: https://github.com/MichalFidor/playswag/releases/tag/v1.5.0
 [1.4.0]: https://github.com/MichalFidor/playswag/releases/tag/v1.4.0
 [1.3.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.3.1

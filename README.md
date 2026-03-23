@@ -111,6 +111,22 @@ interface PlayswagConfiguration {
   excludePatterns?: string[];
 
   /**
+   * Declare external or auxiliary services whose unmatched calls should be
+   * silently acknowledged rather than listed in the unmatched-hits warning.
+   *
+   * Matching is done against the full recorded URL using picomatch.
+   * Acknowledged hits are excluded from the yellow-warning block and shown
+   * only as a brief informational note per service at the end of that section.
+   *
+   * @example
+   * acknowledgedServices: [
+   *   { pattern: '**\/auth-service\/**', label: 'auth-service' },
+   *   { pattern: 'https://analytics.internal/**' },
+   * ]
+   */
+  acknowledgedServices?: Array<{ pattern: string; label?: string }>;
+
+  /**
    * Only include spec operations with at least one of these OAS tags.
    * Supports picomatch glob patterns. Operations with no tags are excluded.
    */

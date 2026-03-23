@@ -257,6 +257,116 @@ describe('calculateCoverage', () => {
     // total: limit(1) + id(2) = 3
     expect(result.summary.parameters.total).toBe(3);
   });
+
+  describe('acknowledgedServices', () => {
+    const baseURL = 'https://api.example.com';
+
+    it('returns empty acknowledgedHits when no acknowledgedServices are configured', () => {
+      const result = calculateCoverage(
+        [hit({ method: 'GET', url: 'https://other.service.com/api/data', statusCode: 200 })],
+        spec,
+        { baseURL }
+      );
+      expect(result.acknowledgedHits).toEqual([]);
+      expect(result.unmatchedHits).toHaveLength(1);
+    });
+
+    it('moves matching unmatched hit into acknowledgedHits instead of unmatchedHits', () => {
+      const result = calculateCoverage(
+        [hit({ method: 'GET', url: 'https://auth.internal/token', statusCode: 200 })],
+        spec,
+        {
+          baseURL,
+          acknowledgedServices: [{ pattern: 'https://auth.internal/**', label: 'Auth Service' }],
+        }
+      );
+      expect(result.unmatchedHits).toHaveLength(0);
+      expect(result.acknowledgedHits).toHaveLength(1);
+      expect(result.acknowledgedHits[0]?.label).toBe('Auth Service');
+      expect(result.acknowledgedHits[0]?.pattern).toBe('https://auth.internal/**');
+      expect(result.acknowledgedHits[0]?.count).toBe(1);
+    });
+
+    it('counts multiple hits to the same acknowledged service in a single entry', () => {
+      const result = calculateCoverage(
+        [
+          hit({ method: 'GET', url: 'https://auth.internal/token', statusCode: 200 }),
+          hit({ method: 'POST', url: 'https://auth.internal/refresh', statusCode: 200 }),
+        ],
+        spec,
+        {
+          baseURL,
+          acknowledgedServices: [{ pattern: 'https://auth.internal/**', label: 'Auth Service' }],
+        }
+      );
+      expect(result.unmatchedHits).toHaveLength(0);
+      expect(result.acknowledgedHits).toHaveLength(1);
+      expect(result.acknowledgedHits[0]?.count).toBe(2);
+    });
+
+    it('defaults label to pattern when no label is provided', () => {
+      const result = calculateCoverage(
+        [hit({ method: 'GET', url: 'https://auth.internal/token', statusCode: 200 })],
+        spec,
+        {
+          baseURL,
+          acknowledgedServices: [{ pattern: 'https://auth.internal/**' }],
+        }
+      );
+      expect(result.acknowledgedHits[0]?.label).toBe('https://auth.internal/**');
+    });
+
+    it('only includes services that received hits in acknowledgedHits', () => {
+      const result = calculateCoverage(
+        [hit({ method: 'GET', url: 'https://auth.internal/token', statusCode: 200 })],
+        spec,
+        {
+          baseURL,
+          acknowledgedServices: [
+            { pattern: 'https://auth.internal/**', label: 'Auth Service' },
+            { pattern: 'https://metrics.internal/**', label: 'Metrics' },
+          ],
+        }
+      );
+      expect(result.acknowledgedHits).toHaveLength(1);
+      expect(result.acknowledgedHits[0]?.label).toBe('Auth Service');
+    });
+
+    it('keeps hits NOT matching any acknowledged pattern in unmatchedHits', () => {
+      const result = calculateCoverage(
+        [
+          hit({ method: 'GET', url: 'https://auth.internal/token', statusCode: 200 }),
+          hit({ method: 'GET', url: 'https://other.service.com/api', statusCode: 200 }),
+        ],
+        spec,
+        {
+          baseURL,
+          acknowledgedServices: [{ pattern: 'https://auth.internal/**', label: 'Auth' }],
+        }
+      );
+      expect(result.unmatchedHits).toHaveLength(1);
+      expect(result.unmatchedHits[0]?.url).toContain('other.service.com');
+      expect(result.acknowledgedHits[0]?.count).toBe(1);
+    });
+
+    it('correctly handles unmatched hits that also match spec operations being ignored by acknowledgedServices (no double-count)', () => {
+      // A hit that matches the spec should NOT be affected by acknowledgedServices
+      const result = calculateCoverage(
+        [
+          hit({ method: 'GET', url: `${baseURL}/api/users`, statusCode: 200 }),
+          hit({ method: 'GET', url: 'https://auth.internal/token', statusCode: 200 }),
+        ],
+        spec,
+        {
+          baseURL,
+          acknowledgedServices: [{ pattern: 'https://auth.internal/**', label: 'Auth' }],
+        }
+      );
+      expect(result.summary.endpoints.covered).toBe(1);
+      expect(result.unmatchedHits).toHaveLength(0);
+      expect(result.acknowledgedHits[0]?.count).toBe(1);
+    });
+  });
 });
 
 // ─── tagCoverage ─────────────────────────────────────────────────────────────

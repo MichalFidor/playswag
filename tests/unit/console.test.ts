@@ -31,6 +31,7 @@ function makeResult(
     operations: [],
     uncoveredOperations: [],
     unmatchedHits: [],
+    acknowledgedHits: [],
   };
 }
 
@@ -277,5 +278,30 @@ describe('printConsoleReport', () => {
     await printConsoleReport(result, { showUnmatchedHits: false });
     const allArgs = logSpy.mock.calls.flat().join('\n');
     expect(allArgs).not.toContain('did not match any spec operation');
+  });
+
+  it('acknowledgedHits: prints informational note for each acknowledged service', async () => {
+    const result: CoverageResult = {
+      ...makeResult(100, 100, 100, 100),
+      acknowledgedHits: [
+        { label: 'Auth Service', pattern: 'https://auth.internal/**', count: 3 },
+      ],
+    };
+    await printConsoleReport(result);
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).toContain('Auth Service');
+    expect(allArgs).toContain('excluded from tracking');
+    expect(allArgs).toContain('3 call(s)');
+  });
+
+  it('acknowledgedHits: prints nothing when acknowledgedHits is empty', async () => {
+    const result = makeResult(100, 100, 100, 100);
+    const callCountBefore = logSpy.mock.calls.length;
+    await printConsoleReport(result);
+    // The spy will have calls for the normal report — just verify the
+    // acknowledged-hits notice text is absent
+    const allArgs = logSpy.mock.calls.flat().join('\n');
+    expect(allArgs).not.toContain('excluded from tracking');
+    void callCountBefore; // suppress unused warning
   });
 });

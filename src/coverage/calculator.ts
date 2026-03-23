@@ -7,9 +7,12 @@ import type {
   CoverageSummaryItem,
   ParamCoverage,
   StatusCodeCoverage,
+  AcknowledgedService,
+  AcknowledgedServiceHits,
 } from '../types.js';
 import { matchOperation, buildOperationIndex } from '../openapi/matcher.js';
 import { analyzeParameters, analyzeBodyProperties, analyzeResponseProperties } from './schema-analyzer.js';
+import picomatch from 'picomatch';
 
 function makeItem(total: number, covered: number): CoverageSummaryItem {
   return {
@@ -36,6 +39,7 @@ export function calculateCoverage(
     playswagVersion?: string;
     totalTestCount?: number;
     requiredParamsOnly?: boolean;
+    acknowledgedServices?: AcknowledgedService[];
   } = {}
 ): CoverageResult {
   if (process.env['PLAYSWAG_DEBUG']) {
@@ -94,6 +98,8 @@ export function calculateCoverage(
   }
 
   const unmatchedHits: EndpointHit[] = [];
+  const acknowledgedCounters = new Map<AcknowledgedService, number>();
+  for (const svc of options.acknowledgedServices ?? []) acknowledgedCounters.set(svc, 0);
 
   // Build index once so matchOperation can skip O(n) scan for every hit.
   const operationIndex = buildOperationIndex(spec.operations);
@@ -102,8 +108,16 @@ export function calculateCoverage(
     const match = matchOperation(hit.url, hit.method, spec.operations, options.baseURL, operationIndex);
 
     if (!match) {
-      unmatchedHits.push(hit);
-      if (process.env['PLAYSWAG_DEBUG'] && unmatchedHits.length <= 3) {
+      // Check if this unmatched hit is covered by an acknowledged service.
+      const acknowledged = (options.acknowledgedServices ?? []).find((svc) =>
+        picomatch.isMatch(hit.url, svc.pattern)
+      );
+      if (acknowledged) {
+        acknowledgedCounters.set(acknowledged, (acknowledgedCounters.get(acknowledged) ?? 0) + 1);
+      } else {
+        unmatchedHits.push(hit);
+      }
+      if (process.env['PLAYSWAG_DEBUG'] && !acknowledged && unmatchedHits.length <= 3) {
         console.log(`[playswag:debug]   unmatched hit    : ${hit.method} ${hit.url}`);
       }
       continue;
@@ -237,5 +251,12 @@ export function calculateCoverage(
     operations: allOps,
     uncoveredOperations: uncoveredOps,
     unmatchedHits,
+    acknowledgedHits: Array.from(acknowledgedCounters.entries())
+      .filter(([, count]) => count > 0)
+      .map(([svc, count]): AcknowledgedServiceHits => ({
+        label: svc.label ?? svc.pattern,
+        pattern: svc.pattern,
+        count,
+      })),
   };
 }

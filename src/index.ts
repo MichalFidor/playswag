@@ -87,6 +87,8 @@ export type {
   JUnitOutputConfig,
   MarkdownOutputConfig,
   GitHubActionsOutputConfig,
+  AcknowledgedService,
+  AcknowledgedServiceHits,
 } from './types.js';
 
 export type { HistoryEntry, CoverageDelta } from './output/history.js';

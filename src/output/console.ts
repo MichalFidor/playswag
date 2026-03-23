@@ -145,6 +145,15 @@ function formatDelta(c: ChalkInstance, delta: number | undefined): string {
   return delta > 0 ? c.green(` ↑ ${s}`) : c.red(` ↓ ${s}`);
 }
 
+/** Print a brief informational note for each acknowledged service that had calls. */
+function printAcknowledgedHits(c: Awaited<ReturnType<typeof getChalk>>, result: CoverageResult): void {
+  for (const svc of result.acknowledgedHits) {
+    console.log(
+      c.dim(`  ℹ  ${svc.count} call(s) to "${svc.label}" (${svc.pattern}) — excluded from tracking`)
+    );
+  }
+}
+
 /**
  * Print the Playswag coverage report to stdout.
  *
@@ -322,6 +331,7 @@ export async function printConsoleReport(
         console.log(c.dim(`    … and ${result.unmatchedHits.length - 10} more`));
       }
     }
+    printAcknowledgedHits(c, result);
     console.log('');
     console.log(SEP);
     console.log('');
@@ -347,6 +357,7 @@ export async function printConsoleReport(
       }
       console.log('');
     }
+    printAcknowledgedHits(c, result);
     console.log(SEP);
     console.log('');
     return;
@@ -429,6 +440,7 @@ export async function printConsoleReport(
       console.log(c.dim(`    … and ${result.unmatchedHits.length - 10} more`));
     }
   }
+  printAcknowledgedHits(c, result);
 
   console.log('');
   console.log(SEP);

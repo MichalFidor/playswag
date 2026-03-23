@@ -113,6 +113,40 @@ export interface CoverageResult {
    * Useful for discovering undocumented endpoints.
    */
   unmatchedHits: EndpointHit[];
+  /**
+   * Hits that matched an `acknowledgedServices` pattern and were intentionally
+   * excluded from the unmatched-hits warning. One entry per configured service
+   * (only services that actually received calls are included).
+   */
+  acknowledgedHits: AcknowledgedServiceHits[];
+}
+
+/**
+ * A service whose unmatched calls have been explicitly acknowledged by the user.
+ * Calls matching the pattern are excluded from the unmatched-hits warning and
+ * instead shown as a brief informational note.
+ */
+export interface AcknowledgedService {
+  /**
+   * A picomatch glob or plain URL substring matched against the full recorded URL.
+   * Examples: `'**\/auth-service\/**'` or `'https://auth.internal/**'`
+   */
+  pattern: string;
+  /**
+   * Human-readable name shown in console output.
+   * Defaults to the pattern string when omitted.
+   */
+  label?: string;
+}
+
+/** Per-service summary of acknowledged (intentionally ignored) unmatched hits. */
+export interface AcknowledgedServiceHits {
+  /** The label resolved from `AcknowledgedService.label ?? AcknowledgedService.pattern`. */
+  label: string;
+  /** The original glob pattern. */
+  pattern: string;
+  /** Number of unmatched hits absorbed by this service entry. */
+  count: number;
 }
 
 /**
@@ -543,6 +577,22 @@ export interface PlayswagConfig {
    * Ignore API calls whose paths match any of these glob patterns.
    */
   excludePatterns?: string[];
+
+  /**
+   * Declare external or auxiliary services whose unmatched calls should be
+   * silently acknowledged rather than listed in the unmatched-hits warning.
+   *
+   * Matching is done against the **full recorded URL** using picomatch.
+   * Acknowledged hits are excluded from the yellow-warning block and
+   * shown only as a brief informational note per service.
+   *
+   * @example
+   * acknowledgedServices: [
+   *   { pattern: '**\/auth-service\/**', label: 'auth-service' },
+   *   { pattern: 'https://analytics.internal/**' },
+   * ]
+   */
+  acknowledgedServices?: AcknowledgedService[];
 
   /**
    * Only include spec operations that carry at least one of these OAS tags in
