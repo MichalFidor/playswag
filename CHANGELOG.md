@@ -14,6 +14,9 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - **Query parameters invisible when using URL string concatenation** — when tests used string-concatenated query parameters (e.g. `request.get(\`/users?limit=${n}\`)`) instead of Playwright's `{ params: {} }` option object, playswag recorded zero query-param coverage because only `options.params` was inspected. The fixture now also parses query parameters from `response.url()` (the resolved final URL) via `new URL(...).searchParams`, merging them with any explicit `options.params` (explicit params take precedence on key conflicts). This is a pure-fix with no config changes required.
 
+### Security
+- **`flatted` bumped from 3.3.4 to 3.4.2** — addressed a Dependabot security advisory in this indirect dev-only dependency (used transitively by the test runner). No impact on the published npm package or end-user runtime; affects CI and local development environments only.
+
 ---
 
 ## [1.8.1] — 2026-03-23
