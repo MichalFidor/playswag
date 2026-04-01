@@ -64,6 +64,10 @@
 export { test, expect, ATTACHMENT_NAME, defineConfig } from './fixture.js';
 export type { PlayswagFixtures } from './fixture.js';
 
+export { mergeCoverageResults } from './merge.js';
+export { calculateCoverage } from './coverage/calculator.js';
+export { parseSpecs } from './openapi/parser.js';
+
 export type {
   PlayswagConfiguration,
   PlayswagFixtureOptions,
@@ -89,6 +93,7 @@ export type {
   GitHubActionsOutputConfig,
   AcknowledgedService,
   AcknowledgedServiceHits,
+  NormalizedSpec,
 } from './types.js';
 
 export type { HistoryEntry, CoverageDelta } from './output/history.js';

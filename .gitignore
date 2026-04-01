@@ -12,4 +12,6 @@ playwright-report/
 .playwright/
 .DS_Store
 *.tgz
-docs/
+docs/ROADMAP.md
+docs/CONTRACT-TESTING-IDEA.md
+docs/REPORTPORTAL-INTEGRATION.md

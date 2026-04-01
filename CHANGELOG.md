@@ -7,6 +7,25 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.9.0] — 2026-04-01
+
+**Theme:** Multi-run coverage merging — combine coverage from parallel CI jobs, with CLI output options and auto-detection of GitHub Actions.
+
+### Added
+- **`playswag merge` CLI** — new `playswag merge <file1.json> <file2.json> [...]` command that combines multiple JSON coverage reports into a single unified report. Supports glob patterns (shell-expanded). Available via `npx @michalfidor/playswag merge`.
+- **CLI output flags** — `--console` prints a coverage summary table, `--html` writes a self-contained HTML report, `--badge` writes an SVG badge, `--markdown` writes a Markdown report. All output files are written next to the JSON output (`-o`).
+- **GitHub Actions auto-detection in CLI** — when `GITHUB_ACTIONS=true`, the merge command automatically writes a step summary to `$GITHUB_STEP_SUMMARY` with no extra flags required.
+- **`mergeCoverageResults()` export** — new public function that merges two or more `CoverageResult` objects. Operations are matched by `method + path`, coverage flags are OR-unioned, `testRefs` and `unmatchedHits` are deduplicated, and summary statistics and tag coverage are recomputed from the merged data.
+- **Additional public exports** — `calculateCoverage`, `parseSpecs`, and `NormalizedSpec` are now re-exported from the package entry point for advanced consumers.
+- **Documentation site** — README restructured to a lean overview with links to six dedicated docs pages: [Configuration](docs/configuration.md), [Output Formats](docs/output-formats.md), [Multi-Project Setup](docs/multi-project.md), [CI Integration](docs/ci-integration.md), [Coverage History](docs/coverage-history.md), [API Reference](docs/api-reference.md).
+
+### Changed
+- **`@playwright/test`** bumped from 1.58.2 to **1.59.1**.
+- **`picomatch`** bumped from 4.0.3 to **4.0.4** (Dependabot #13).
+- **Dev dependencies** updated: `@types/node` 25.3.3 → 25.5.0, `eslint` 10.0.2 → 10.1.0, `lint-staged` 16.3.2 → 16.4.0, `typescript-eslint` 8.56.1 → 8.58.0, `vitest` 4.0.18 → 4.1.2.
+
+---
+
 ## [1.8.3] — 2026-03-23
 
 **Theme:** Per-project acknowledged services — silence known auxiliary calls at the project level.
