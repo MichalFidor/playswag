@@ -22,7 +22,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 - **`@playwright/test`** bumped from 1.58.2 to **1.59.1**.
 - **`picomatch`** bumped from 4.0.3 to **4.0.4** (Dependabot #13).
-- **Dev dependencies** updated: `@types/node` 25.3.3 → 25.5.0, `eslint` 10.0.2 → 10.1.0, `lint-staged` 16.3.2 → 16.4.0, `typescript-eslint` 8.56.1 → 8.58.0, `vitest` 4.0.18 → 4.1.2.
+- **Dev dependencies** updated: `@types/node` 25.3.3 → 25.5.0, `eslint` 10.0.2 → 10.1.0, `lint-staged` 16.3.2 → 16.4.0, `typescript-eslint` 8.56.1 → 8.58.0.
+- **`vitest`** pinned to `~4.0.18` (patch-only). Vitest 4.1+ depends on `rolldown` which requires `node:util`'s `styleText` (Node 20.12+), breaking the Node 18 CI leg.
 
 ---
 
