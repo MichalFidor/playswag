@@ -1,6 +1,8 @@
 import Table from 'cli-table3';
+import chalk from 'chalk';
 import type { CoverageResult, OperationCoverage, ConsoleOutputConfig, ThresholdConfig, ThresholdEntry, CoverageDimension } from '../types.js';
 import type { CoverageDelta } from './history.js';
+import { activeDimensions } from './dimensions.js';
 
 const TABLE_CHARS = {
   'top': '─', 'top-mid': '┬', 'top-left': '┌', 'top-right': '┐',
@@ -8,15 +10,6 @@ const TABLE_CHARS = {
   'left': '│', 'left-mid': '├', 'mid': '─', 'mid-mid': '┼',
   'right': '│', 'right-mid': '┤', 'middle': '│',
 } as const;
-
-type ChalkInstance = {
-  green: (s: string) => string;
-  red: (s: string) => string;
-  yellow: (s: string) => string;
-  cyan: (s: string) => string;
-  bold: (s: string) => string;
-  dim: (s: string) => string;
-};
 
 /** A single threshold violation returned by {@link checkThresholds}. */
 export interface ThresholdViolation {
@@ -39,35 +32,24 @@ function resolveEntry(
   return { min: entry.min, fail: entry.fail ?? globalFail };
 }
 
-let _chalk: ChalkInstance | null = null;
-
-async function getChalk(): Promise<ChalkInstance> {
-  if (_chalk) return _chalk;
-  const mod = await import('chalk');
-  _chalk = mod.default as unknown as ChalkInstance;
-  return _chalk;
-}
-
-
-
 function progressBar(percent: number, width = 20): string {
   const filled = Math.round((percent / 100) * width);
   const empty = width - filled;
   return '█'.repeat(filled) + '░'.repeat(empty);
 }
 
-function colorPercent(c: ChalkInstance, pct: number): string {
+function colorPercent(c: typeof chalk, pct: number): string {
   const s = `${pct.toFixed(1)}%`;
   if (pct >= 80) return c.green(s);
   if (pct >= 50) return c.yellow(s);
   return c.red(s);
 }
 
-function colorBool(c: ChalkInstance, val: boolean): string {
+function colorBool(c: typeof chalk, val: boolean): string {
   return val ? c.green('✓') : c.red('✗');
 }
 
-function summaryCodes(c: ChalkInstance, codes: OperationCoverage['statusCodes']): string {
+function summaryCodes(c: typeof chalk, codes: OperationCoverage['statusCodes']): string {
   return Object.entries(codes)
     .map(([code, sc]) => `${code} ${colorBool(c, sc.covered)}`)
     .join('  ');
@@ -139,14 +121,14 @@ function formatTimestamp(iso: string): string {
 }
 
 /** Format a coverage delta as a compact trend indicator: `↑ 3.2%`, `↓ 1.1%`, or `—`. */
-function formatDelta(c: ChalkInstance, delta: number | undefined): string {
+function formatDelta(c: typeof chalk, delta: number | undefined): string {
   if (delta === undefined || delta === 0) return '';
   const s = `${Math.abs(delta).toFixed(1)}%`;
   return delta > 0 ? c.green(` ↑ ${s}`) : c.red(` ↓ ${s}`);
 }
 
 /** Print a brief informational note for each acknowledged service that had calls. */
-function printAcknowledgedHits(c: Awaited<ReturnType<typeof getChalk>>, result: CoverageResult): void {
+function printAcknowledgedHits(c: typeof chalk, result: CoverageResult): void {
   for (const svc of result.acknowledgedHits) {
     console.log(
       c.dim(`  ℹ  ${svc.count} call(s) to "${svc.label}" (${svc.pattern}) — excluded from tracking`)
@@ -168,7 +150,7 @@ export async function printConsoleReport(
   delta?: CoverageDelta,
   excludeDimensions?: CoverageDimension[]
 ): Promise<void> {
-  const c = await getChalk();
+  const c = chalk;
   const {
     showUncoveredOnly = false,
     showOperations = true,
@@ -284,22 +266,14 @@ export async function printConsoleReport(
     console.log('');
     console.log(c.bold('  Coverage by Tag'));
     console.log('');
-    type TagDimDef = [string, CoverageDimension, (tc: (typeof result.tagCoverage)[string]) => string];
-    const tagDimDefs: TagDimDef[] = [
-      ['Endpoints',    'endpoints',          tc => colorPercent(c, tc.endpoints.percentage)],
-      ['Status Codes', 'statusCodes',        tc => colorPercent(c, tc.statusCodes.percentage)],
-      ['Parameters',   'parameters',         tc => colorPercent(c, tc.parameters.percentage)],
-      ['Body Props',   'bodyProperties',     tc => colorPercent(c, tc.bodyProperties.percentage)],
-      ['Resp Props',   'responseProperties', tc => colorPercent(c, tc.responseProperties.percentage)],
-    ];
-    const activeDims = tagDimDefs.filter(([, key]) => !excludeDimensions?.includes(key));
+    const tagDims = activeDimensions(excludeDimensions);
     const tagTable = new Table({
-      head: [c.bold('Tag'), ...activeDims.map(([label]) => c.bold(label))],
+      head: [c.bold('Tag'), ...tagDims.map((d) => c.bold(d.short))],
       style: { head: [], border: [] },
       chars: TABLE_CHARS,
     });
     for (const [tag, tc] of Object.entries(result.tagCoverage)) {
-      tagTable.push([tag, ...activeDims.map(([,, getValue]) => getValue(tc))]);
+      tagTable.push([tag, ...tagDims.map((d) => colorPercent(c, tc[d.key].percentage))]);
     }
     console.log(tagTable.toString());
   }

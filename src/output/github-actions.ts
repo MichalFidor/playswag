@@ -2,8 +2,15 @@ import { appendFile } from 'node:fs/promises';
 import type { CoverageResult, CoverageDimension, GitHubActionsOutputConfig } from '../types.js';
 import type { ThresholdViolation } from './console.js';
 import type { CoverageDelta } from './history.js';
-import type { CoverageSummary } from '../types.js';
 import { log } from '../log.js';
+import {
+  activeDimensions,
+  badgeEmoji,
+  pct,
+  deltaStr,
+  sanitizeWorkflowMessage,
+  escapeMarkdownBackticks,
+} from './dimensions.js';
 
 /**
  * Whether the current process is running inside GitHub Actions.
@@ -21,44 +28,9 @@ export function isGitHubActions(): boolean {
 export function emitAnnotations(violations: ThresholdViolation[]): void {
   for (const v of violations) {
     const level = v.fail ? 'error' : 'warning';
-    // GitHub Actions annotation format: ::level::message
-    process.stdout.write(`::${level}::[playswag] ${v.message}\n`);
+    const message = sanitizeWorkflowMessage(v.message);
+    process.stdout.write(`::${level}::[playswag] ${message}\n`);
   }
-}
-
-// ── Internal helpers ──────────────────────────────────────────────────────────
-
-interface DimensionMeta {
-  key: keyof CoverageSummary;
-  /** Full label used in the main table */
-  label: string;
-  /** Short label used in the per-tag table */
-  short: string;
-  /** The CoverageDimension identifier for excludeDimensions filtering */
-  dim: CoverageDimension;
-}
-
-const ALL_DIMENSIONS: DimensionMeta[] = [
-  { key: 'endpoints',          label: 'Endpoints',           short: 'Endpoints',   dim: 'endpoints' },
-  { key: 'statusCodes',        label: 'Status Codes',        short: 'Status Codes',dim: 'statusCodes' },
-  { key: 'parameters',         label: 'Parameters',          short: 'Parameters',  dim: 'parameters' },
-  { key: 'bodyProperties',     label: 'Body Properties',     short: 'Body Props',  dim: 'bodyProperties' },
-  { key: 'responseProperties', label: 'Response Properties', short: 'Resp Props',  dim: 'responseProperties' },
-];
-
-function badge(pct: number): string {
-  if (pct >= 80) return '🟢';
-  if (pct >= 50) return '🟡';
-  return '🔴';
-}
-
-function pct(v: number): string {
-  return `${v.toFixed(1)}%`;
-}
-
-function deltaStr(d: number | undefined): string {
-  if (d === undefined || d === 0) return '';
-  return d > 0 ? ` ↑${d.toFixed(1)}%` : ` ↓${Math.abs(d).toFixed(1)}%`;
 }
 
 /**
@@ -76,8 +48,7 @@ export async function writeStepSummary(
   if (!summaryPath) return;
 
   const { summary } = result;
-  const excluded = new Set(excludeDimensions ?? []);
-  const activeDimensions = ALL_DIMENSIONS.filter((d) => !excluded.has(d.dim));
+  const dimensions = activeDimensions(excludeDimensions);
 
   const lines: string[] = [
     '## playswag — API Coverage Report',
@@ -86,10 +57,10 @@ export async function writeStepSummary(
     `|-----------|--------:|------:|---|`,
   ];
 
-  for (const { key, label, dim } of activeDimensions) {
+  for (const { key, label, dim } of dimensions) {
     const s = summary[key];
     const d = delta?.[dim as keyof CoverageDelta];
-    lines.push(`| ${label} | ${s.covered} | ${s.total} | ${badge(s.percentage)} ${pct(s.percentage)}${deltaStr(d)} |`);
+    lines.push(`| ${label} | ${s.covered} | ${s.total} | ${badgeEmoji(s.percentage)} ${pct(s.percentage)}${deltaStr(d)} |`);
   }
 
   lines.push('');
@@ -97,14 +68,14 @@ export async function writeStepSummary(
   // Per-tag table if there are named tags
   const tags = Object.entries(result.tagCoverage).filter(([t]) => t !== '(untagged)');
   if (tags.length > 0) {
-    const tagCols = activeDimensions;
+    const tagCols = dimensions;
     lines.push('### Coverage by Tag');
     lines.push('');
     lines.push(`| Tag | ${tagCols.map((c) => c.short).join(' | ')} |`);
     lines.push(`|-----|${tagCols.map(() => '---:').join('|')}|`);
     for (const [tag, tc] of tags) {
-      const cells = tagCols.map((c) => `${badge(tc[c.key].percentage)} ${pct(tc[c.key].percentage)}`);
-      lines.push(`| \`${tag}\` | ${cells.join(' | ')} |`);
+      const cells = tagCols.map((c) => `${badgeEmoji(tc[c.key].percentage)} ${pct(tc[c.key].percentage)}`);
+      lines.push(`| \`${escapeMarkdownBackticks(tag)}\` | ${cells.join(' | ')} |`);
     }
     lines.push('');
   }
@@ -128,7 +99,7 @@ export async function writeStepSummary(
     lines.push('| Method | Path |');
     lines.push('|--------|------|');
     for (const op of result.uncoveredOperations) {
-      lines.push(`| \`${op.method.toUpperCase()}\` | \`${op.path}\` |`);
+      lines.push(`| \`${op.method.toUpperCase()}\` | \`${escapeMarkdownBackticks(op.path)}\` |`);
     }
     lines.push('');
     lines.push('</details>');
@@ -143,7 +114,7 @@ export async function writeStepSummary(
     lines.push('| Method | URL | Status |');
     lines.push('|--------|-----|--------|');
     for (const hit of result.unmatchedHits) {
-      lines.push(`| \`${hit.method.toUpperCase()}\` | \`${hit.url}\` | ${hit.statusCode} |`);
+      lines.push(`| \`${hit.method.toUpperCase()}\` | \`${escapeMarkdownBackticks(hit.url)}\` | ${hit.statusCode} |`);
     }
     lines.push('');
     lines.push('</details>');

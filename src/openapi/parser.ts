@@ -8,6 +8,23 @@ import type {
   NormalizedSpec,
 } from '../types.js';
 import { log } from '../log.js';
+import {
+  assertRemoteSpecHostsRequired,
+  assertSpecUrlAllowed,
+  isRemoteSpecSource,
+} from '../utils/spec-security.js';
+import { buildSecureSwaggerParserOptions } from './swagger-options.js';
+
+export interface ParseSpecOptions {
+  /** Host allowlist for remote spec URLs (required when `specs` is a URL). */
+  allowedSpecHosts?: string[];
+  /** Allow loopback/private hosts when fetching remote specs. @default false */
+  allowPrivateHosts?: boolean;
+  /** HTTP timeout per spec / $ref fetch in ms. @default 15000 */
+  specFetchTimeoutMs?: number;
+  /** Max bytes per spec / $ref response. @default 5242880 (5 MiB) */
+  maxSpecBytes?: number;
+}
 
 function isV2(doc: OpenAPI.Document): doc is OpenAPIV2.Document {
   return 'swagger' in doc && (doc as OpenAPIV2.Document).swagger?.startsWith('2');
@@ -158,14 +175,30 @@ function extractServerBasePath(servers: unknown): string | undefined {
   }
 }
 
+/** Resolve server base path: operation.servers → pathItem.servers → document.servers. */
+function resolveServerBasePath(
+  operation: OpenAPIV3.OperationObject,
+  pathItem: OpenAPIV3.PathItemObject,
+  docServers: unknown,
+  docDefault?: string
+): string | undefined {
+  const servers =
+    operation.servers ??
+    pathItem.servers ??
+    docServers;
+  return extractServerBasePath(servers) ?? docDefault;
+}
+
 /** Convert a parsed/dereferenced OAS3 document into NormalizedOperations. */
 function normalizeV3(
   doc: OpenAPIV3.Document | OpenAPIV3_1.Document
 ): NormalizedOperation[] {
   const operations: NormalizedOperation[] = [];
+  const docServerBasePath = extractServerBasePath(doc.servers);
 
   for (const [pathTemplate, pathItem] of Object.entries(doc.paths ?? {})) {
     if (!pathItem) continue;
+    const pathItemObj = pathItem as OpenAPIV3.PathItemObject;
 
     const methods: OpenAPIV3.HttpMethods[] = [
       'get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace',
@@ -176,12 +209,8 @@ function normalizeV3(
       if (!op || typeof op !== 'object') continue;
       const operation = op as OpenAPIV3.OperationObject;
 
-      const pathParams = normalizeParameters(
-        (pathItem as OpenAPIV3.PathItemObject).parameters as unknown[] | undefined
-      );
-      const opParams = normalizeParameters(
-        operation.parameters as unknown[] | undefined
-      );
+      const pathParams = normalizeParameters(pathItemObj.parameters as unknown[] | undefined);
+      const opParams = normalizeParameters(operation.parameters as unknown[] | undefined);
       const paramMap = new Map<string, NormalizedParameter>();
       for (const p of [...pathParams, ...opParams]) {
         paramMap.set(`${p.in}:${p.name}`, p);
@@ -196,6 +225,7 @@ function normalizeV3(
         parameters: Array.from(paramMap.values()),
         requestBodySchema: extractRequestBodySchema(operation.requestBody),
         responses: normalizeResponses(operation.responses),
+        serverBasePath: resolveServerBasePath(operation, pathItemObj, doc.servers, docServerBasePath),
       });
     }
   }
@@ -275,10 +305,15 @@ function resolveSource(source: string): string {
 /** Module-level cache so the same spec file/URL is only dereferenced once per process. */
 const parseOneCache = new Map<string, Promise<ParsedSpec>>();
 
-async function parseOne(source: string): Promise<ParsedSpec> {
-  const resolvedSource = resolveSource(source);
+function cacheKey(resolvedSource: string, options?: ParseSpecOptions): string {
+  return `${resolvedSource}::${JSON.stringify(options ?? {})}`;
+}
 
-  const cached = parseOneCache.get(resolvedSource);
+async function parseOne(source: string, options?: ParseSpecOptions): Promise<ParsedSpec> {
+  const resolvedSource = resolveSource(source);
+  const key = cacheKey(resolvedSource, options);
+
+  const cached = parseOneCache.get(key);
   if (cached) {
     if (process.env['PLAYSWAG_DEBUG']) {
       console.log(`[playswag:debug] parseOne cache hit for "${source}"`);
@@ -287,7 +322,21 @@ async function parseOne(source: string): Promise<ParsedSpec> {
   }
 
   const parsePromise = (async (): Promise<ParsedSpec> => {
-  const doc = await SwaggerParser.dereference(resolvedSource) as OpenAPI.Document;
+  const security = {
+    allowedSpecHosts: options?.allowedSpecHosts,
+    allowPrivateHosts: options?.allowPrivateHosts,
+  };
+  const remoteRoot = isRemoteSpecSource(resolvedSource);
+  if (remoteRoot) {
+    await assertSpecUrlAllowed(resolvedSource, security);
+  }
+  const parserOptions = buildSecureSwaggerParserOptions({
+    ...security,
+    specFetchTimeoutMs: options?.specFetchTimeoutMs,
+    maxSpecBytes: options?.maxSpecBytes,
+    disableFileResolver: remoteRoot,
+  });
+  const doc = await SwaggerParser.dereference(resolvedSource, parserOptions) as OpenAPI.Document;
 
   if (isV2(doc)) {
     const v2 = doc as OpenAPIV2.Document;
@@ -304,7 +353,7 @@ async function parseOne(source: string): Promise<ParsedSpec> {
     if (process.env['PLAYSWAG_DEBUG']) {
       console.log(`[playswag:debug] parseOne (OAS3) "${source}" -> servers[0].url: ${(v3.servers?.[0] as Record<string, unknown> | undefined)?.['url'] ?? '(none)'}, serverBasePath: ${serverBasePath ?? '(none)'}`);
     }
-    const operations = normalizeV3(v3).map(op => ({ ...op, serverBasePath }));
+    const operations = normalizeV3(v3);
     if (process.env['PLAYSWAG_DEBUG']) {
       const withRespSchema = operations.filter(op => Object.values(op.responses).some(r => r.schema != null)).length;
       const totalRespCodes = operations.reduce((sum, op) => sum + Object.keys(op.responses).length, 0);
@@ -313,9 +362,12 @@ async function parseOne(source: string): Promise<ParsedSpec> {
     }
     return { operations, serverBasePath };
   }
-  })();
+  })().catch((err) => {
+    parseOneCache.delete(key);
+    throw err;
+  });
 
-  parseOneCache.set(resolvedSource, parsePromise);
+  parseOneCache.set(key, parsePromise);
   return parsePromise;
 }
 
@@ -324,15 +376,23 @@ async function parseOne(source: string): Promise<ParsedSpec> {
  * single normalized spec. Duplicate path+method entries across files
  * are de-duplicated (last one wins with a console warning).
  */
-export async function parseSpecs(sources: string | string[]): Promise<NormalizedSpec> {
+export async function parseSpecs(
+  sources: string | string[],
+  options?: ParseSpecOptions
+): Promise<NormalizedSpec> {
   const sourceList = Array.isArray(sources) ? sources : [sources];
+  assertRemoteSpecHostsRequired(
+    sourceList.map((s) => resolveSource(s)),
+    options
+  );
   const allOperations: NormalizedOperation[] = [];
   const seen = new Map<string, string>();
+  const opIndex = new Map<string, number>();
 
   for (const source of sourceList) {
     let parsed: ParsedSpec;
     try {
-      parsed = await parseOne(source);
+      parsed = await parseOne(source, options);
     } catch (err) {
       throw new Error(
         `[playswag] Failed to parse OpenAPI spec from "${source}": ${(err as Error).message}`,
@@ -345,13 +405,14 @@ export async function parseSpecs(sources: string | string[]): Promise<Normalized
       const key = `${op.method}:${op.pathTemplate}`;
       if (seen.has(key)) {
         log.warn(`Duplicate operation ${key} in "${source}" (already seen in "${seen.get(key)}") — using latest definition.`);
-        const idx = allOperations.findIndex(
-          (o) => o.method === op.method && o.pathTemplate === op.pathTemplate
-        );
-        if (idx !== -1) allOperations.splice(idx, 1);
+        const idx = opIndex.get(key);
+        if (idx !== undefined) allOperations[idx] = op;
+        seen.set(key, source);
+      } else {
+        seen.set(key, source);
+        opIndex.set(key, allOperations.length);
+        allOperations.push(op);
       }
-      seen.set(key, source);
-      allOperations.push(op);
     }
   }
 

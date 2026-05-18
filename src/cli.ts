@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { mergeCoverageResults } from './merge.js';
 import type { CoverageResult } from './types.js';
+import { isCoverageResult, parseJsonWithLimit } from './utils/safe-json.js';
 
 const HELP = `Usage: playswag merge <file1.json> <file2.json> [...] [options]
 
@@ -64,7 +65,12 @@ const results: CoverageResult[] = [];
 for (const file of files) {
   try {
     const raw = await readFile(file, 'utf8');
-    results.push(JSON.parse(raw) as CoverageResult);
+    const parsed = parseJsonWithLimit<unknown>(raw);
+    if (!isCoverageResult(parsed)) {
+      console.error(`[playswag] ${file} is not a valid playswag coverage report`);
+      process.exit(1);
+    }
+    results.push(parsed);
   } catch (err) {
     console.error(`[playswag] Failed to read ${file}: ${(err as Error).message}`);
     process.exit(1);

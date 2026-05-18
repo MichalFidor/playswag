@@ -50,9 +50,50 @@ Out of scope:
 - Vulnerabilities in the APIs under test
 - Issues requiring physical access to the machine running tests
 
+## Remote specs (SSRF)
+
+When `specs` is an `http://` or `https://` URL you **must** set `allowedSpecHosts` in reporter
+config. The run fails at parse time if it is missing.
+
+| Control | Behavior |
+|--------|----------|
+| `allowedSpecHosts` | **Required** for any HTTP spec / `$ref` fetch; supports `*.example.com` |
+| Private / loopback | Blocked unless `allowPrivateHosts: true` |
+| DNS rebinding | Hostnames resolved; private IPs rejected even when on allowlist |
+| Redirects | Each hop validated against the same rules |
+| `file://` $refs | Disabled when the root spec is a remote URL |
+| Timeouts / size | `specFetchTimeoutMs` (15s), `maxSpecBytes` (5 MiB) per fetch |
+
+Local spec files do not require an allowlist until they dereference an external HTTP URL.
+
+## Coverage reports and CI artifacts
+
+- JSON/HTML reports may contain API paths, parameters, and **redacted** request/response
+  snippets. Treat artifacts as **confidential**; do not publish HTML reports to a public URL
+  without reviewing contents.
+- HTML output escapes dynamic text to reduce XSS risk; prefer private artifact storage in CI.
+- Use `captureResponseBody: false` or `redactBody: false` / custom `redactBodyFields` only when
+  you understand the data-handling implications.
+
+## Trust model
+
+- OpenAPI specs are treated as **trusted configuration** in dev/CI — only fetch specs from sources
+  you control.
+- Playswag does not call the APIs under test during spec parsing; it only fetches spec documents.
+- Malicious specs cannot override `allowedSpecHosts`; they can only cause parse failures within
+  the allowlisted hosts you configure.
+
+## Known limitations
+
+- Recorded hits are held in memory per worker (bounded by `maxHitsPerTest` and attachment size
+  limits); extremely large suites may still require tuning those limits.
+- Body redaction uses key-name heuristics, not deep secret scanning — disable body capture if
+  secrets appear in non-standard field names.
+
 ## Security Practices
 
 - Dependencies are monitored via [Dependabot](.github/dependabot.yml)
+- CI runs `npm audit --audit-level=high` and CodeQL static analysis
 - All PRs require passing CI checks before merge
-- The package ships with zero runtime dependencies where possible
+- Runtime dependencies are kept minimal and monitored via Dependabot (`@apidevtools/swagger-parser`, `chalk`, `cli-table3`, `openapi-types`, `picomatch`)
 - HTML output is generated with proper escaping to prevent XSS

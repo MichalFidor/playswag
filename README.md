@@ -68,6 +68,20 @@ npx playwright test
 
 Coverage is printed to the terminal and written to `./playswag-coverage/playswag-coverage.json`.
 
+### Remote OpenAPI URL (1.10+)
+
+If `specs` points to a remote URL, you **must** set `allowedSpecHosts` (SSRF protection for the root spec and HTTP `$ref` chains):
+
+```ts
+['@michalfidor/playswag/reporter', {
+  specs: 'https://api.example.com/openapi.json',
+  allowedSpecHosts: ['api.example.com'],
+  outputFormats: ['console', 'json'],
+}],
+```
+
+Local files (`./openapi.yaml`) do not need an allowlist unless they reference external HTTP URLs. See [CI integration — Remote specs](docs/ci-integration.md#remote-specs-ssrf) and [SECURITY.md](SECURITY.md).
+
 ---
 
 ## Documentation

@@ -2,21 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import type { CoverageResult, MarkdownOutputConfig, CoverageDimension } from '../types.js';
 import type { CoverageDelta } from './history.js';
-
-function badge(pct: number): string {
-  if (pct >= 80) return '🟢';
-  if (pct >= 50) return '🟡';
-  return '🔴';
-}
-
-function pct(v: number): string {
-  return `${v.toFixed(1)}%`;
-}
-
-function deltaStr(d: number | undefined): string {
-  if (d === undefined || d === 0) return '';
-  return d > 0 ? ` ↑${d.toFixed(1)}%` : ` ↓${Math.abs(d).toFixed(1)}%`;
-}
+import { activeDimensions, badgeEmoji, pct, deltaStr, escapeMarkdownBackticks } from './dimensions.js';
 
 /**
  * Render a Markdown coverage report from a {@link CoverageResult}.
@@ -33,17 +19,12 @@ export function generateMarkdownReport(
   const title = config.title ?? 'API Coverage Report';
   const { summary } = result;
 
-  type SummaryRowDef = [string, string, CoverageDimension | null];
-  const summaryDefs: SummaryRowDef[] = [
-    [`| Endpoints | ${summary.endpoints.covered} | ${summary.endpoints.total} | ${badge(summary.endpoints.percentage)} ${pct(summary.endpoints.percentage)} | ${deltaStr(delta?.endpoints)} |`, 'Endpoints', null],
-    [`| Status Codes | ${summary.statusCodes.covered} | ${summary.statusCodes.total} | ${badge(summary.statusCodes.percentage)} ${pct(summary.statusCodes.percentage)} | ${deltaStr(delta?.statusCodes)} |`, 'Status Codes', 'statusCodes'],
-    [`| Parameters | ${summary.parameters.covered} | ${summary.parameters.total} | ${badge(summary.parameters.percentage)} ${pct(summary.parameters.percentage)} | ${deltaStr(delta?.parameters)} |`, 'Parameters', 'parameters'],
-    [`| Body Properties | ${summary.bodyProperties.covered} | ${summary.bodyProperties.total} | ${badge(summary.bodyProperties.percentage)} ${pct(summary.bodyProperties.percentage)} | ${deltaStr(delta?.bodyProperties)} |`, 'Body Properties', 'bodyProperties'],
-    [`| Response Properties | ${summary.responseProperties.covered} | ${summary.responseProperties.total} | ${badge(summary.responseProperties.percentage)} ${pct(summary.responseProperties.percentage)} | ${deltaStr(delta?.responseProperties)} |`, 'Response Properties', 'responseProperties'],
-  ];
-  const activeSummaryRows = summaryDefs
-    .filter(([, , dim]) => !dim || !excludeDimensions?.includes(dim))
-    .map(([row]) => row);
+  const dimensions = activeDimensions(excludeDimensions);
+  const activeSummaryRows = dimensions.map(({ key, label, dim }) => {
+    const s = summary[key];
+    const d = delta?.[dim as keyof CoverageDelta];
+    return `| ${label} | ${s.covered} | ${s.total} | ${badgeEmoji(s.percentage)} ${pct(s.percentage)} | ${deltaStr(d)} |`;
+  });
 
   const lines: string[] = [
     `# ${title}`,
@@ -57,22 +38,13 @@ export function generateMarkdownReport(
   // Per-tag coverage table
   const tags = Object.entries(result.tagCoverage).filter(([t]) => t !== '(untagged)');
   if (tags.length > 0) {
-    type TagDimDef = [string, CoverageDimension, (tc: (typeof result.tagCoverage)[string]) => string];
-    const tagDimDefs: TagDimDef[] = [
-      ['Endpoints',    'endpoints',          tc => `${badge(tc.endpoints.percentage)} ${pct(tc.endpoints.percentage)}`],
-      ['Status Codes', 'statusCodes',        tc => `${badge(tc.statusCodes.percentage)} ${pct(tc.statusCodes.percentage)}`],
-      ['Parameters',   'parameters',         tc => `${badge(tc.parameters.percentage)} ${pct(tc.parameters.percentage)}`],
-      ['Body Props',   'bodyProperties',     tc => `${badge(tc.bodyProperties.percentage)} ${pct(tc.bodyProperties.percentage)}`],
-      ['Resp Props',   'responseProperties', tc => `${badge(tc.responseProperties.percentage)} ${pct(tc.responseProperties.percentage)}`],
-    ];
-    const activeDims = tagDimDefs.filter(([, key]) => !excludeDimensions?.includes(key));
-
     lines.push('## Coverage by Tag');
     lines.push('');
-    lines.push(`| Tag | ${activeDims.map(([label]) => label).join(' | ')} |`);
-    lines.push(`|-----|${activeDims.map(() => '---------:').join('|')}|`);
+    lines.push(`| Tag | ${dimensions.map((d) => d.short).join(' | ')} |`);
+    lines.push(`|-----|${dimensions.map(() => '---------:').join('|')}|`);
     for (const [tag, tc] of tags) {
-      lines.push(`| \`${tag}\` | ${activeDims.map(([,, getValue]) => getValue(tc)).join(' | ')} |`);
+      const cells = dimensions.map((d) => `${badgeEmoji(tc[d.key].percentage)} ${pct(tc[d.key].percentage)}`);
+      lines.push(`| \`${escapeMarkdownBackticks(tag)}\` | ${cells.join(' | ')} |`);
     }
     lines.push('');
   }

@@ -43,6 +43,28 @@ function collectProperties(
   return props;
 }
 
+/** Normalize a response body to an object for property inspection. */
+function responseBodyToObject(responseBody: unknown): Record<string, unknown> | null {
+  if (responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)) {
+    return responseBody as Record<string, unknown>;
+  }
+  if (Array.isArray(responseBody) && responseBody.length > 0) {
+    const first = responseBody[0];
+    if (first && typeof first === 'object' && !Array.isArray(first)) {
+      return first as Record<string, unknown>;
+    }
+  }
+  if (typeof responseBody === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(responseBody);
+      return responseBodyToObject(parsed);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 /** Traverse a nested object following a dot-notation path. */
 function hasNestedProperty(obj: Record<string, unknown>, dottedPath: string): boolean {
   const parts = dottedPath.split('.');
@@ -109,29 +131,24 @@ export function analyzeParameters(
 /**
  * Analyze which top-level response body properties were present in a recorded response.
  */
+const DEFAULT_SCHEMA_DEPTH = 3;
+
 export function analyzeResponseProperties(
   operation: NormalizedOperation,
   statusCode: string,
-  responseBody: unknown
+  responseBody: unknown,
+  schemaDepth = DEFAULT_SCHEMA_DEPTH
 ): ResponsePropertyCoverage[] {
   const schema = operation.responses[statusCode]?.schema;
   if (!schema) return [];
 
-  const props = collectProperties(schema, '', 0, 3);
+  const depth = Math.min(10, Math.max(1, schemaDepth));
+  const props = collectProperties(schema, '', 0, depth);
   if (props.size === 0) return [];
 
-  let bodyObj: Record<string, unknown> | null = null;
-  if (responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)) {
-    bodyObj = responseBody as Record<string, unknown>;
-  } else if (typeof responseBody === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(responseBody);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        bodyObj = parsed as Record<string, unknown>;
-      }
-    } catch {
-      log.warn(`Could not parse response body as JSON for ${operation.method}:${operation.pathTemplate} (status ${statusCode})`);
-    }
+  const bodyObj = responseBodyToObject(responseBody);
+  if (typeof responseBody === 'string' && bodyObj === null && responseBody.length > 0) {
+    log.warn(`Could not parse response body as JSON for ${operation.method}:${operation.pathTemplate} (status ${statusCode})`);
   }
 
   const results = Array.from(props.entries()).map(([name, required]) => ({
@@ -154,12 +171,14 @@ export function analyzeResponseProperties(
  */
 export function analyzeBodyProperties(
   operation: NormalizedOperation,
-  requestBody: unknown
+  requestBody: unknown,
+  schemaDepth = DEFAULT_SCHEMA_DEPTH
 ): BodyPropertyCoverage[] {
   const schema = operation.requestBodySchema;
   if (!schema) return [];
 
-  const props = collectProperties(schema, '', 0, 3);
+  const depth = Math.min(10, Math.max(1, schemaDepth));
+  const props = collectProperties(schema, '', 0, depth);
   if (props.size === 0) return [];
 
   let bodyObj: Record<string, unknown> | null = null;

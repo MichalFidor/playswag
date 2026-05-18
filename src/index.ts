@@ -67,6 +67,26 @@ export type { PlayswagFixtures } from './fixture.js';
 export { mergeCoverageResults } from './merge.js';
 export { calculateCoverage } from './coverage/calculator.js';
 export { parseSpecs } from './openapi/parser.js';
+export type { ParseSpecOptions } from './openapi/parser.js';
+export {
+  buildTrackedRequest,
+  redactHeaders,
+  DEFAULT_REDACT_HEADERS,
+  DEFAULT_REDACT_BODY_FIELDS,
+  redactSensitiveFields,
+  DEFAULT_MAX_RESPONSE_BODY_BYTES,
+  DEFAULT_MAX_HITS_PER_TEST,
+} from './fixture.js';
+export {
+  assertSpecUrlAllowed,
+  assertRemoteSpecHostsRequired,
+  isRemoteSpecSource,
+} from './utils/spec-security.js';
+export {
+  DEFAULT_SPEC_FETCH_TIMEOUT_MS,
+  DEFAULT_MAX_SPEC_BYTES,
+} from './utils/spec-fetch.js';
+export { CoveragePipeline, type RunGroupResult } from './reporter/coverage-pipeline.js';
 
 export type {
   PlayswagConfiguration,

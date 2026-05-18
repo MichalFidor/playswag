@@ -1,7 +1,6 @@
+import { computeSummaryFromOperations, computeTagCoverage } from './coverage/summary.js';
 import type {
   CoverageResult,
-  CoverageSummary,
-  CoverageSummaryItem,
   OperationCoverage,
   StatusCodeCoverage,
   ParamCoverage,
@@ -10,10 +9,6 @@ import type {
   AcknowledgedServiceHits,
   EndpointHit,
 } from './types.js';
-
-function makeItem(total: number, covered: number): CoverageSummaryItem {
-  return { total, covered, percentage: total === 0 ? 100 : Math.round((covered / total) * 10000) / 100 };
-}
 
 function opKey(op: { method: string; path: string }): string {
   return `${op.method.toUpperCase()}:${op.path}`;
@@ -100,45 +95,6 @@ function mergeOperations(a: OperationCoverage, b: OperationCoverage): OperationC
   };
 }
 
-function computeSummary(operations: OperationCoverage[]): CoverageSummary {
-  let totalSC = 0, covSC = 0, totalP = 0, covP = 0;
-  let totalB = 0, covB = 0, totalR = 0, covR = 0;
-
-  for (const op of operations) {
-    for (const sc of Object.values(op.statusCodes)) { totalSC++; if (sc.covered) covSC++; }
-    for (const p of op.parameters) { totalP++; if (p.covered) covP++; }
-    for (const b of op.bodyProperties) { totalB++; if (b.covered) covB++; }
-    for (const r of op.responseProperties) { totalR++; if (r.covered) covR++; }
-  }
-
-  const coveredEndpoints = operations.filter((o) => o.covered).length;
-
-  return {
-    endpoints: makeItem(operations.length, coveredEndpoints),
-    statusCodes: makeItem(totalSC, covSC),
-    parameters: makeItem(totalP, covP),
-    bodyProperties: makeItem(totalB, covB),
-    responseProperties: makeItem(totalR, covR),
-  };
-}
-
-function computeTagCoverage(operations: OperationCoverage[]): Record<string, CoverageSummary> {
-  const tagOpsMap = new Map<string, OperationCoverage[]>();
-  for (const op of operations) {
-    const tags = op.tags?.length ? op.tags : ['(untagged)'];
-    for (const tag of tags) {
-      if (!tagOpsMap.has(tag)) tagOpsMap.set(tag, []);
-      tagOpsMap.get(tag)!.push(op);
-    }
-  }
-
-  const result: Record<string, CoverageSummary> = {};
-  for (const [tag, ops] of tagOpsMap) {
-    result[tag] = computeSummary(ops);
-  }
-  return result;
-}
-
 function deduplicateHits(hits: EndpointHit[]): EndpointHit[] {
   const seen = new Set<string>();
   const result: EndpointHit[] = [];
@@ -206,7 +162,7 @@ export function mergeCoverageResults(...results: CoverageResult[]): CoverageResu
     playwrightVersion: results[0].playwrightVersion,
     playswagVersion: results[0].playswagVersion,
     totalTestCount: results.reduce((sum, r) => sum + r.totalTestCount, 0),
-    summary: computeSummary(allOps),
+    summary: computeSummaryFromOperations(allOps),
     tagCoverage: computeTagCoverage(allOps),
     operations: allOps,
     uncoveredOperations: uncoveredOps,

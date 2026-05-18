@@ -1,11 +1,12 @@
 import { test, expect } from '../../src/index.js';
 import { createMockServer, resetMockServer } from './mock-server.js';
+import { getIntegrationTestPort } from './test-port.js';
 import type { Server } from 'node:http';
 
 let server: Server | undefined;
 
 test.beforeAll(async () => {
-  const result = await createMockServer(3456);
+  const result = await createMockServer(getIntegrationTestPort());
   server = result.server;
 });
 
@@ -70,9 +71,3 @@ test('GET /api/health', async ({ request }) => {
   expect(res.status()).toBe(200);
 });
 
-test('JSON coverage report is generated after run', async () => {
-  // This test verifies the fixture wires up correctly.
-  // The actual report is written by the reporter's onEnd(), which runs outside this test scope.
-  // We simply assert the fixture is active by checking that requests above don't throw.
-  expect(true).toBe(true);
-});

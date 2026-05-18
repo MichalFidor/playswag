@@ -7,6 +7,69 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.10.0] — 2026-05-18
+
+**Theme:** Hardening & maintainability — security controls, reliability gates, and cleaner architecture.
+
+### Breaking changes
+
+> **Remote `specs` URL → you must set `allowedSpecHosts`**
+
+If `specs` (or `playswagSpecs` in a project `use` block) is an `http://` or `https://` URL, reporter config **must** include `allowedSpecHosts` with every hostname playswag is allowed to fetch (root document and HTTP `$ref` targets). Without it, spec parsing fails immediately with a clear error.
+
+```ts
+// Before (1.9.x) — remote URL without allowlist
+specs: 'https://api.example.com/openapi.json',
+
+// After (1.10.0) — required
+specs: 'https://api.example.com/openapi.json',
+allowedSpecHosts: ['api.example.com'],
+```
+
+Local file paths (`./openapi.yaml`) do **not** require `allowedSpecHosts` unless the spec dereferences external HTTP URLs (then the same allowlist applies to those `$ref` fetches).
+
+Other breaking-adjacent defaults in 1.10.0: `failOnSpecError` defaults to **true** when `CI=true`; sensitive headers and JSON body fields are redacted in recorded hits unless you opt out (`captureHeaders`, `redactBody`).
+
+### Added
+- **`failOnSpecError`** — fails the Playwright run when spec parsing fails or the spec has zero operations (default **true** when `CI=true`).
+- **`failOnOutputError`** — optional fail when a configured report file cannot be written.
+- **`allowedSpecHosts` / `allowPrivateHosts`** — SSRF mitigations for remote `specs` URLs (**required** when `specs` is a URL; see Breaking changes).
+- **`specFetchTimeoutMs` / `maxSpecBytes`** — timeout and size limits for remote spec and `$ref` fetches.
+- **`redactBody` / `redactBodyFields`** — redact sensitive JSON fields in recorded request/response bodies.
+- **`includeUntagged`** — include untagged operations when using `includeTags`.
+- **`schemaDepth`** — configurable JSON schema property depth for body/response coverage (default 3).
+- **`maxResponseBodyBytes`**, **`captureHeaders`**, **`redactHeaders`** — fixture/reporter controls for sensitive data and memory.
+- **`maxHitsPerTest`** — cap recorded HTTP calls per test (default 500).
+- **`maxAttachmentBytes`** — limit size of `playswag:hits` attachments read by the reporter.
+- **`CoveragePipeline`** class (`src/reporter/coverage-pipeline.ts`) — extracted coverage calculation and output orchestration from the reporter.
+- **Shared modules** — `src/coverage/summary.ts`, `src/output/dimensions.ts`, `src/utils/safe-json.ts`, `src/utils/spec-security.ts`.
+- **Exports** — `buildTrackedRequest`, `redactHeaders`, `ParseSpecOptions`, `mergeCoverageResults`, etc.
+
+### Security
+- **Remote specs require `allowedSpecHosts`** — root URL and every HTTP `$ref` use a secured fetcher (DNS rebinding checks, redirect validation, timeouts, response size cap).
+- **Remote root specs disable `file://` $refs** — blocks path-style SSRF via malicious OpenAPI.
+- Default redaction of `Authorization`, `Cookie`, `X-Api-Key`, and related headers in recorded hits.
+- **`redactBody`** — sensitive JSON fields (`password`, `token`, `secret`, …) redacted in request/response bodies attached to tests.
+- Response body capture limited by size and JSON content-type.
+- Safe JSON serialization for hit attachments (circular references, buffers).
+- CLI validates merged JSON files match `CoverageResult` shape.
+- GitHub Actions annotations and step summary sanitize user-controlled strings.
+
+### Fixed
+- **Merge vs reporter percentage rounding** — unified to one decimal place via shared `makeSummaryItem`.
+- **OAS3 multi-server** — per-operation `servers` / path-level `servers` resolved before document-level `servers`.
+- **Array JSON responses** — response property coverage inspects the first array element.
+- **Parser cache** — failed parse no longer blocks retries in the same process.
+- **HTML escaping** — apostrophe (`'`) escaped in report output.
+
+### Changed
+- **Fixture unit tests** exercise production `buildTrackedRequest` (no duplicated proxy).
+- **Integration tests** — `globalTeardown` asserts coverage JSON; optional `PLAYSWAG_TEST_PORT` env for parallel local runs.
+- **CI** — `npm audit --audit-level=high`, CodeQL static analysis on `main`/PRs, `actions/setup-node` v6.4.0, PR matrix uses Node 20 only, smoke test on built CLI.
+- **Docs** — `configuration.md` and `ci-integration.md` updated for new options.
+
+---
+
 ## [1.9.1] — 2026-05-18
 
 **Theme:** Security and dependency maintenance — zero known npm audit findings.
@@ -366,6 +429,8 @@ Initial public release.
 - `includePatterns` / `excludePatterns` glob filtering.
 - `trackRequest` fixture for custom `APIRequestContext` instances.
 
+[1.10.0]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.0
+[1.9.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.9.1
 [1.8.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.8.1
 [1.5.0]: https://github.com/MichalFidor/playswag/releases/tag/v1.5.0
 [1.4.0]: https://github.com/MichalFidor/playswag/releases/tag/v1.4.0

@@ -13,6 +13,26 @@ When `GITHUB_ACTIONS=true` playswag automatically:
 
 No configuration required. Both features activate only inside GitHub Actions.
 
+### Spec errors fail the run in CI
+
+By default, when `CI=true`, playswag sets `failOnSpecError` to **true**: a missing/invalid OpenAPI spec or a spec with zero operations will fail the Playwright run (not only log an error). Override with `failOnSpecError: false` in reporter config.
+
+### Remote specs (SSRF)
+
+Remote `specs` URLs are supported, but you **must** set `allowedSpecHosts` so only trusted hostnames can be fetched (root spec and every HTTP `$ref`):
+
+```ts
+const playswagConfig = {
+  specs: 'https://api.example.com/openapi.json',
+  allowedSpecHosts: ['api.example.com'],
+  // optional: specFetchTimeoutMs: 15_000, maxSpecBytes: 5 * 1024 * 1024,
+};
+```
+
+Private/loopback hosts are blocked unless `allowPrivateHosts: true`. DNS is checked so allowlisted hostnames cannot resolve to private IPs. Redirects are validated on each hop.
+
+For local files, `allowedSpecHosts` is not required; HTTP `$ref` pointers still go through the same SSRF checks.
+
 ### Step summary extras
 
 ```ts

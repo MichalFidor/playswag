@@ -64,11 +64,19 @@ export function stripToPath(url: string, baseURL?: string, serverBasePath?: stri
 
   try {
     const parsed = new URL(url);
-    path = decodeURIComponent(parsed.pathname);
+    try {
+      path = decodeURIComponent(parsed.pathname);
+    } catch {
+      path = parsed.pathname;
+    }
   } catch {
     // Not a full URL — treat the input as a raw path (e.g. "/api/users?q=1")
     path = url.split('?')[0] ?? url;
-    path = decodeURIComponent(path);
+    try {
+      path = decodeURIComponent(path);
+    } catch {
+      // Malformed %-encoding — use raw path
+    }
   }
 
   if (baseURL) {

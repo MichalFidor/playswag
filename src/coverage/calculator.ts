@@ -3,8 +3,6 @@ import type {
   NormalizedSpec,
   CoverageResult,
   OperationCoverage,
-  CoverageSummary,
-  CoverageSummaryItem,
   ParamCoverage,
   StatusCodeCoverage,
   AcknowledgedService,
@@ -12,15 +10,8 @@ import type {
 } from '../types.js';
 import { matchOperation, buildOperationIndex } from '../openapi/matcher.js';
 import { analyzeParameters, analyzeBodyProperties, analyzeResponseProperties } from './schema-analyzer.js';
+import { makeSummaryItem, computeTagCoverage } from './summary.js';
 import picomatch from 'picomatch';
-
-function makeItem(total: number, covered: number): CoverageSummaryItem {
-  return {
-    total,
-    covered,
-    percentage: total === 0 ? 100 : Math.round((covered / total) * 1000) / 10,
-  };
-}
 
 function testRef(hit: EndpointHit): string {
   return `${hit.testFile} > ${hit.testTitle}`;
@@ -40,6 +31,7 @@ export function calculateCoverage(
     totalTestCount?: number;
     requiredParamsOnly?: boolean;
     acknowledgedServices?: AcknowledgedService[];
+    schemaDepth?: number;
   } = {}
 ): CoverageResult {
   if (process.env['PLAYSWAG_DEBUG']) {
@@ -75,11 +67,11 @@ export function calculateCoverage(
     }));
 
     // Pre-seed from spec so uncovered operations still show what could be covered
-    const bodyProperties = analyzeBodyProperties(op, null);
+    const bodyProperties = analyzeBodyProperties(op, null, options.schemaDepth);
 
     // Pre-seed response properties for all response codes that have schemas
     const responseProperties = Object.keys(op.responses).flatMap((code) =>
-      analyzeResponseProperties(op, code, undefined)
+      analyzeResponseProperties(op, code, undefined, options.schemaDepth)
     );
 
     opMap.set(key, {
@@ -155,13 +147,13 @@ export function calculateCoverage(
       if (existing && pc.covered) existing.covered = true;
     }
 
-    const bodyCoverage = analyzeBodyProperties(matchedOp, enrichedHit.requestBody);
+    const bodyCoverage = analyzeBodyProperties(matchedOp, enrichedHit.requestBody, options.schemaDepth);
     for (const bc of bodyCoverage) {
       const existing = cov.bodyProperties.find((b) => b.name === bc.name);
       if (existing && bc.covered) existing.covered = true;
     }
 
-    const respCoverage = analyzeResponseProperties(matchedOp, code, enrichedHit.responseBody);
+    const respCoverage = analyzeResponseProperties(matchedOp, code, enrichedHit.responseBody, options.schemaDepth);
     if (process.env['PLAYSWAG_DEBUG']) {
       const hasBody = enrichedHit.responseBody !== undefined;
       const schemaLen = cov.responseProperties.filter((r) => r.statusCode === code).length;
@@ -202,37 +194,7 @@ export function calculateCoverage(
   const [totalBody, coveredBody] = countCoveredItems((op) => op.bodyProperties);
   const [totalResponseProps, coveredResponseProps] = countCoveredItems((op) => op.responseProperties);
 
-  // Aggregate per-tag coverage
-  const tagOpsMap = new Map<string, OperationCoverage[]>();
-  for (const op of allOps) {
-    const tags = op.tags?.length ? op.tags : ['(untagged)'];
-    for (const tag of tags) {
-      if (!tagOpsMap.has(tag)) tagOpsMap.set(tag, []);
-      tagOpsMap.get(tag)!.push(op);
-    }
-  }
-
-  const tagCoverage: Record<string, CoverageSummary> = {};
-  for (const [tag, ops] of tagOpsMap) {
-    const tagEndpoints = ops.length;
-    const tagCoveredEndpoints = ops.filter((o) => o.covered).length;
-
-    let tSC = 0, cSC = 0, tP = 0, cP = 0, tB = 0, cB = 0, tR = 0, cR = 0;
-    for (const op of ops) {
-      for (const sc of Object.values(op.statusCodes)) { tSC++; if (sc.covered) cSC++; }
-      for (const p of op.parameters) { tP++; if (p.covered) cP++; }
-      for (const b of op.bodyProperties) { tB++; if (b.covered) cB++; }
-      for (const r of op.responseProperties) { tR++; if (r.covered) cR++; }
-    }
-
-    tagCoverage[tag] = {
-      endpoints: makeItem(tagEndpoints, tagCoveredEndpoints),
-      statusCodes: makeItem(tSC, cSC),
-      parameters: makeItem(tP, cP),
-      bodyProperties: makeItem(tB, cB),
-      responseProperties: makeItem(tR, cR),
-    };
-  }
+  const tagCoverage = computeTagCoverage(allOps);
 
   return {
     specFiles: spec.sources,
@@ -241,11 +203,11 @@ export function calculateCoverage(
     playswagVersion: options.playswagVersion ?? 'unknown',
     totalTestCount: options.totalTestCount ?? 0,
     summary: {
-      endpoints: makeItem(totalEndpoints, coveredEndpoints),
-      statusCodes: makeItem(totalStatusCodes, coveredStatusCodes),
-      parameters: makeItem(totalParams, coveredParams),
-      bodyProperties: makeItem(totalBody, coveredBody),
-      responseProperties: makeItem(totalResponseProps, coveredResponseProps),
+      endpoints: makeSummaryItem(totalEndpoints, coveredEndpoints),
+      statusCodes: makeSummaryItem(totalStatusCodes, coveredStatusCodes),
+      parameters: makeSummaryItem(totalParams, coveredParams),
+      bodyProperties: makeSummaryItem(totalBody, coveredBody),
+      responseProperties: makeSummaryItem(totalResponseProps, coveredResponseProps),
     },
     tagCoverage,
     operations: allOps,

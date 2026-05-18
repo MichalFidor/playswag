@@ -376,6 +376,17 @@ describe('PlayswagReporter', () => {
       expect(result.operations[0]?.pathTemplate).toBe('/a');
     });
 
+    it('includes untagged operations when includeUntagged is true', () => {
+      const r = new PlayswagReporter({
+        specs: './spec.yaml',
+        includeTags: ['users'],
+        includeUntagged: true,
+      }) as unknown as Filterer;
+      const spec = makeSpec([{ path: '/a', tags: ['users'] }, { path: '/b' }]);
+      const result = r.filterOperationsByTags(spec);
+      expect(result.operations).toHaveLength(2);
+    });
+
     it('preserves the sources array from the original spec', () => {
       const r = new PlayswagReporter({ specs: './spec.yaml', includeTags: ['users'] }) as unknown as Filterer;
       const spec = makeSpec([{ path: '/a', tags: ['users'] }]);

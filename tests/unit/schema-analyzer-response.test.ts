@@ -84,9 +84,11 @@ describe('analyzeResponseProperties', () => {
       expect(result.every((r) => !r.covered)).toBe(true);
     });
 
-    it('returns all uncovered when responseBody is an array (not an object)', () => {
+    it('inspects the first object when responseBody is a non-empty array', () => {
       const result = analyzeResponseProperties(opWithSchema, '200', [{ id: '1', name: 'Alice' }]);
-      expect(result.every((r) => !r.covered)).toBe(true);
+      expect(result.find((r) => r.name === 'id')?.covered).toBe(true);
+      expect(result.find((r) => r.name === 'name')?.covered).toBe(true);
+      expect(result.find((r) => r.name === 'email')?.covered).toBe(false);
     });
 
     it('returns empty array for a response code with no schema on the operation', () => {
@@ -134,6 +136,13 @@ describe('analyzeResponseProperties', () => {
     it('returns all uncovered when responseBody is a JSON quoted string', () => {
       const result = analyzeResponseProperties(opWithSchema, '200', '"hello"');
       expect(result.every((r) => !r.covered)).toBe(true);
+    });
+
+    it('uses the first element when response body is a JSON array', () => {
+      const result = analyzeResponseProperties(opWithSchema, '200', [
+        { id: '1', name: 'Alice', email: 'a@b.com' },
+      ]);
+      expect(result.find((r) => r.name === 'name')?.covered).toBe(true);
     });
   });
 });

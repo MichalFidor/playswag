@@ -597,9 +597,16 @@ export interface PlayswagConfig {
   /**
    * Only include spec operations that carry at least one of these OAS tags in
    * coverage calculations. Supports picomatch glob patterns (e.g. `'user*'`).
-   * Operations with no tags are excluded when this option is set.
+   * Operations with no tags are excluded when this option is set unless
+   * `includeUntagged` is true.
    */
   includeTags?: string[];
+
+  /**
+   * When `includeTags` is set, also include operations that have no OAS tags.
+   * @default false
+   */
+  includeUntagged?: boolean;
 
   /**
    * Exclude spec operations that carry any of these OAS tags from coverage
@@ -672,6 +679,74 @@ export interface PlayswagConfig {
    * @default false — thresholds are informational only
    */
   failOnThreshold?: boolean;
+
+  /**
+   * Fail the Playwright run when spec parsing fails or the spec has zero operations.
+   * @default true when `CI=true`, otherwise false
+   */
+  failOnSpecError?: boolean;
+
+  /**
+   * Fail the Playwright run when a configured output file cannot be written.
+   * @default false
+   */
+  failOnOutputError?: boolean;
+
+  /**
+   * Host allowlist for remote `specs` URLs and HTTP `$ref` targets (SSRF mitigation).
+   *
+   * **Required when `specs` is an `http(s)://` URL** (breaking change in 1.10.0). Also required
+   * when a local spec dereferences external HTTP URLs. Supports exact hosts and `*.example.com`.
+   */
+  allowedSpecHosts?: string[];
+
+  /**
+   * Allow fetching specs from localhost and private networks.
+   * @default false
+   */
+  allowPrivateHosts?: boolean;
+
+  /**
+   * HTTP timeout (ms) for remote spec and `$ref` fetches.
+   * @default 15000
+   */
+  specFetchTimeoutMs?: number;
+
+  /**
+   * Max bytes per remote spec / `$ref` response.
+   * @default 5242880 (5 MiB)
+   */
+  maxSpecBytes?: number;
+
+  /**
+   * Max JSON schema property depth for body/response coverage analysis.
+   * @default 3
+   */
+  schemaDepth?: number;
+
+  /**
+   * Max bytes read from each HTTP response body for coverage analysis (fixture default).
+   * @default 262144 (256 KiB)
+   */
+  maxResponseBodyBytes?: number;
+
+  /**
+   * Header names redacted in recorded hits (case-insensitive).
+   * @default authorization, cookie, x-api-key, …
+   */
+  redactHeaders?: string[];
+
+  /**
+   * Max bytes for `playswag:hits` attachments read by the reporter.
+   * @default 10485760 (10 MiB)
+   */
+  maxAttachmentBytes?: number;
+
+  /**
+   * Max HTTP calls recorded per test (per worker). Additional calls are dropped with a warning.
+   * @default 500
+   */
+  maxHitsPerTest?: number;
 }
 
 /**
@@ -717,11 +792,46 @@ export interface PlayswagFixtureOptions {
   playswagEnabled: boolean;
   /**
    * Set to false to opt out of response body capture (useful for large binary payloads).
-   * When true, playswag will call response.json() and record the parsed body to enable
-   * response property coverage.
+   * When true, playswag reads the response body (JSON content types) to enable response
+   * property coverage, subject to `maxResponseBodyBytes`.
    * @default true
    */
   captureResponseBody: boolean;
+
+  /**
+   * Record request headers on each hit (sensitive names are redacted per `redactHeaders`).
+   * @default true
+   */
+  captureHeaders?: boolean;
+
+  /**
+   * Max response body bytes to read per request when `captureResponseBody` is true.
+   * @default 262144
+   */
+  maxResponseBodyBytes?: number;
+
+  /**
+   * Request header names to redact in recorded hits (case-insensitive).
+   */
+  redactHeaders?: string[];
+
+  /**
+   * Redact sensitive JSON fields in request/response bodies (key substring match).
+   * @default true
+   */
+  redactBody?: boolean;
+
+  /**
+   * JSON field name substrings to redact when `redactBody` is true.
+   * @default password, token, secret, …
+   */
+  redactBodyFields?: string[];
+
+  /**
+   * Max HTTP calls recorded per test. @default 500
+   */
+  maxHitsPerTest?: number;
+
   /**
    * Per-project OpenAPI / Swagger spec override.
    *

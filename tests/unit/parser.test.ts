@@ -89,6 +89,12 @@ describe('parseSpecs', () => {
     await expect(parseSpecs('/non/existent/path.yaml')).rejects.toThrow('[playswag]');
   });
 
+  it('requires allowedSpecHosts for remote spec URLs', async () => {
+    await expect(
+      parseSpecs('https://api.example.com/openapi.json')
+    ).rejects.toThrow(/allowedSpecHosts/);
+  });
+
   it('warns and de-duplicates operations when the same spec is passed twice', async () => {
     // Passing the same file twice should deduplicate and warn (not throw)
     const spec = await parseSpecs([FIXTURE_YAML, FIXTURE_YAML]);
@@ -270,7 +276,10 @@ describe('parseSpecs — URL without scheme', () => {
 
   it('does not warn or rewrite http:// sources', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await parseSpecs('http://localhost:9999/openapi.json').catch(() => {});
+    await parseSpecs('http://localhost:9999/openapi.json', {
+      allowedSpecHosts: ['localhost'],
+      allowPrivateHosts: true,
+    }).catch(() => {});
     const schemeWarnings = warnSpy.mock.calls.filter((args) =>
       String(args[0]).includes('looks like a URL without a scheme')
     );

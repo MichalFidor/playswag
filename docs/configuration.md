@@ -1,5 +1,8 @@
 # Configuration reference
 
+> **1.10 breaking change:** If `specs` is a remote `http(s)://` URL, you **must** set
+> `allowedSpecHosts`. See [CI integration — Remote specs](./ci-integration.md#remote-specs-ssrf).
+
 All options are passed as the second element of the reporter tuple in `playwright.config.ts`:
 
 ```ts
@@ -53,9 +56,13 @@ interface PlayswagConfiguration {
 
   /**
    * Only include spec operations with at least one of these OAS tags.
-   * Supports picomatch glob patterns. Operations with no tags are excluded.
+   * Supports picomatch glob patterns. Operations with no tags are excluded unless
+   * `includeUntagged` is true.
    */
   includeTags?: string[];
+
+  /** When `includeTags` is set, also include operations with no OAS tags. @default false */
+  includeUntagged?: boolean;
 
   /** Exclude spec operations that carry any of these OAS tags. Supports picomatch globs. */
   excludeTags?: string[];
@@ -96,7 +103,55 @@ interface PlayswagConfiguration {
    * @default false — thresholds are informational only by default
    */
   failOnThreshold?: boolean;
+
+  /** Fail when spec parsing fails or spec has zero operations. @default true when CI=true */
+  failOnSpecError?: boolean;
+
+  /** Fail when a configured output file cannot be written. @default false */
+  failOnOutputError?: boolean;
+
+  /** Required when `specs` is a URL — host allowlist for spec + HTTP $ref fetches. */
+  allowedSpecHosts?: string[];
+
+  /** Allow fetching specs from localhost/private networks. @default false */
+  allowPrivateHosts?: boolean;
+
+  /** Remote spec / $ref HTTP timeout in ms. @default 15000 */
+  specFetchTimeoutMs?: number;
+
+  /** Max bytes per remote spec / $ref response. @default 5242880 */
+  maxSpecBytes?: number;
+
+  /** Max schema property depth for body/response coverage. @default 3 */
+  schemaDepth?: number;
+
+  /** Max bytes read per response body in the fixture. @default 262144 */
+  maxResponseBodyBytes?: number;
+
+  /** Header names redacted in recorded hits. */
+  redactHeaders?: string[];
+
+  /** Max bytes for playswag:hits attachments. @default 10485760 */
+  maxAttachmentBytes?: number;
+
+  /** Max HTTP calls recorded per test. @default 500 */
+  maxHitsPerTest?: number;
 }
+```
+
+## Fixture options (`test.use`)
+
+```ts
+test.use({
+  playswagEnabled: true,
+  captureResponseBody: true,
+  captureHeaders: true,
+  maxResponseBodyBytes: 262144,
+  redactHeaders: ['authorization', 'cookie'],
+  redactBody: true,
+  redactBodyFields: ['password', 'token', 'secret'],
+  maxHitsPerTest: 500,
+});
 ```
 
 ## Console output options
