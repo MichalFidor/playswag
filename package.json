@@ -64,7 +64,7 @@
     "test:all": "npm run test:unit && npm run test:integration && npm run test:examples",
     "test:unit": "vitest run tests/unit",
     "test:examples": "vitest run --config vitest.examples.config.ts",
-    "test:integration": "playwright test --config=playwright.integration.config.ts",
+    "test:integration": "playwright test --config=playwright.integration.config.ts && node scripts/verify-integration-coverage.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",

@@ -10,7 +10,6 @@ const baseURL = `http://localhost:${PORT}`;
 export default defineConfig({
   testDir: './tests/integration',
   testMatch: '**/*.spec.ts',
-  globalTeardown: './tests/integration/global-teardown.ts',
   fullyParallel: false,
   workers: 1,
   reporter: [
