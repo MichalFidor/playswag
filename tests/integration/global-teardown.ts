@@ -6,10 +6,24 @@ import { isCoverageResult } from '../../src/utils/safe-json.js';
 const outputDir = join(dirname(fileURLToPath(import.meta.url)), 'output');
 const jsonPath = join(outputDir, 'playswag-coverage.json');
 
-export default async function globalTeardown(): Promise<void> {
-  if (!existsSync(jsonPath)) {
-    throw new Error(`Integration teardown: expected coverage report at ${jsonPath}`);
+async function waitForCoverageReport(
+  path: string,
+  timeoutMs = 30_000,
+  intervalMs = 100
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (existsSync(path)) return;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
+  throw new Error(
+    `Integration teardown: timed out waiting for coverage report at ${path} (reporter onEnd may not have run)`
+  );
+}
+
+export default async function globalTeardown(): Promise<void> {
+  await waitForCoverageReport(jsonPath);
+
   const data: unknown = JSON.parse(readFileSync(jsonPath, 'utf8'));
   if (!isCoverageResult(data)) {
     throw new Error('Integration teardown: playswag-coverage.json is not a valid CoverageResult');
