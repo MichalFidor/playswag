@@ -8,6 +8,7 @@ const CYAN  = '\x1b[36m';
 
 function isColorEnabled(): boolean {
   if (process.env['NO_COLOR'] !== undefined) return false;
+  if (!isInteractive()) return false;
   if (process.env['FORCE_COLOR'] !== undefined) return true;
   return process.stdout.isTTY === true || process.stderr.isTTY === true;
 }

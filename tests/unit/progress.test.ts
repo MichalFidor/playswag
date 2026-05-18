@@ -4,12 +4,14 @@ import { startProgress } from '../../src/output/progress.js';
 describe('startProgress', () => {
   let originalCI: string | undefined;
   let originalNoColor: string | undefined;
+  let originalForceColor: string | undefined;
   let originalIsTTY: boolean | undefined;
   let writeSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     originalCI = process.env['CI'];
     originalNoColor = process.env['NO_COLOR'];
+    originalForceColor = process.env['FORCE_COLOR'];
     originalIsTTY = process.stdout.isTTY;
 
     writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -20,6 +22,8 @@ describe('startProgress', () => {
     else delete process.env['CI'];
     if (originalNoColor !== undefined) process.env['NO_COLOR'] = originalNoColor;
     else delete process.env['NO_COLOR'];
+    if (originalForceColor !== undefined) process.env['FORCE_COLOR'] = originalForceColor;
+    else delete process.env['FORCE_COLOR'];
     Object.defineProperty(process.stdout, 'isTTY', { value: originalIsTTY, configurable: true });
 
     vi.restoreAllMocks();
@@ -29,6 +33,7 @@ describe('startProgress', () => {
   function setNonInteractive() {
     delete process.env['CI'];
     delete process.env['NO_COLOR'];
+    delete process.env['FORCE_COLOR'];
     // Most test runners are non-TTY
     Object.defineProperty(process.stdout, 'isTTY', { value: false, configurable: true });
   }
@@ -36,6 +41,7 @@ describe('startProgress', () => {
   function setInteractive() {
     delete process.env['CI'];
     delete process.env['NO_COLOR'];
+    delete process.env['FORCE_COLOR'];
     Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
   }
 

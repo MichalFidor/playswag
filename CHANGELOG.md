@@ -7,6 +7,24 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.9.1] — 2026-05-18
+
+**Theme:** Security and dependency maintenance — zero known npm audit findings.
+
+### Security
+- **`fast-uri`** bumped 3.1.0 → 3.1.2 — path traversal and host-confusion advisories (indirect dependency via `@apidevtools/swagger-parser`).
+- **`postcss`** bumped 8.5.8 → 8.5.14 — XSS via unescaped `</style>` in CSS stringify output (indirect dev dependency via `vitest` / `vite`).
+- **`vite`** bumped 7.3.1 → 7.3.3 — path traversal, `server.fs.deny` bypass, and dev-server WebSocket file-read advisories (indirect dev dependency via `vitest`).
+
+### Fixed
+- **ANSI colors in CI/non-TTY progress output** — the coverage spinner could still emit escape sequences when `stderr` was a TTY or `FORCE_COLOR` was set, even in CI/non-interactive mode. Colors are now disabled whenever the progress UI is non-interactive.
+
+### Changed
+- **`@playwright/test`** bumped 1.59.1 → **1.60.0**.
+- **Dev dependencies** updated: `@types/node` 25.5.0 → 25.8.0, `@types/picomatch` 4.0.2 → 4.0.3, `eslint` 10.1.0 → 10.4.0, `typescript-eslint` 8.58.0 → 8.59.3.
+
+---
+
 ## [1.9.0] — 2026-04-01
 
 **Theme:** Multi-run coverage merging — combine coverage from parallel CI jobs, with CLI output options and auto-detection of GitHub Actions.
