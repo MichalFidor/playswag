@@ -16,6 +16,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Dev tooling:** `vitest` ~4.1.9, `eslint` ^10.5.0, `typescript-eslint` ^8.61.1, `@types/node` ^25.9.3, `lint-staged` ^17.0.7, `typescript` ^5.9.3.
 - **CI:** `actions/checkout` v6.0.3.
 - **`esbuild` override** to 0.28.1 (transitive via `tsup` / `vitest`).
+- **Minimum Node.js** raised to **20** (`engines.node`); vitest 4.1 requires Node 20+.
 
 ### Notes
 - **TypeScript 6.x** (Dependabot PR #23) intentionally deferred — stays on 5.9.x until a dedicated migration.
