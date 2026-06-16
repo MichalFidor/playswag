@@ -7,6 +7,21 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.10.1] — 2026-06-16
+
+**Theme:** Dependency maintenance — Playwright 1.61 and dev-tooling updates.
+
+### Changed
+- **`@playwright/test`** 1.60.0 → **1.61.0** (dev dependency; peer `>=1.20.0` unchanged).
+- **Dev tooling:** `vitest` ~4.1.9, `eslint` ^10.5.0, `typescript-eslint` ^8.61.1, `@types/node` ^25.9.3, `lint-staged` ^17.0.7, `typescript` ^5.9.3.
+- **CI:** `actions/checkout` v6.0.3.
+- **`esbuild` override** to 0.28.1 (transitive via `tsup` / `vitest`).
+
+### Notes
+- **TypeScript 6.x** (Dependabot PR #23) intentionally deferred — stays on 5.9.x until a dedicated migration.
+
+---
+
 ## [1.10.0] — 2026-05-18
 
 **Theme:** Hardening & maintainability — security controls, reliability gates, and cleaner architecture.
@@ -429,6 +444,7 @@ Initial public release.
 - `includePatterns` / `excludePatterns` glob filtering.
 - `trackRequest` fixture for custom `APIRequestContext` instances.
 
+[1.10.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.1
 [1.10.0]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.0
 [1.9.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.9.1
 [1.8.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.8.1
