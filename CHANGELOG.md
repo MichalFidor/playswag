@@ -7,6 +7,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.10.3] — 2026-07-23
+
+**Theme:** Local opt-out without config edits.
+
+### Added
+- **`PLAYSWAG_DISABLED`** — set to `1` (or `true` / `yes` / `on`) to skip hit tracking and coverage reporting for one Playwright run while keeping the reporter in config. Exported as `isPlayswagDisabled()`.
+
+---
+
 ## [1.10.2] — 2026-07-23
 
 **Theme:** Dependency and security maintenance — zero npm audit findings.
@@ -463,6 +472,7 @@ Initial public release.
 - `includePatterns` / `excludePatterns` glob filtering.
 - `trackRequest` fixture for custom `APIRequestContext` instances.
 
+[1.10.3]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.3
 [1.10.2]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.2
 [1.10.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.1
 [1.10.0]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.0

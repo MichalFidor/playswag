@@ -14,6 +14,7 @@ import {
   DEFAULT_REDACT_BODY_FIELDS,
   redactSensitiveFields,
 } from './utils/redact-body.js';
+import { isPlayswagDisabled } from './utils/env.js';
 import { log } from './log.js';
 
 export { expect };
@@ -238,7 +239,7 @@ export const test = base.extend<PlayswagOptions & PlayswagFixtures>({
     use: (fn: <T extends APIRequestContext>(ctx: T) => T) => Promise<void>,
     testInfo: TestInfo
   ) => {
-    if (!playswagEnabled) {
+    if (isPlayswagDisabled() || !playswagEnabled) {
       await use(<T extends APIRequestContext>(ctx: T) => ctx);
       return;
     }

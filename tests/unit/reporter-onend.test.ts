@@ -47,7 +47,34 @@ describe('PlayswagReporter onEnd', () => {
   afterEach(() => {
     if (originalCI !== undefined) process.env['CI'] = originalCI;
     else delete process.env['CI'];
+    delete process.env['PLAYSWAG_DISABLED'];
     vi.restoreAllMocks();
+  });
+
+  it('skips coverage when PLAYSWAG_DISABLED is set', async () => {
+    process.env['PLAYSWAG_DISABLED'] = '1';
+
+    const reporter = new PlayswagReporter({
+      specs: './openapi.yaml',
+      outputDir,
+      outputFormats: ['json'],
+    });
+
+    reporter.onTestEnd(
+      makeTestCase(),
+      {
+        attachments: [{
+          name: ATTACHMENT_NAME,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify([makeHit()])),
+        }],
+      } as never
+    );
+
+    const result = await reporter.onEnd({ status: 'passed' } as never);
+    expect(result).toBeUndefined();
+    expect(mockedParseSpecs).not.toHaveBeenCalled();
+    expect(existsSync(join(outputDir, 'playswag-coverage.json'))).toBe(false);
   });
 
   it('fails run when spec parsing fails and failOnSpecError (default in CI)', async () => {

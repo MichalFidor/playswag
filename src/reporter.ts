@@ -18,6 +18,7 @@ import { validatePlayswagConfig, resolveFailOnSpecError } from './config/validat
 import { parseJsonWithLimit, DEFAULT_MAX_JSON_BYTES } from './utils/safe-json.js';
 import { startProgress } from './output/progress.js';
 import { CoveragePipeline, type RunGroupResult } from './reporter/coverage-pipeline.js';
+import { isPlayswagDisabled } from './utils/env.js';
 
 function tryReadVersion(packageName: string): string {
   try {
@@ -77,7 +78,9 @@ class PlayswagReporter implements Reporter {
       failOnThreshold: false,
       ...config,
     };
-    validatePlayswagConfig(this.config);
+    if (!isPlayswagDisabled()) {
+      validatePlayswagConfig(this.config);
+    }
     this.pipeline = new CoveragePipeline(this.config, {
       tryReadVersion,
       readPlayswagVersion,
@@ -99,6 +102,8 @@ class PlayswagReporter implements Reporter {
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
+    if (isPlayswagDisabled()) return;
+
     this.totalTestCount++;
     const projName = test.parent.project()?.name ?? 'default';
     this.testCountByProject.set(projName, (this.testCountByProject.get(projName) ?? 0) + 1);
@@ -151,6 +156,13 @@ class PlayswagReporter implements Reporter {
   }
 
   async onEnd(_result: FullResult): Promise<{ status?: FullResult['status'] } | void> {
+    if (isPlayswagDisabled()) {
+      if (process.env['PLAYSWAG_DEBUG']) {
+        log.info('Coverage skipped — PLAYSWAG_DISABLED is set.');
+      }
+      return;
+    }
+
     const stopProgress = startProgress('Calculating coverage…');
 
     if (this.projectOverrides.size > 0) {
@@ -268,6 +280,7 @@ class PlayswagReporter implements Reporter {
   }
 
   printsToStdio(): boolean {
+    if (isPlayswagDisabled()) return false;
     const formats = this.config.outputFormats;
     const consoleEnabled = this.config.consoleOutput?.enabled !== false;
     return formats.includes('console') && consoleEnabled;

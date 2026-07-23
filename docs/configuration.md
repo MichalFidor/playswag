@@ -139,6 +139,18 @@ interface PlayswagConfiguration {
 }
 ```
 
+## Disable without config changes
+
+Set the environment variable **`PLAYSWAG_DISABLED=1`** (also `true`, `yes`, or `on`) to skip API hit tracking and coverage reporting for that Playwright run. The reporter entry in `playwright.config.ts` can stay registered.
+
+```bash
+PLAYSWAG_DISABLED=1 npx playwright test
+```
+
+This disables both the **fixture** (no `playswag:hits` attachments) and the **reporter** (no spec fetch, reports, or threshold failures). For a single file or project, use `test.use({ playswagEnabled: false })` instead.
+
+---
+
 ## Fixture options (`test.use`)
 
 ```ts

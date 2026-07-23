@@ -82,6 +82,7 @@ export {
   assertRemoteSpecHostsRequired,
   isRemoteSpecSource,
 } from './utils/spec-security.js';
+export { isPlayswagDisabled } from './utils/env.js';
 export {
   DEFAULT_SPEC_FETCH_TIMEOUT_MS,
   DEFAULT_MAX_SPEC_BYTES,

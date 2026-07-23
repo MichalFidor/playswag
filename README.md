@@ -82,6 +82,16 @@ If `specs` points to a remote URL, you **must** set `allowedSpecHosts` (SSRF pro
 
 Local files (`./openapi.yaml`) do not need an allowlist unless they reference external HTTP URLs. See [CI integration — Remote specs](docs/ci-integration.md#remote-specs-ssrf) and [SECURITY.md](SECURITY.md).
 
+### Disable locally (no config change)
+
+Set `PLAYSWAG_DISABLED=1` to skip hit tracking and coverage reporting for a single run — useful when debugging tests without OpenAPI overhead:
+
+```bash
+PLAYSWAG_DISABLED=1 npx playwright test
+```
+
+The reporter stays in `playwright.config.ts`; playswag simply no-ops. Per-test opt-out remains available via `test.use({ playswagEnabled: false })`.
+
 ---
 
 ## Documentation
