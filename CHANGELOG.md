@@ -14,9 +14,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - **`PLAYSWAG_DISABLED`** — set to `1` (or `true` / `yes` / `on`) to skip hit tracking and coverage reporting for one Playwright run while keeping the reporter in config. Exported as `isPlayswagDisabled()`.
 
----
+### Fixed
+- **CI `npm ci` on Linux** — regenerate `package-lock.json` with Linux optional deps (`@emnapi/*`); pin `lint-staged` to ^16.4.0 for Node 20.x matrix compatibility.
 
-## [1.10.2] — 2026-07-23
+---
 
 **Theme:** Dependency and security maintenance — zero npm audit findings.
 
