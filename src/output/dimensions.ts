@@ -42,5 +42,5 @@ export function sanitizeWorkflowMessage(message: string): string {
 
 /** Escape backticks in Markdown inline code. */
 export function escapeMarkdownBackticks(s: string): string {
-  return String(s).replace(/`/g, '\\`');
+  return String(s).replace(/\\/g, '\\\\').replace(/`/g, '\\`');
 }
