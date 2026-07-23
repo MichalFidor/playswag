@@ -7,6 +7,24 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.10.2] — 2026-07-23
+
+**Theme:** Dependency and security maintenance — zero npm audit findings.
+
+### Security
+- **`npm audit` = 0** — overrides for transitive advisories: `brace-expansion` 5.0.7, `fast-uri` 4.1.1, `js-yaml` 4.3.0, `esbuild` 0.28.1.
+
+### Changed
+- **`@playwright/test`** 1.61.0 → **1.61.1**.
+- **`picomatch`** ^4.0.5 (runtime).
+- **Dev tooling:** `vitest` ~4.1.10, `eslint` ^10.7.0, `typescript-eslint` ^8.65.0, `@types/node` ^25.9.5, `lint-staged` ^17.1.1, `tsup` ^8.5.1.
+- **CI:** `actions/checkout` v7.0.1, `actions/setup-node` v7.0.0, `softprops/action-gh-release` v3.0.2.
+
+### Notes
+- **TypeScript 7.x** and **`@types/node` 26.x** deferred — stays on TS 5.9 / Node types 25.x.
+
+---
+
 ## [1.10.1] — 2026-06-16
 
 **Theme:** Dependency maintenance — Playwright 1.61 and dev-tooling updates.
@@ -445,6 +463,7 @@ Initial public release.
 - `includePatterns` / `excludePatterns` glob filtering.
 - `trackRequest` fixture for custom `APIRequestContext` instances.
 
+[1.10.2]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.2
 [1.10.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.1
 [1.10.0]: https://github.com/MichalFidor/playswag/releases/tag/v1.10.0
 [1.9.1]: https://github.com/MichalFidor/playswag/releases/tag/v1.9.1

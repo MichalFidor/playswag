@@ -1,6 +1,6 @@
 {
   "name": "@michalfidor/playswag",
-  "version": "1.10.1",
+  "version": "1.10.2",
   "author": "Michał Fidor <michal.fidor@gmail.com>",
   "description": "Playwright API coverage tracking against Swagger/OpenAPI specifications",
   "keywords": [
@@ -81,26 +81,29 @@
     "@playwright/test": ">=1.20.0"
   },
   "overrides": {
-    "esbuild": "0.28.1"
+    "esbuild": "0.28.1",
+    "brace-expansion": "5.0.7",
+    "fast-uri": "4.1.1",
+    "js-yaml": "4.3.0"
   },
   "dependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
     "chalk": "^5.4.1",
     "cli-table3": "^0.6.5",
     "openapi-types": "^12.1.3",
-    "picomatch": "^4.0.3"
+    "picomatch": "^4.0.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.61.0",
-    "@types/node": "^25.9.3",
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^25.9.5",
     "@types/picomatch": "^4.0.3",
-    "eslint": "^10.5.0",
+    "eslint": "^10.7.0",
     "husky": "^9.1.7",
-    "lint-staged": "^17.0.7",
-    "tsup": "^8.0.0",
+    "lint-staged": "^17.1.1",
+    "tsup": "^8.5.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.61.1",
-    "vitest": "~4.1.9"
+    "typescript-eslint": "^8.65.0",
+    "vitest": "~4.1.10"
   }
 }
