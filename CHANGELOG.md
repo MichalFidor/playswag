@@ -18,8 +18,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **CI `npm ci` on Linux** — regenerate `package-lock.json` with Linux optional deps (`@emnapi/*`); pin `lint-staged` to ^16.4.0 for Node 20.x matrix compatibility.
 - **CodeQL** — remove duplicate custom workflow; rely on GitHub default CodeQL setup (custom SARIF upload conflicted with default setup).
 - **Code scanning** — escape backslashes in `escapeMarkdownBackticks`; add explicit `permissions` to CI workflow jobs.
+- **Dependabot #19** — confirm `brace-expansion` override at 5.0.7 (patched for CVE-2026-13149); `npm audit` = 0.
 
 ---
+
+## [1.10.2] — 2026-07-23
 
 **Theme:** Dependency and security maintenance — zero npm audit findings.
 
