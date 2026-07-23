@@ -145,11 +145,12 @@ A human only needs to:
 4. The workflow triggers automatically on any `v*.*.*` tag:
    - Runs type-check, unit tests, and build.
    - Verifies that the tag matches `package.json` version.
-   - Publishes to [npm](https://www.npmjs.com/package/playswag).
+   - Publishes to [npm](https://www.npmjs.com/package/@michalfidor/playswag) via **trusted publishing** (OIDC + `--provenance`).
    - Creates a GitHub Release with an auto-generated changelog.
 
-> **Before releasing**, make sure you have `NPMJS_TOKEN` set as a repository secret  
-> (`Settings → Secrets and variables → Actions → New repository secret`).
+> **Before releasing**, configure npm **Trusted Publisher** for this repo  
+> (`npmjs.com` → package `@michalfidor/playswag` → **Settings → Trusted Publisher** → GitHub Actions, workflow `Release`, environment blank, tag pattern `v*`).  
+> Long-lived `NPMJS_TOKEN` secrets are no longer used — npm is [deprecating 2FA-bypass token publishing](https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/) in favour of OIDC.
 
 ---
 

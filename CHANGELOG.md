@@ -19,6 +19,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **CodeQL** — remove duplicate custom workflow; rely on GitHub default CodeQL setup (custom SARIF upload conflicted with default setup).
 - **Code scanning** — escape backslashes in `escapeMarkdownBackticks`; add explicit `permissions` to CI workflow jobs.
 - **Dependabot #19** — pin `brace-expansion` 5.0.7 (direct devDependency + override) for CVE-2026-13149; `npm audit` = 0.
+- **npm publish** — migrate to [trusted publishing (OIDC + provenance)](https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/); drop `NPMJS_TOKEN` from release workflows.
 
 ---
 

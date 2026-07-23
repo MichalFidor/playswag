@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
 
 jobs:
   verify:
@@ -171,9 +172,7 @@ jobs:
           fi
 
       - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+        run: npm publish --provenance --access public
 
       - name: Set up Node 22 (GitHub Packages)
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

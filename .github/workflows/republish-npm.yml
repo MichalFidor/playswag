@@ -1,17 +1,18 @@
-# Re-run npm publish after fixing NPMJS_TOKEN (e.g. EOTP / expired token).
-# Requires an Automation or Granular token with "Bypass 2FA for CI/CD".
+# Re-run npm publish for a tag (e.g. after a failed release job).
+# Uses npm trusted publishing (OIDC) — configure on npmjs.com → Package → Trusted Publisher.
 name: Republish npm
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Git tag to publish (e.g. v1.10.1)'
+        description: 'Git tag to publish (e.g. v1.10.3)'
         required: true
-        default: v1.10.1
+        default: v1.10.3
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -46,6 +47,4 @@ jobs:
           fi
 
       - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+        run: npm publish --provenance --access public
