@@ -171,8 +171,33 @@ jobs:
             fi
           fi
 
-      - name: Publish to npm
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@fe965f7af51af5f2602596916f38a38df2e33de0 # v3.0.2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          body_path: /tmp/changelog.md
+          draft: false
+          prerelease: ${{ steps.meta.outputs.major == '0' }}
+
+      - name: Publish to npm (trusted publishing)
+        id: npm_oidc
+        continue-on-error: true
         run: npm publish --provenance --access public
+
+      - name: Publish to npm (token fallback)
+        if: steps.npm_oidc.outcome == 'failure'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::npm OIDC publish failed and NPMJS_TOKEN is not set."
+            exit 1
+          fi
+          npm publish --access public
+
+      - name: Verify npm publish succeeded
+        run: npm view "@michalfidor/playswag@${{ steps.meta.outputs.version }}" version
 
       - name: Set up Node 22 (GitHub Packages)
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -184,12 +209,3 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@fe965f7af51af5f2602596916f38a38df2e33de0 # v3.0.2
-        with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: ${{ steps.meta.outputs.tag }}
-          body_path: /tmp/changelog.md
-          draft: false
-          prerelease: ${{ steps.meta.outputs.major == '0' }}

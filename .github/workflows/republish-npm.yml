@@ -46,5 +46,24 @@ jobs:
             exit 1
           fi
 
-      - name: Publish to npm
+      - name: Publish to npm (trusted publishing)
+        id: npm_oidc
+        continue-on-error: true
         run: npm publish --provenance --access public
+
+      - name: Publish to npm (token fallback)
+        if: steps.npm_oidc.outcome == 'failure'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::npm OIDC publish failed and NPMJS_TOKEN is not set."
+            exit 1
+          fi
+          npm publish --access public
+
+      - name: Verify npm publish succeeded
+        run: |
+          TAG_VERSION="${{ inputs.tag }}"
+          TAG_VERSION="${TAG_VERSION#v}"
+          npm view "@michalfidor/playswag@${TAG_VERSION}" version

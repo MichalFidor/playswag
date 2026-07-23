@@ -150,7 +150,8 @@ A human only needs to:
 
 > **Before releasing**, configure npm **Trusted Publisher** for this repo  
 > (`npmjs.com` → package `@michalfidor/playswag` → **Settings → Trusted Publisher** → GitHub Actions, workflow `Release`, environment blank, tag pattern `v*`).  
-> Long-lived `NPMJS_TOKEN` secrets are no longer used — npm is [deprecating 2FA-bypass token publishing](https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/) in favour of OIDC.
+> Workflows try OIDC first; `NPMJS_TOKEN` (Automation token) is used as a fallback until trusted publishing is configured.  
+> npm is [deprecating 2FA-bypass GAT direct publishing](https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/) — plan to drop the token fallback once OIDC works.
 
 ---
 
