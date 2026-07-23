@@ -16,6 +16,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 - **CI `npm ci` on Linux** — regenerate `package-lock.json` with Linux optional deps (`@emnapi/*`); pin `lint-staged` to ^16.4.0 for Node 20.x matrix compatibility.
+- **CodeQL** — remove duplicate custom workflow; rely on GitHub default CodeQL setup (custom SARIF upload conflicted with default setup).
 
 ---
 
