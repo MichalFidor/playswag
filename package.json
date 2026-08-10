@@ -82,7 +82,7 @@
   },
   "overrides": {
     "esbuild": "0.28.1",
-    "brace-expansion": "5.0.7",
+    "brace-expansion": "5.0.9",
     "fast-uri": "4.1.1",
     "js-yaml": "4.3.0"
   },
@@ -98,7 +98,7 @@
     "@playwright/test": "^1.61.1",
     "@types/node": "^25.9.5",
     "@types/picomatch": "^4.0.3",
-    "brace-expansion": "5.0.7",
+    "brace-expansion": "5.0.9",
     "eslint": "^10.7.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
