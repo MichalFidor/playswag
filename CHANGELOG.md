@@ -7,6 +7,24 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.10.4] — 2026-08-28
+
+**Theme:** Dependency and security maintenance — zero Dependabot/npm audit findings.
+
+### Security
+- **`npm audit` = 0** — overrides bumped: `brace-expansion` 5.0.9, `fast-uri` 4.1.3, `js-yaml` 4.3.1, `postcss` 8.5.26 (closes Dependabot #22, #25, #27 and related brace-expansion alerts).
+
+### Changed
+- **`@playwright/test`** 1.61.1 → **1.62.1**.
+- **`picomatch`** ^4.0.7 (runtime).
+- **Dev tooling:** `vitest` ~4.1.11, `eslint` ^10.9.1, `typescript-eslint` ^8.68.0.
+- **CI:** `softprops/action-gh-release` v3.0.2 (pinned SHA update).
+
+### Notes
+- **TypeScript 7.x**, **`@types/node` 26.x**, **`chalk` 6.x**, and **`lint-staged` 17.x** deferred — stays on TS 5.9 / Node types 25.x / chalk 5.x / lint-staged 16.x (Node 20 CI matrix).
+
+---
+
 ## [1.10.3] — 2026-07-23
 
 **Theme:** Local opt-out without config edits.
