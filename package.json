@@ -97,7 +97,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
-    "@types/node": "^25.9.5",
+    "@types/node": "^26.4.0",
     "@types/picomatch": "^4.0.3",
     "brace-expansion": "5.0.9",
     "eslint": "^10.9.1",
