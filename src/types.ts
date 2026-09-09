@@ -430,6 +430,12 @@ export interface JUnitOutputConfig {
  */
 export interface GitHubActionsOutputConfig {
   /**
+   * Post or update a pull request comment with the coverage summary.
+   * Defaults to `true` on `pull_request` workflow events; set to `false` to disable.
+   * Requires `pull-requests: write` permission for `GITHUB_TOKEN`.
+   */
+  postPullRequestComment?: boolean;
+  /**
    * Append a collapsible section listing uncovered operations to the step summary.
    * @default false
    */

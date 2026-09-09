@@ -10,8 +10,19 @@ When `GITHUB_ACTIONS=true` playswag automatically:
 
 1. **Emits annotations** — threshold violations appear as warning annotations on the summary page.
 2. **Writes a step summary** — a Markdown table with coverage results is appended to `$GITHUB_STEP_SUMMARY` and shown in the Actions UI. Includes `↑ / ↓` delta indicators when [history](./coverage-history.md) is enabled.
+3. **Posts a PR comment** — on `pull_request` workflow events, the same summary is posted (or updated) as a comment on the pull request. Disable with `githubActionsOutput.postPullRequestComment: false`.
 
-No configuration required. Both features activate only inside GitHub Actions.
+Annotations and the step summary require no configuration. PR comments are on by default for `pull_request` events.
+
+### Workflow permissions
+
+PR comments need `pull-requests: write` on `GITHUB_TOKEN`:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+```
 
 ### Spec errors fail the run in CI
 
@@ -37,8 +48,9 @@ For local files, `allowedSpecHosts` is not required; HTTP `$ref` pointers still 
 
 ```ts
 githubActionsOutput: {
-  showUncoveredOperations: true,  // collapsible section listing uncovered operations
-  showUnmatchedHits: true,        // collapsible section listing unmatched API calls
+  postPullRequestComment: true,     // @default true on pull_request events
+  showUncoveredOperations: true,    // collapsible section listing uncovered operations
+  showUnmatchedHits: true,          // collapsible section listing unmatched API calls
 },
 ```
 

@@ -16,7 +16,12 @@ import { writeHtmlReport } from '../output/html.js';
 import { writeBadge } from '../output/badge.js';
 import { writeJUnitReport } from '../output/junit.js';
 import { appendToHistory, loadLastEntry, loadAllEntries, compareCoverage } from '../output/history.js';
-import { isGitHubActions, emitAnnotations, writeStepSummary } from '../output/github-actions.js';
+import {
+  isGitHubActions,
+  emitAnnotations,
+  writeStepSummary,
+  writePullRequestComment,
+} from '../output/github-actions.js';
 import { writeMarkdownReport } from '../output/markdown.js';
 
 export interface RunGroupResult {
@@ -160,16 +165,28 @@ export class CoveragePipeline {
 
     if (isGitHubActions()) {
       if (violations.length > 0) emitAnnotations(violations);
+      const ghConfig = this.config.githubActionsOutput ?? {};
       try {
         await writeStepSummary(
           coverageResult,
           violations,
-          this.config.githubActionsOutput ?? {},
+          ghConfig,
           delta,
           this.config.excludeDimensions,
         );
       } catch (err) {
         log.warn(`Could not write GitHub step summary: ${(err as Error).message}`);
+      }
+      try {
+        await writePullRequestComment(
+          coverageResult,
+          violations,
+          ghConfig,
+          delta,
+          this.config.excludeDimensions,
+        );
+      } catch (err) {
+        log.warn(`Could not post GitHub PR comment: ${(err as Error).message}`);
       }
     }
 
