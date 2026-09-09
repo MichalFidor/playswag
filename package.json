@@ -1,6 +1,6 @@
 {
   "name": "@michalfidor/playswag",
-  "version": "1.11.0",
+  "version": "1.11.1",
   "author": "Michał Fidor <michal.fidor@gmail.com>",
   "description": "Playwright API coverage tracking against Swagger/OpenAPI specifications",
   "keywords": [
@@ -89,7 +89,7 @@
     "postcss": "8.5.26"
   },
   "dependencies": {
-    "@apidevtools/swagger-parser": "^12.1.0",
+    "@apidevtools/swagger-parser": "^13.0.0",
     "chalk": "^5.4.1",
     "cli-table3": "^0.6.5",
     "openapi-types": "^12.1.3",

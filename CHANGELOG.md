@@ -7,6 +7,18 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.11.1] — (unreleased)
+
+**Theme:** swagger-parser 13 dependency upgrade.
+
+### Changed
+- **`@apidevtools/swagger-parser`** 12.1.0 → **13.0.0** (`json-schema-ref-parser` 15.x).
+
+### Security
+- Transitive `js-yaml` updated via ref-parser 15.x; overrides retained for audit=0.
+
+---
+
 ## [1.11.0] — 2026-09-09
 
 **Theme:** PR visibility — API coverage in pull request comments.
