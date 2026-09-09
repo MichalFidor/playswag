@@ -7,6 +7,23 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.10.5] — 2026-09-09
+
+**Theme:** Dependency and security maintenance — zero Dependabot/npm audit findings.
+
+### Security
+- **`npm audit` = 0** — overrides `@humanfs/node` 0.16.8 (Dependabot #29) and `js-yaml` 4.3.2 (GHSA-2883-xcg3-v3hh).
+
+### Changed
+- **`@playwright/test`** 1.62.1 → **1.63.0**.
+- **Dev tooling:** `eslint` ^10.10.0, `typescript-eslint` ^8.70.0.
+- **CI:** `softprops/action-gh-release` v3.0.3.
+
+### Notes
+- **vitest 5.x**, **swagger-parser 13.x**, **TypeScript 7.x**, **`@types/node` 26.x**, **`chalk` 6.x**, and **`lint-staged` 17.x** deferred.
+
+---
+
 ## [1.10.4] — 2026-08-28
 
 **Theme:** Dependency and security maintenance — zero Dependabot/npm audit findings.
