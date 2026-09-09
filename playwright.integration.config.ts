@@ -29,6 +29,9 @@ export default defineConfig({
           endpoints: 50,
         },
         failOnThreshold: false,
+        githubActionsOutput: {
+          postPullRequestComment: false,
+        },
       },
     ],
   ],

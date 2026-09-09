@@ -7,6 +7,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.11.0] — 2026-09-09
+
+**Theme:** PR visibility — API coverage in pull request comments.
+
+### Added
+- **`githubActionsOutput.postPullRequestComment`** — on `pull_request` workflow events, posts (or updates) a Markdown coverage table as a PR comment. Reuses the step-summary format; includes a link to the workflow run. Requires `pull-requests: write` on `GITHUB_TOKEN`. Defaults to `true` on pull requests; set to `false` to disable.
+
+---
+
 ## [1.10.5] — 2026-09-09
 
 **Theme:** Dependency and security maintenance — zero Dependabot/npm audit findings.

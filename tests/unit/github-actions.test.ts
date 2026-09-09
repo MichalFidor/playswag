@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   isGitHubActions,
   emitAnnotations,
   writeStepSummary,
+  getPullRequestNumber,
+  shouldPostPullRequestComment,
+  writePullRequestComment,
+  PR_COMMENT_MARKER,
 } from '../../src/output/github-actions.js';
 import type { CoverageResult } from '../../src/types.js';
 import type { ThresholdViolation } from '../../src/output/console.js';
@@ -334,5 +338,157 @@ describe('writeStepSummary', () => {
     expect(content).toContain('`http://api.example.com/unknown`');
     expect(content).toContain('404');
     expect(content).toContain('<details>');
+  });
+});
+
+// ─── getPullRequestNumber ────────────────────────────────────────────────────
+
+describe('getPullRequestNumber', () => {
+  let tmpDir: string;
+  const ORIG_EVENT = process.env['GITHUB_EVENT_PATH'];
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'playswag-ga-event-'));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+    if (ORIG_EVENT === undefined) {
+      delete process.env['GITHUB_EVENT_PATH'];
+    } else {
+      process.env['GITHUB_EVENT_PATH'] = ORIG_EVENT;
+    }
+  });
+
+  it('returns pull_request.number from the event payload', async () => {
+    const eventPath = join(tmpDir, 'event.json');
+    await writeFile(eventPath, JSON.stringify({ pull_request: { number: 42 } }), 'utf8');
+    process.env['GITHUB_EVENT_PATH'] = eventPath;
+    expect(await getPullRequestNumber()).toBe(42);
+  });
+
+  it('returns undefined when GITHUB_EVENT_PATH is unset', async () => {
+    delete process.env['GITHUB_EVENT_PATH'];
+    expect(await getPullRequestNumber()).toBeUndefined();
+  });
+});
+
+// ─── shouldPostPullRequestComment ────────────────────────────────────────────
+
+describe('shouldPostPullRequestComment', () => {
+  const ORIG_EVENT = process.env['GITHUB_EVENT_PATH'];
+  const ORIG_EVENT_NAME = process.env['GITHUB_EVENT_NAME'];
+
+  afterEach(() => {
+    if (ORIG_EVENT === undefined) delete process.env['GITHUB_EVENT_PATH'];
+    else process.env['GITHUB_EVENT_PATH'] = ORIG_EVENT;
+    if (ORIG_EVENT_NAME === undefined) delete process.env['GITHUB_EVENT_NAME'];
+    else process.env['GITHUB_EVENT_NAME'] = ORIG_EVENT_NAME;
+  });
+
+  it('returns false when explicitly disabled', async () => {
+    expect(await shouldPostPullRequestComment({ postPullRequestComment: false })).toBe(false);
+  });
+
+  it('returns true when explicitly enabled', async () => {
+    expect(await shouldPostPullRequestComment({ postPullRequestComment: true })).toBe(true);
+  });
+
+  it('returns false on non-pull_request events by default', async () => {
+    process.env['GITHUB_EVENT_NAME'] = 'push';
+    delete process.env['GITHUB_EVENT_PATH'];
+    expect(await shouldPostPullRequestComment({})).toBe(false);
+  });
+});
+
+// ─── writePullRequestComment ─────────────────────────────────────────────────
+
+describe('writePullRequestComment', () => {
+  let tmpDir: string;
+  const envKeys = [
+    'GITHUB_EVENT_PATH',
+    'GITHUB_EVENT_NAME',
+    'GITHUB_TOKEN',
+    'GITHUB_REPOSITORY',
+    'GITHUB_API_URL',
+    'GITHUB_SERVER_URL',
+    'GITHUB_RUN_ID',
+  ] as const;
+  const ORIG: Record<string, string | undefined> = {};
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'playswag-ga-pr-'));
+    for (const key of envKeys) ORIG[key] = process.env[key];
+    const eventPath = join(tmpDir, 'event.json');
+    await writeFile(eventPath, JSON.stringify({ pull_request: { number: 7 } }), 'utf8');
+    process.env['GITHUB_EVENT_PATH'] = eventPath;
+    process.env['GITHUB_EVENT_NAME'] = 'pull_request';
+    process.env['GITHUB_TOKEN'] = 'test-token';
+    process.env['GITHUB_REPOSITORY'] = 'owner/repo';
+    process.env['GITHUB_API_URL'] = 'https://api.example.com';
+    process.env['GITHUB_SERVER_URL'] = 'https://github.com';
+    process.env['GITHUB_RUN_ID'] = '12345';
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+    vi.unstubAllGlobals();
+    for (const key of envKeys) {
+      if (ORIG[key] === undefined) delete process.env[key];
+      else process.env[key] = ORIG[key];
+    }
+  });
+
+  it('creates a new PR comment when none exists', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 99 }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await writePullRequestComment(makeResult(), []);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const createCall = fetchMock.mock.calls[1];
+    expect(createCall[0]).toBe('https://api.example.com/repos/owner/repo/issues/7/comments');
+    expect(createCall[1]?.method).toBe('POST');
+    const body = JSON.parse(String(createCall[1]?.body));
+    expect(body.body).toContain(PR_COMMENT_MARKER);
+    expect(body.body).toContain('playswag — API Coverage Report');
+    expect(body.body).toContain('View workflow run');
+  });
+
+  it('updates an existing PR comment when the marker is present', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ id: 55, body: `old report\n${PR_COMMENT_MARKER}` }],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 55 }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await writePullRequestComment(makeResult(), []);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const patchCall = fetchMock.mock.calls[1];
+    expect(patchCall[0]).toBe('https://api.example.com/repos/owner/repo/issues/comments/55');
+    expect(patchCall[1]?.method).toBe('PATCH');
+  });
+
+  it('does nothing when postPullRequestComment is false', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await writePullRequestComment(makeResult(), [], { postPullRequestComment: false });
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

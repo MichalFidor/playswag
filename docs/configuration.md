@@ -253,6 +253,7 @@ See [CI integration](./ci-integration.md) for full details.
 
 ```ts
 githubActionsOutput?: {
+  postPullRequestComment?: boolean;  // @default true on pull_request events
   showUncoveredOperations?: boolean; // @default false
   showUnmatchedHits?: boolean;       // @default false
 };

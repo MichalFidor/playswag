@@ -114,12 +114,12 @@ if (values.markdown) {
   console.log(`[playswag] Markdown report → ${path}`);
 }
 
-// GitHub Actions: auto-write step summary
+// GitHub Actions: auto-write step summary + optional PR comment
 const { isGitHubActions } = await import('./output/github-actions.js');
 if (isGitHubActions()) {
-  const { writeStepSummary } = await import('./output/github-actions.js');
+  const { writeStepSummary, writePullRequestComment } = await import('./output/github-actions.js');
   await writeStepSummary(merged, []);
-   
+  await writePullRequestComment(merged, []);
   console.log('[playswag] GitHub Actions step summary written');
 }
 
