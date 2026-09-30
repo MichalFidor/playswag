@@ -7,12 +7,18 @@ on:
         description: Existing release tag to validate and publish (vX.Y.Z)
         required: true
         type: string
+      validated_run_id:
+        description: Failed Release run whose validated-package artifact should be published without revalidation
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
 jobs:
   check-tag:
+    if: inputs.validated_run_id == ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -36,11 +42,13 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
         run: test "$(node -p "require('./package.json').version")" = "${RELEASE_TAG#v}"
   verify:
+    if: inputs.validated_run_id == ''
     needs: check-tag
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ github.sha }}
   publish:
+    if: inputs.validated_run_id == ''
     name: Publish validated package to npm
     needs: verify
     runs-on: ubuntu-latest
@@ -64,8 +72,80 @@ jobs:
           tar -xOf release-package/*.tgz package/package.json > "$RUNNER_TEMP/package.json"
           test "$(node -p "require(process.env.RUNNER_TEMP + '/package.json').version")" = "${RELEASE_TAG#v}"
       - name: Publish with provenance
-        run: npm publish release-package/*.tgz --ignore-scripts --provenance --access public
+        run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
       - name: Verify npm publication
         env:
           RELEASE_TAG: ${{ inputs.tag }}
         run: npm view "@michalfidor/playswag@${RELEASE_TAG#v}" version
+
+  recover-publish:
+    if: inputs.validated_run_id != ''
+    name: Publish artifact from validated Release run
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify failed Release run and prepare notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          VALIDATED_RUN_ID: ${{ inputs.validated_run_id }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$VALIDATED_RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VALIDATED_RUN_ID" > "$RUNNER_TEMP/run.json"
+          test "$(jq -r .name "$RUNNER_TEMP/run.json")" = Release
+          test "$(jq -r .event "$RUNNER_TEMP/run.json")" = push
+          test "$(jq -r .head_branch "$RUNNER_TEMP/run.json")" = "$RELEASE_TAG"
+          test "$(jq -r .head_sha "$RUNNER_TEMP/run.json")" = "$(git rev-parse HEAD)"
+          test "$(jq -r .conclusion "$RUNNER_TEMP/run.json")" = failure
+          VERSION="${RELEASE_TAG#v}"
+          test "$(node -p "require('./package.json').version")" = "$VERSION"
+          awk -v version="$VERSION" 'index($0, "## [" version "]") == 1 { found=1; next } found && /^## \[/ { exit } found { print }' CHANGELOG.md > "$RUNNER_TEMP/changelog.md"
+          test -s "$RUNNER_TEMP/changelog.md"
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: validated-package
+          path: release-package
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.validated_run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify validated package version
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$(find release-package -maxdepth 1 -name '*.tgz' -type f | wc -l | tr -d ' ')" = 1
+          tar -xOf release-package/*.tgz package/package.json > "$RUNNER_TEMP/package.json"
+          test "$(node -p "require(process.env.RUNNER_TEMP + '/package.json').version")" = "${RELEASE_TAG#v}"
+      - name: Set up npm registry
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.x
+          registry-url: https://registry.npmjs.org
+      - name: Publish exact validated tarball to npm with provenance
+        run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
+      - name: Verify npm publication and create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          npm view "@michalfidor/playswag@${RELEASE_TAG#v}" version
+          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/changelog.md"
+      - name: Set up GitHub Packages registry
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.x
+          registry-url: https://npm.pkg.github.com
+      - name: Publish exact validated tarball to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish ./release-package/*.tgz --ignore-scripts --access public

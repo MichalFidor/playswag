@@ -155,6 +155,7 @@ A human only needs to:
 > **Before releasing**, configure npm **Trusted Publisher** for this repo  
 > (`npmjs.com` → package `@michalfidor/playswag` → **Settings → Trusted Publisher** → GitHub Actions, workflow filename `release.yml`). Configure `republish-npm.yml` separately if recovery publishing is needed. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/). There is no automatic token fallback.
 > Run recovery on that same tag, for example `gh workflow run republish-npm.yml --ref vX.Y.Z -f tag=vX.Y.Z`; mismatched dispatch and input refs are rejected so provenance identifies the published source. Recovery validates the selected tag with the same CI workflow and therefore requires that tag to contain the current validation scripts. Older tags fail validation instead of bypassing it.
+> If a Release run passes validation but fails during publication, its retained `validated-package` artifact can be recovered without repeating validation. Dispatch `republish-npm.yml` from a revision containing the recovery mode and pass both the tag and failed run ID. The workflow verifies the run name, event, tag, commit SHA, conclusion and tarball version before publishing that exact artifact.
 
 CI performs the full suite once on Node 24, followed by lightweight runtime checks on Node 20.0.0 and 22. V8 minimums are 85% lines/functions, 80% statements and 75% branches. CLI subprocess tests provide behavioral coverage; their lines are not instrumented by the parent V8 run.
 

@@ -47,7 +47,7 @@ jobs:
             exit 1
           fi
       - name: Publish to npm with provenance
-        run: npm publish release-package/*.tgz --ignore-scripts --provenance --access public
+        run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
       - name: Verify npm publication
         run: npm view "@michalfidor/playswag@${GITHUB_REF_NAME#v}" version
       - name: Create GitHub Release after npm publication
@@ -62,4 +62,4 @@ jobs:
       - name: Publish to GitHub Packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm publish release-package/*.tgz --ignore-scripts --access public
+        run: npm publish ./release-package/*.tgz --ignore-scripts --access public
