@@ -8,6 +8,13 @@ function hasPathPrefix(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(`${prefix}/`);
 }
 
+/** Scan the suffix once; an unanchored /\/+$/ regex can backtrack quadratically. */
+function trimTrailingSlashes(path: string): string {
+  let end = path.length;
+  while (end > 0 && path.charCodeAt(end - 1) === 47) end--;
+  return path.slice(0, end);
+}
+
 interface MatchResult {
   operation: NormalizedOperation;
   pathParams: Record<string, string>;
@@ -80,14 +87,14 @@ export function stripToPath(url: string, baseURL?: string, serverBasePath?: stri
   if (baseURL) {
     let basePath: string;
     try { basePath = new URL(baseURL).pathname; } catch { basePath = baseURL; }
-    const normBase = basePath.replace(/\/+$/, '');
+    const normBase = trimTrailingSlashes(basePath);
     if (normBase && hasPathPrefix(path, normBase)) {
       path = path.slice(normBase.length) || '/';
       strippedBase = normBase;
     }
   }
   if (serverBasePath) {
-    let normServer = serverBasePath.replace(/\/+$/, '');
+    let normServer = trimTrailingSlashes(serverBasePath);
     // A baseURL may already contain all or part of the server prefix.
     if (strippedBase && hasPathPrefix(normServer, strippedBase)) {
       normServer = normServer.slice(strippedBase.length);

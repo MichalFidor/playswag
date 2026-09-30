@@ -58,6 +58,15 @@ describe('stripToPath', () => {
       stripToPath('https://api.example.com/other/v1/users', 'https://api.example.com', '/svc')
     ).toBe('/other/v1/users');
   });
+
+  it('handles long slash runs in both prefixes without regex backtracking', () => {
+    const slashes = '/'.repeat(100_000);
+    const nonTrailing = `/api${slashes}suffix`;
+    expect(stripToPath('/users', nonTrailing, nonTrailing)).toBe('/users');
+    expect(stripToPath('/api/users', `/api${slashes}`)).toBe('/users');
+    expect(stripToPath('/api/users', undefined, `/api${slashes}`)).toBe('/users');
+    expect(stripToPath('/users', slashes, slashes)).toBe('/users');
+  });
 });
 
 describe('matchTemplate', () => {

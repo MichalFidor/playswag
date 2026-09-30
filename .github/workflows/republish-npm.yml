@@ -37,6 +37,9 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
+      - name: Require release commit to be merged into main
+        run: git merge-base --is-ancestor HEAD origin/main
       - name: Verify tag version
         env:
           RELEASE_TAG: ${{ inputs.tag }}
@@ -94,6 +97,13 @@ jobs:
           ref: refs/tags/${{ inputs.tag }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Require release commit and dispatch ref to match merged source
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$GITHUB_REF" = "refs/tags/$RELEASE_TAG"
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor HEAD origin/main
       - name: Verify failed Release run and prepare notes
         env:
           GH_TOKEN: ${{ github.token }}

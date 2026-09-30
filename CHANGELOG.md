@@ -10,6 +10,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [2.0.0] — 2026-09-30
 
 ### Security
+- Replace backtracking path-prefix regexes with a linear suffix scan (CodeQL review alerts); require release and recovery commits to be merged into main before publishing.
 - Pin spec connections to validated DNS addresses; fail closed on DNS errors and unsafe IPs. Enforce deadlines and byte limits through redirects and decompression.
 - Prevent remote references from reading local files even through local-root documents; bound schema normalization and traversal.
 - Redact URL credentials/query values, serialized JSON and opaque bodies; preserve cookie names for coverage. Bound and validate attachments, imported reports and history.
