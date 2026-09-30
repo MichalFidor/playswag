@@ -10,6 +10,7 @@ import {
   shouldPostPullRequestComment,
   writePullRequestComment,
   PR_COMMENT_MARKER,
+  pullRequestCommentMarker,
 } from '../../src/output/github-actions.js';
 import type { CoverageResult } from '../../src/types.js';
 import type { ThresholdViolation } from '../../src/output/console.js';
@@ -157,6 +158,15 @@ describe('writeStepSummary', () => {
     expect(content).toContain('Status Codes');
     expect(content).toContain('Parameters');
     expect(content).toContain('Body Properties');
+  });
+
+  it('separates multiple project summaries with a blank line', async () => {
+    const summaryPath = join(tmpDir, 'summary.md');
+    process.env['GITHUB_STEP_SUMMARY'] = summaryPath;
+    await writeStepSummary(makeResult(), [], { reportName: 'First' });
+    await writeStepSummary(makeResult(), [], { reportName: 'Second' });
+    const content = await readFile(summaryPath, 'utf8');
+    expect(content).toContain('\n\n## playswag — API Coverage Report · Second');
   });
 
   it('includes a tag coverage table when tags exist', async () => {
@@ -467,7 +477,7 @@ describe('writePullRequestComment', () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => [{ id: 55, body: `old report\n${PR_COMMENT_MARKER}` }],
+        json: async () => [{ id: 55, body: `old report\n${PR_COMMENT_MARKER}`, user: { login: 'github-actions[bot]' } }],
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -490,5 +500,95 @@ describe('writePullRequestComment', () => {
     await writePullRequestComment(makeResult(), [], { postPullRequestComment: false });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps project comments separate and ignores markers owned by other authors', async () => {
+    const a = pullRequestCommentMarker('a');
+    const b = pullRequestCommentMarker('b');
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [
+        { id: 1, body: a, user: { login: 'github-actions[bot]' } },
+        { id: 2, body: b, user: { login: 'someone-else' } },
+      ] })
+      .mockResolvedValueOnce({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    await writePullRequestComment(makeResult(), [], { commentKey: 'b', reportName: 'Project B' });
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe('POST');
+    const posted = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)) as { body: string };
+    expect(posted.body).toContain(b);
+    expect(posted.body).not.toContain(a);
+    expect(posted.body).toContain('Project B');
+  });
+
+  it('finds an owned report past the first 100 comments', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => Array.from({ length: 100 }, (_, id) => ({ id: id + 1, body: 'unrelated' })) })
+      .mockResolvedValueOnce({ ok: true, json: async () => [{ id: 101, body: PR_COMMENT_MARKER, user: { login: 'github-actions[bot]' } }] })
+      .mockResolvedValueOnce({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    await writePullRequestComment(makeResult(), []);
+    expect(fetchMock.mock.calls[1]?.[0]).toContain('&page=2');
+    expect(fetchMock.mock.calls[2]?.[0]).toContain('/comments/101');
+    expect(fetchMock.mock.calls[2]?.[1]?.method).toBe('PATCH');
+  });
+
+  it('aborts a stalled request within the configured deadline', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    await writePullRequestComment(makeResult(), [], { timeoutMs: 10 });
+    expect(fetchMock.mock.calls[0]?.[1].signal?.aborted).toBe(true);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('aborts unread error responses and never starts a write after a failed list', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 403 });
+    vi.stubGlobal('fetch', fetchMock);
+    await writePullRequestComment(makeResult(), []);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).signal?.aborted).toBe(true);
+    warn.mockRestore();
+  });
+
+  it('keeps the deadline active while reading the comments response body', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => Promise.resolve({
+      ok: true,
+      json: () => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new Error('body aborted')), { once: true });
+      }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    await writePullRequestComment(makeResult(), [], { timeoutMs: 10 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1].signal?.aborted).toBe(true);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('rejects timeout values that would overflow Node timers', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await writePullRequestComment(makeResult(), [], { timeoutMs: 2_147_483_648 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('limits a large comment and preserves its update marker', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [] })
+      .mockResolvedValueOnce({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    await writePullRequestComment(makeResult(), [], { reportName: 'x'.repeat(70_000) });
+    const posted = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)) as { body: string };
+    expect(posted.body.length).toBeLessThan(65_536);
+    expect(posted.body).toContain(PR_COMMENT_MARKER);
+    expect(posted.body).toContain('Report truncated');
   });
 });

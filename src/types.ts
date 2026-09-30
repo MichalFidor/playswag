@@ -198,6 +198,8 @@ export interface ResponsePropertyCoverage {
 
 export interface NormalizedSchema {
   type?: string;
+  readOnly?: boolean;
+  writeOnly?: boolean;
   properties?: Record<string, NormalizedSchema>;
   required?: string[];
   items?: NormalizedSchema;
@@ -429,6 +431,14 @@ export interface JUnitOutputConfig {
  * are always emitted; only the step summary is configurable.
  */
 export interface GitHubActionsOutputConfig {
+  /** Stable key separating comments from independent jobs/matrix runs. Project names are appended automatically. */
+  commentKey?: string;
+  /** Login allowed to own an updated comment. Defaults to github-actions[bot]. */
+  commentAuthor?: string;
+  /** Optional human-readable label for the reported group. */
+  reportName?: string;
+  /** Deadline for the complete PR comment operation, including response bodies. @default 15000 */
+  timeoutMs?: number;
   /**
    * Post or update a pull request comment with the coverage summary.
    * Defaults to `true` on `pull_request` workflow events; set to `false` to disable.
@@ -645,7 +655,7 @@ export interface PlayswagConfig {
    * `'endpoints'` cannot be excluded (it is the core metric).
    *
    * @example
-   * // Array-returning endpoints make responseProperties structurally uncoverable:
+   * // Hide response observations when only request coverage is relevant:
    * excludeDimensions: ['responseProperties']
    */
   excludeDimensions?: Exclude<CoverageDimension, 'endpoints'>[];

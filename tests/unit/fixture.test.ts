@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { TestInfo } from '@playwright/test';
+import type { APIRequestContext, TestInfo } from '@playwright/test';
 import {
   buildTrackedRequest,
   redactHeaders,
   DEFAULT_MAX_RESPONSE_BODY_BYTES,
 } from '../../src/fixture.js';
+import { safeJsonStringify } from '../../src/utils/safe-json.js';
+import { analyzeParameters } from '../../src/coverage/schema-analyzer.js';
 
 interface MockAPIResponse {
   url(): string;
@@ -79,10 +81,54 @@ describe('redactHeaders', () => {
 });
 
 describe('buildTrackedRequest (fixture proxy)', () => {
+  it('removes secrets from attachments while retaining query, cookie and JSON property coverage', async () => {
+    const hits: EndpointHit[] = [];
+    const ctx = makeMockContext(makeResponse({
+      url: 'https://url-user:url-pass@example.com/users?access_token=query-secret#fragment-secret',
+      body: { profile: { password: 'response-secret', name: 'Alice' } },
+    }));
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
+    await tracked.post('https://example.com/users', {
+      data: Buffer.from('{"password":"body-secret","name":"Alice"}'),
+      headers: { Cookie: 'session=cookie-secret; preference=another-secret' },
+      params: { api_key: 'param-secret' },
+    });
+    const attachment = safeJsonStringify(hits);
+    for (const secret of ['url-user', 'url-pass', 'query-secret', 'fragment-secret', 'response-secret', 'body-secret', 'cookie-secret', 'another-secret', 'param-secret']) {
+      expect(attachment).not.toContain(secret);
+    }
+    expect(hits[0]?.requestBody).toEqual({ password: '[REDACTED]', name: 'Alice' });
+    expect(hits[0]?.headers?.Cookie).toBe('session=[REDACTED]; preference=[REDACTED]');
+    expect(hits[0]?.queryParams).toEqual({ access_token: '[REDACTED]', api_key: '[REDACTED]' });
+    const parameters = analyzeParameters({ method: 'POST', pathTemplate: '/users', responses: {}, parameters: [
+      { name: 'session', in: 'cookie', required: true },
+      { name: 'api_key', in: 'query', required: true },
+    ] }, hits[0]?.queryParams, undefined, hits[0]?.headers);
+    expect(parameters.every((parameter) => parameter.covered)).toBe(true);
+  });
+
+  it('keeps the attachment below its byte limit without corrupting earlier hits', async () => {
+    const hits: EndpointHit[] = [];
+    const response = makeResponse({ body: { value: 'x'.repeat(250_000) } });
+    const ctx = makeMockContext(response);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
+    for (let i = 0; i < 45; i++) await tracked.get('https://example.com/users');
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.length).toBeLessThan(45);
+    expect(Buffer.byteLength(JSON.stringify(hits))).toBeLessThanOrEqual(10 * 1024 * 1024);
+    expect(hits.every((hit) => hit.method === 'GET' && hit.testTitle === 'my test')).toBe(true);
+  });
+
+  it('does not turn a JSON string response into a synthetic object during redaction', async () => {
+    const hits: EndpointHit[] = [];
+    const ctx = makeMockContext(makeResponse({ body: 'token=response-secret' }));
+    await buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo).get('https://example.com');
+    expect(hits[0]?.responseBody).toBe('[REDACTED]');
+  });
   it('intercepts GET and records a hit', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.get('http://localhost:3456/api/users');
     expect(hits).toHaveLength(1);
     expect(hits[0]?.method).toBe('GET');
@@ -93,7 +139,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
   it('intercepts POST and records a hit', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.post('http://localhost:3456/api/users', { data: { name: 'Alice' } });
     expect(hits).toHaveLength(1);
     expect(hits[0]?.method).toBe('POST');
@@ -102,7 +148,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
   it('records requestBody from data option', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.post('/api/users', { data: { name: 'Bob', email: 'b@b.com' } });
     expect(hits[0]?.requestBody).toEqual({ name: 'Bob', email: 'b@b.com' });
   });
@@ -110,7 +156,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
   it('records requestBody from form option', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.post('/api/users', { form: { name: 'FormUser' } });
     expect(hits[0]?.requestBody).toEqual({ name: 'FormUser' });
   });
@@ -118,33 +164,33 @@ describe('buildTrackedRequest (fixture proxy)', () => {
   it('records query params when provided', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.get('/api/users', { params: { limit: 10, offset: 0 } });
-    expect(hits[0]?.queryParams).toEqual({ limit: '10', offset: '0' });
+    expect(hits[0]?.queryParams).toEqual({ limit: '[REDACTED]', offset: '[REDACTED]' });
   });
 
   it('extracts query params from URL string when no params option provided', async () => {
     const hits: EndpointHit[] = [];
     const resp = makeResponse({ url: 'http://localhost:3456/api/users?limit=5&page=2' });
     const ctx = makeMockContext(resp);
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.get('http://localhost:3456/api/users?limit=5&page=2');
-    expect(hits[0]?.queryParams).toEqual({ limit: '5', page: '2' });
+    expect(hits[0]?.queryParams).toEqual({ limit: '[REDACTED]', page: '[REDACTED]' });
   });
 
   it('merges URL query params with params option; params option wins on conflict', async () => {
     const hits: EndpointHit[] = [];
     const resp = makeResponse({ url: 'http://localhost:3456/api/users?limit=5&page=2' });
     const ctx = makeMockContext(resp);
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.get('http://localhost:3456/api/users?page=2', { params: { limit: 10 } });
-    expect(hits[0]?.queryParams).toEqual({ limit: '10', page: '2' });
+    expect(hits[0]?.queryParams).toEqual({ limit: '[REDACTED]', page: '[REDACTED]' });
   });
 
   it('redacts authorization headers by default', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.get('/api/users', {
       headers: { Authorization: 'Bearer secret', 'X-Trace-Id': 'abc123' },
     });
@@ -156,7 +202,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
     const hits: EndpointHit[] = [];
     const resp = makeResponse({ body: { access_token: 'secret', name: 'Alice' } });
     const ctx = makeMockContext(resp);
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.post('/api/login', { data: { password: 'hunter2', user: 'alice' } });
     expect(hits[0]?.requestBody).toEqual({ password: '[REDACTED]', user: 'alice' });
     expect(hits[0]?.responseBody).toEqual({ access_token: '[REDACTED]', name: 'Alice' });
@@ -166,7 +212,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
     const hits: EndpointHit[] = [];
     const resp = makeResponse({ body: { status: 'ok' } });
     const ctx = makeMockContext(resp);
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.get('/api/health');
     expect(hits[0]?.responseBody).toEqual({ status: 'ok' });
   });
@@ -174,7 +220,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
   it('skips response body capture when captureResponseBody is false', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo, { captureResponseBody: false });
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo, { captureResponseBody: false });
     await tracked.get('/api/users');
     expect(hits[0]?.responseBody).toBeUndefined();
   });
@@ -184,7 +230,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
     const huge = { data: 'x'.repeat(DEFAULT_MAX_RESPONSE_BODY_BYTES + 1) };
     const resp = makeResponse({ body: huge });
     const ctx = makeMockContext(resp);
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo, { maxResponseBodyBytes: 1024 });
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo, { maxResponseBodyBytes: 1024 });
     await tracked.get('/api/big');
     expect(hits[0]?.responseBody).toBeUndefined();
   });
@@ -193,7 +239,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
     const info = { titlePath: ['my-file.spec.ts'], title: 'gets users' } as TestInfo;
-    const tracked = buildTrackedRequest(ctx as never, hits, info);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, info);
     await tracked.get('/api/users');
     expect(hits[0]?.testFile).toBe('my-file.spec.ts');
     expect(hits[0]?.testTitle).toBe('gets users');
@@ -202,7 +248,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
   it('uses GET as default method for fetch without method option', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.fetch('/api/health');
     expect(hits[0]?.method).toBe('GET');
   });
@@ -210,7 +256,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
   it('uses provided method option for fetch', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.fetch('/api/users', { method: 'POST', data: { name: 'Alice' } });
     expect(hits[0]?.method).toBe('POST');
   });
@@ -218,7 +264,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
   it('passes through non-intercepted methods without recording', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.dispose();
     expect(hits).toHaveLength(0);
     expect(ctx.dispose).toHaveBeenCalled();
@@ -227,7 +273,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
   it('intercepts all HTTP methods', async () => {
     const hits: EndpointHit[] = [];
     const ctx = makeMockContext();
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.get('/a');
     await tracked.post('/b');
     await tracked.put('/c');
@@ -247,7 +293,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
       body: () => Promise.resolve(Buffer.from('<html>not json</html>')),
     };
     const ctx = makeMockContext(resp);
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.get('/api/file');
     expect(hits[0]?.responseBody).toBeUndefined();
   });
@@ -261,7 +307,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
       body: () => Promise.resolve(Buffer.from('')),
     };
     const ctx = makeMockContext(resp);
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     await tracked.delete('/api/users/1');
     expect(hits[0]?.responseBody).toBeUndefined();
   });
@@ -270,7 +316,7 @@ describe('buildTrackedRequest (fixture proxy)', () => {
     const hits: EndpointHit[] = [];
     const expectedResp = makeResponse({ url: 'http://localhost/api/users', status: 201 });
     const ctx = makeMockContext(expectedResp);
-    const tracked = buildTrackedRequest(ctx as never, hits, testInfo);
+    const tracked = buildTrackedRequest(ctx as unknown as APIRequestContext, hits, testInfo);
     const response = await tracked.post('/api/users', { data: { name: 'test' } });
     expect(response.url()).toBe('http://localhost/api/users');
     expect(response.status()).toBe(201);

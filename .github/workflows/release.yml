@@ -6,206 +6,60 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
-  contents: write
-  packages: write
-  id-token: write
+  contents: read
 
 jobs:
   verify:
-    name: Verify (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20.x, 22.x]
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Node ${{ matrix.node-version }}
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Type check
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm run test:unit
-
-      - name: Build
-        run: npm run build
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Integration tests
-        run: npm run test:integration
-
-      - name: E2E example tests
-        run: npm run test:examples
-
-  smoke-examples:
-    name: Smoke — playswag-examples repo
-    runs-on: ubuntu-latest
-    needs: [verify]
-
-    steps:
-      - name: Checkout playswag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: playswag
-
-      - name: Set up Node 20
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 20.x
-          cache: npm
-          cache-dependency-path: playswag/package-lock.json
-
-      - name: Install + build playswag
-        working-directory: playswag
-        run: npm ci && npm run build
-
-      - name: Pack playswag
-        id: pack
-        working-directory: playswag
-        run: |
-          TARBALL=$(npm pack --json | jq -r '.[0].filename')
-          echo "tarball=$(pwd)/${TARBALL}" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout playswag-examples
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: MichalFidor/playswag-examples
-          path: examples
-
-      - name: Install examples dependencies
-        working-directory: examples
-        run: npm ci
-
-      - name: Swap to local playswag build
-        working-directory: examples
-        run: npm install "${{ steps.pack.outputs.tarball }}"
-
-      - name: Install Playwright browsers
-        working-directory: examples
-        run: npx playwright install --with-deps chromium
-
-      - name: Run examples
-        working-directory: examples
-        run: npm run test:ci
-
-      - name: Upload examples coverage report
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: smoke-examples-report
-          path: examples/playswag-report/
-          retention-days: 7
+    uses: ./.github/workflows/ci.yml
 
   publish:
-    name: Publish to npm + create GitHub Release
+    name: Publish validated package
     runs-on: ubuntu-latest
-    needs: [smoke-examples]
-
+    timeout-minutes: 10
+    needs: verify
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
-
-      - name: Set up Node 22
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: validated-package
+          path: release-package
+      - name: Set up Node 24
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.x
-          cache: npm
+          node-version: 24.x
           registry-url: https://registry.npmjs.org
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Extract version from tag
-        id: meta
+      - name: Verify version and prepare release notes
         run: |
-          TAG="${GITHUB_REF_NAME}"          # e.g. v1.2.3
-          VERSION="${TAG#v}"                # e.g. 1.2.3
-          MAJOR="${VERSION%%.*}"
-          echo "tag=${TAG}"         >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "major=${MAJOR}"     >> "$GITHUB_OUTPUT"
-
-      - name: Verify package.json version
-        run: |
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${{ steps.meta.outputs.version }}"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          VERSION="${GITHUB_REF_NAME#v}"
+          test "$(node -p "require('./package.json').version")" = "$VERSION"
+          tar -xOf release-package/*.tgz package/package.json > "$RUNNER_TEMP/package.json"
+          test "$(node -p "require(process.env.RUNNER_TEMP + '/package.json').version")" = "$VERSION"
+          awk -v version="$VERSION" 'index($0, "## [" version "]") == 1 { found=1; next } found && /^## \[/ { exit } found { print }' CHANGELOG.md > "$RUNNER_TEMP/changelog.md"
+          if [ ! -s "$RUNNER_TEMP/changelog.md" ]; then
+            echo "::error::Add a changelog entry for $VERSION before releasing."
             exit 1
           fi
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          VERSION="${{ steps.meta.outputs.version }}"
-          # Extract the section for this version from CHANGELOG.md
-          # Matches from "## [VERSION]" up to (but not including) the next "## [" heading
-          awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md \
-            > /tmp/changelog.md
-          # Fall back to git log if the section was empty
-          if [ ! -s /tmp/changelog.md ]; then
-            PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
-            if [ -z "$PREV_TAG" ]; then
-              git log --pretty=format:"- %s (%h)" HEAD > /tmp/changelog.md
-            else
-              git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD" > /tmp/changelog.md
-            fi
-          fi
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@e598afbe1493e6b1bafb1f389cabb956eab91231 # v3.0.3
-        with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: ${{ steps.meta.outputs.tag }}
-          body_path: /tmp/changelog.md
-          draft: false
-          prerelease: ${{ steps.meta.outputs.major == '0' }}
-
-      - name: Publish to npm (trusted publishing)
-        id: npm_oidc
-        continue-on-error: true
-        run: npm publish --provenance --access public
-
-      - name: Publish to npm (token fallback)
-        if: steps.npm_oidc.outcome == 'failure'
+      - name: Publish to npm with provenance
+        run: npm publish release-package/*.tgz --ignore-scripts --provenance --access public
+      - name: Verify npm publication
+        run: npm view "@michalfidor/playswag@${GITHUB_REF_NAME#v}" version
+      - name: Create GitHub Release after npm publication
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
-        run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::npm OIDC publish failed and NPMJS_TOKEN is not set."
-            exit 1
-          fi
-          npm publish --access public
-
-      - name: Verify npm publish succeeded
-        run: npm view "@michalfidor/playswag@${{ steps.meta.outputs.version }}" version
-
-      - name: Set up Node 22 (GitHub Packages)
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/changelog.md"
+      - name: Set up GitHub Packages registry
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.x
+          node-version: 24.x
           registry-url: https://npm.pkg.github.com
-
       - name: Publish to GitHub Packages
-        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish release-package/*.tgz --ignore-scripts --access public

@@ -6,25 +6,31 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to validate (used for republishing a tag)
+        type: string
+        default: ''
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    name: Test (Node ${{ matrix.node-version }})
+    name: Validate package
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    strategy:
-      matrix:
-        node-version: ${{ github.event_name == 'pull_request' && fromJSON('["20.x"]') || fromJSON('["20.x", "22.x"]') }}
-
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
-      - name: Set up Node ${{ matrix.node-version }}
+      - name: Set up Node 24
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 24.x
           cache: npm
 
       - name: Install dependencies
@@ -33,88 +39,87 @@ jobs:
       - name: Security audit
         run: npm audit --audit-level=high
 
-      - name: Type check
-        run: npm run typecheck
+      - name: Validate source, tests, coverage and packed consumer
+        run: npm run validate
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm run test:unit
-
-      - name: Build
-        run: npm run build
-
-      - name: Smoke test published CLI
-        run: node dist/esm/cli.js --help
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Integration tests
-        run: npm run test:integration
-
-      - name: E2E example tests
-        run: npm run test:examples
-
-  smoke-examples:
-    name: Smoke — playswag-examples repo
-    runs-on: ubuntu-latest
-    needs: [test]
-    permissions:
-      contents: read
-      actions: write
-
-    steps:
-      - name: Checkout playswag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: playswag
-
-      - name: Set up Node 20
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 20.x
-          cache: npm
-          cache-dependency-path: playswag/package-lock.json
-
-      - name: Install + build playswag
-        working-directory: playswag
-        run: npm ci && npm run build
-
-      - name: Pack playswag
+      - name: Pack validated build
         id: pack
-        working-directory: playswag
         run: |
-          TARBALL=$(npm pack --json | jq -r '.[0].filename')
-          echo "tarball=$(pwd)/${TARBALL}" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/playswag-package"
+          npm pack --ignore-scripts --json --pack-destination "$RUNNER_TEMP/playswag-package" > "$RUNNER_TEMP/playswag-pack.json"
+          TARBALL=$(node -p "require(process.env.RUNNER_TEMP + '/playswag-pack.json')[0].filename")
+          echo "tarball=$RUNNER_TEMP/playswag-package/$TARBALL" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout playswag-examples
+      - name: Verify release tarball with current and minimum Playwright
+        env:
+          PLAYSWAG_TEST_TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          npm run test:package
+          PLAYSWAG_TEST_PLAYWRIGHT_VERSION=$(node -p "require('./package.json').peerDependencies['@playwright/test'].replace('>=', '')")
+          export PLAYSWAG_TEST_PLAYWRIGHT_VERSION
+          npm run test:package
+
+      - name: Checkout pinned external examples
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: MichalFidor/playswag-examples
-          path: examples
+          ref: 330205039c4c1c5c7b3c8175914a72362d5165a7
+          path: .validation-examples
+          persist-credentials: false
 
-      - name: Install examples dependencies
-        working-directory: examples
-        run: npm ci
+      - name: Verify external examples with local package and reporter
+        working-directory: .validation-examples
+        env:
+          PLAYSWAG_TARBALL: ${{ steps.pack.outputs.tarball }}
+          COMPOSE_PROJECT_NAME: playswag-validation
+          COMPOSE_FILE: docker-compose.yml:playswag-ci.compose.yml
+        run: |
+          cat > playswag-ci.compose.yml <<'COMPOSE'
+          services:
+            petstore:
+              image: swaggerapi/petstore3@sha256:749432676c31cd05256f0d9e878302164debb94daa1c1223e193747e1b34e7d1
+          COMPOSE
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm install --ignore-scripts --no-audit --no-fund "$PLAYSWAG_TARBALL"
+          npm test
 
-      - name: Swap to local playswag build
-        working-directory: examples
-        run: npm install "${{ steps.pack.outputs.tarball }}"
+      - name: Stop example services
+        if: always()
+        env:
+          COMPOSE_PROJECT_NAME: playswag-validation
+        run: |
+          if [ -f .validation-examples/docker-compose.yml ]; then
+            docker compose -f .validation-examples/docker-compose.yml down
+          fi
 
-      - name: Install Playwright browsers
-        working-directory: examples
-        run: npx playwright install --with-deps chromium
+      # Build once on the development runtime; verify published imports and CLI
+      # on the minimum and next supported runtime without reinstalling tooling.
+      - name: Set up minimum Node 20
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20.0.0
+      - name: Runtime compatibility — Node 20
+        run: node scripts/verify-package.mjs --runtime-only
+      - name: Set up Node 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.x
+      - name: Runtime compatibility — Node 22
+        run: node scripts/verify-package.mjs --runtime-only
 
-      - name: Run examples
-        working-directory: examples
-        run: npm run test:ci
-
-      - name: Upload examples coverage report
+      - name: Save validated package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: validated-package
+          path: ${{ steps.pack.outputs.tarball }}
+          retention-days: 7
+          if-no-files-found: error
+      - name: Save coverage evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: smoke-examples-report
-          path: examples/playswag-report/
+          name: coverage-reports
+          path: |
+            coverage/coverage-final.json
+            .validation-examples/playswag-report/
           retention-days: 7

@@ -29,9 +29,9 @@ describe('stripToPath', () => {
     expect(stripToPath('https://api.example.com/', 'https://api.example.com')).toBe('/');
   });
 
-  it('decodes percent-encoded characters', () => {
+  it('preserves encoded characters until segment matching', () => {
     expect(stripToPath('https://api.example.com/users/hello%20world')).toBe(
-      '/users/hello world'
+      '/users/hello%20world'
     );
   });
 
@@ -270,5 +270,39 @@ describe('matchOperation — indexed vs linear parity', () => {
     const linear  = matchOperation('https://host/svc-a/v1/users', 'GET', svcOps, 'https://host');
     const indexed = matchOperation('https://host/svc-a/v1/users', 'GET', svcOps, 'https://host', svcIndex);
     expect(indexed?.operation.pathTemplate).toBe(linear?.operation.pathTemplate);
+  });
+});
+
+
+describe('path boundary regressions', () => {
+  it('strips prefixes only at a complete path segment boundary', () => {
+    expect(stripToPath('/api2/users', '/api')).toBe('/api2/users');
+    expect(stripToPath('/api2/users', undefined, '/api')).toBe('/api2/users');
+    expect(stripToPath('/api/users', '/api')).toBe('/users');
+  });
+
+  it('does not remove the same server prefix twice', () => {
+    expect(stripToPath('/api/api/users', '/api', '/api')).toBe('/api/users');
+    expect(stripToPath('/gateway/api/users', '/gateway', '/gateway/api')).toBe('/users');
+  });
+
+  it.each([false, true])('preserves encoded slash segment boundaries with index=%s', (indexed) => {
+    const ops: NormalizedOperation[] = [
+      { pathTemplate: '/files/{id}', method: 'GET', parameters: [], responses: {} },
+      { pathTemplate: '/files/a/b', method: 'GET', parameters: [], responses: {} },
+    ];
+    const result = matchOperation('https://host/files/a%2Fb', 'GET', ops, undefined,
+      indexed ? buildOperationIndex(ops) : undefined);
+    expect(result?.operation.pathTemplate).toBe('/files/{id}');
+    expect(result?.pathParams).toEqual({ id: 'a/b' });
+  });
+
+  it.each([false, true])('matches encoded literal segments with index=%s', (indexed) => {
+    const ops: NormalizedOperation[] = [
+      { pathTemplate: '/café/{id}', method: 'GET', parameters: [], responses: {} },
+    ];
+    const result = matchOperation('/caf%C3%A9/hello%20world', 'GET', ops, undefined,
+      indexed ? buildOperationIndex(ops) : undefined);
+    expect(result?.pathParams).toEqual({ id: 'hello world' });
   });
 });

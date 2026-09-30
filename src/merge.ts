@@ -1,4 +1,5 @@
 import { computeSummaryFromOperations, computeTagCoverage } from './coverage/summary.js';
+import { normalizeCoverageResult } from './utils/safe-json.js';
 import type {
   CoverageResult,
   OperationCoverage,
@@ -142,6 +143,7 @@ export function mergeCoverageResults(...results: CoverageResult[]): CoverageResu
   if (results.length < 2) {
     throw new Error('[playswag] mergeCoverageResults requires at least 2 results');
   }
+  results = results.map(normalizeCoverageResult);
 
   // Merge all operations by method+path key
   const opsMap = new Map<string, OperationCoverage>();

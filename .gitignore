@@ -15,3 +15,5 @@ playwright-report/
 docs/ROADMAP.md
 docs/CONTRACT-TESTING-IDEA.md
 docs/REPORTPORTAL-INTEGRATION.md
+/coverage/
+/.validation-examples/

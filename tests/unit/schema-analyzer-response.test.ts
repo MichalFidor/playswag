@@ -84,11 +84,9 @@ describe('analyzeResponseProperties', () => {
       expect(result.every((r) => !r.covered)).toBe(true);
     });
 
-    it('inspects the first object when responseBody is a non-empty array', () => {
+    it('does not treat an array as an object response schema', () => {
       const result = analyzeResponseProperties(opWithSchema, '200', [{ id: '1', name: 'Alice' }]);
-      expect(result.find((r) => r.name === 'id')?.covered).toBe(true);
-      expect(result.find((r) => r.name === 'name')?.covered).toBe(true);
-      expect(result.find((r) => r.name === 'email')?.covered).toBe(false);
+      expect(result.every((r) => !r.covered)).toBe(true);
     });
 
     it('returns empty array for a response code with no schema on the operation', () => {
@@ -138,11 +136,14 @@ describe('analyzeResponseProperties', () => {
       expect(result.every((r) => !r.covered)).toBe(true);
     });
 
-    it('uses the first element when response body is a JSON array', () => {
-      const result = analyzeResponseProperties(opWithSchema, '200', [
+    it('supports a JSON string array against an array response schema', () => {
+      const operation: NormalizedOperation = { ...opWithSchema, responses: {
+        '200': { schema: { type: 'array', items: opWithSchema.responses['200']!.schema } },
+      } };
+      const result = analyzeResponseProperties(operation, '200', JSON.stringify([
         { id: '1', name: 'Alice', email: 'a@b.com' },
-      ]);
-      expect(result.find((r) => r.name === 'name')?.covered).toBe(true);
+      ]));
+      expect(result.find((r) => r.name === '[].name')?.covered).toBe(true);
     });
   });
 });

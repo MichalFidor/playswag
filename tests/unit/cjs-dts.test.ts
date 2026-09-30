@@ -6,8 +6,7 @@
  * the `exports["."].require.types` field of package.json. If tsup omits them the
  * package still runs but TypeScript in CJS projects reports "no overload matches".
  *
- * This test is intentionally skipped when `dist/` has not been built yet so it
- * never breaks a fresh `npm install && npm test` flow.
+ * npm test builds first. Missing distribution files must fail CI, never skip it.
  */
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
@@ -17,9 +16,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(fileURLToPath(import.meta.url), '..', '..', '..');
 const TYPES_DIR = join(ROOT, 'dist', 'types');
 
-const isBuilt = existsSync(TYPES_DIR);
-
-describe.skipIf(!isBuilt)('CJS .d.cts declarations (requires npm run build)', () => {
+describe('CJS .d.cts declarations (requires npm run build)', () => {
   it('dist/types/index.d.cts exists', () => {
     expect(existsSync(join(TYPES_DIR, 'index.d.cts'))).toBe(true);
   });

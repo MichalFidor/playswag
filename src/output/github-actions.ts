@@ -1,4 +1,5 @@
 import { appendFile, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import type { CoverageResult, CoverageDimension, GitHubActionsOutputConfig } from '../types.js';
 import type { ThresholdViolation } from './console.js';
 import type { CoverageDelta } from './history.js';
@@ -14,6 +15,11 @@ import {
 
 /** Hidden marker used to find and update an existing PR comment. */
 export const PR_COMMENT_MARKER = '<!-- playswag-coverage-report -->';
+
+export function pullRequestCommentMarker(key?: string): string {
+  return key === undefined ? PR_COMMENT_MARKER
+    : `<!-- playswag-coverage-report:${createHash('sha256').update(key).digest('hex')} -->`;
+}
 
 /**
  * Whether the current process is running inside GitHub Actions.
@@ -37,7 +43,7 @@ export async function getPullRequestNumber(): Promise<number | undefined> {
       issue?: { number?: number };
     };
     const number = payload.pull_request?.number ?? payload.issue?.number;
-    return typeof number === 'number' && number > 0 ? number : undefined;
+    return Number.isSafeInteger(number) && number! > 0 ? number : undefined;
   } catch {
     return undefined;
   }
@@ -70,7 +76,7 @@ export function buildGitHubSummaryMarkdown(
   const dimensions = activeDimensions(excludeDimensions);
 
   const lines: string[] = [
-    '## playswag — API Coverage Report',
+    `## playswag — API Coverage Report${config.reportName ? ` · ${config.reportName.replace(/[\r\n<>`]/g, ' ')}` : ''}`,
     '',
     `| Dimension | Covered | Total | % |`,
     `|-----------|--------:|------:|---|`,
@@ -139,20 +145,26 @@ export function buildGitHubSummaryMarkdown(
   return lines.join('\n');
 }
 
-function buildPullRequestCommentBody(summaryMarkdown: string): string {
+function buildPullRequestCommentBody(summaryMarkdown: string, marker: string): string {
   const server = process.env['GITHUB_SERVER_URL'] ?? 'https://github.com';
   const repo = process.env['GITHUB_REPOSITORY'];
   const runId = process.env['GITHUB_RUN_ID'];
   const footer = repo && runId
-    ? `\n\n---\n_${PR_COMMENT_MARKER} · [View workflow run](${server}/${repo}/actions/runs/${runId})_`
-    : `\n\n---\n_${PR_COMMENT_MARKER}_`;
+    ? `\n\n---\n${marker}\n[View workflow run](${server}/${repo}/actions/runs/${runId})`
+    : `\n\n---\n${marker}`;
 
-  return `${summaryMarkdown}${footer}`;
+  // Stay below GitHub's 65,536 character limit while retaining the update marker.
+  const budget = 60_000 - footer.length;
+  const summary = summaryMarkdown.length > budget
+    ? `${summaryMarkdown.slice(0, budget - 100)}\n\n_Report truncated; see the complete workflow artifacts._`
+    : summaryMarkdown;
+  return `${summary}${footer}`;
 }
 
 interface GitHubIssueComment {
   id: number;
   body?: string;
+  user?: { login?: string };
 }
 
 /**
@@ -186,7 +198,7 @@ export async function writeStepSummary(
   const content = buildGitHubSummaryMarkdown(result, violations, config, delta, excludeDimensions);
 
   try {
-    await appendFile(summaryPath, content, 'utf8');
+    await appendFile(summaryPath, `${content}\n\n`, 'utf8');
   } catch (err) {
     log.warn(`Could not write to $GITHUB_STEP_SUMMARY: ${(err as Error).message}`);
   }
@@ -216,8 +228,10 @@ export async function writePullRequestComment(
   }
 
   const apiBase = process.env['GITHUB_API_URL'] ?? 'https://api.github.com';
+  const marker = pullRequestCommentMarker(config.commentKey);
   const body = buildPullRequestCommentBody(
     buildGitHubSummaryMarkdown(result, violations, config, delta, excludeDimensions),
+    marker,
   );
 
   const headers = {
@@ -227,44 +241,65 @@ export async function writePullRequestComment(
     'Content-Type': 'application/json',
   };
 
+  const timeoutMs = config.timeoutMs ?? 15_000;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2_147_483_647) {
+    log.warn('GitHub comment timeoutMs must be positive and no greater than 2147483647');
+    return;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const request = (url: string, init: RequestInit = {}) => fetch(url, {
+    ...init, headers, signal: controller.signal, redirect: 'error',
+  });
   try {
-    const listUrl = `${apiBase}/repos/${repository}/issues/${prNumber}/comments?per_page=100`;
-    const listRes = await fetch(listUrl, { headers });
-    if (!listRes.ok) {
-      log.warn(`Could not list PR comments (${listRes.status}): ${await listRes.text()}`);
-      return;
+    let existing: GitHubIssueComment | undefined;
+    for (let page = 1; page <= 100; page++) {
+      const listUrl = `${apiBase}/repos/${repository}/issues/${prNumber}/comments?per_page=100${page > 1 ? `&page=${page}` : ''}`;
+      const listRes = await request(listUrl);
+      if (!listRes.ok) {
+        log.warn(`Could not list PR comments (HTTP ${listRes.status})`);
+        return;
+      }
+      const comments: unknown = await listRes.json();
+      if (!Array.isArray(comments)) throw new Error('Invalid GitHub comments response');
+      existing = (comments as GitHubIssueComment[]).find((c) =>
+        c && Number.isSafeInteger(c.id) && c.id > 0 && typeof c.body === 'string'
+        && c.body.includes(marker) && c.user?.login === (config.commentAuthor ?? 'github-actions[bot]'));
+      if (existing || comments.length < 100) break;
+      if (page === 100) throw new Error('PR comment pagination limit exceeded');
     }
-
-    const comments = (await listRes.json()) as GitHubIssueComment[];
-    const existing = comments.find((c) => c.body?.includes(PR_COMMENT_MARKER));
 
     if (existing) {
       const patchUrl = `${apiBase}/repos/${repository}/issues/comments/${existing.id}`;
-      const patchRes = await fetch(patchUrl, {
+      const patchRes = await request(patchUrl, {
         method: 'PATCH',
-        headers,
         body: JSON.stringify({ body }),
       });
       if (!patchRes.ok) {
-        log.warn(`Could not update PR comment (${patchRes.status}): ${await patchRes.text()}`);
+        log.warn(`Could not update PR comment (HTTP ${patchRes.status})`);
         return;
       }
+      await patchRes.body?.cancel();
       log.info(`Updated API coverage comment on PR #${prNumber}`);
       return;
     }
 
     const createUrl = `${apiBase}/repos/${repository}/issues/${prNumber}/comments`;
-    const createRes = await fetch(createUrl, {
+    const createRes = await request(createUrl, {
       method: 'POST',
-      headers,
       body: JSON.stringify({ body }),
     });
     if (!createRes.ok) {
-      log.warn(`Could not create PR comment (${createRes.status}): ${await createRes.text()}`);
+      log.warn(`Could not create PR comment (HTTP ${createRes.status})`);
       return;
     }
+    await createRes.body?.cancel();
     log.info(`Posted API coverage comment on PR #${prNumber}`);
   } catch (err) {
     log.warn(`Could not post PR comment: ${(err as Error).message}`);
+  } finally {
+    clearTimeout(timer);
+    // Cancel any unread error response body as well as its underlying connection.
+    controller.abort();
   }
 }

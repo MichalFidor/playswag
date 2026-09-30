@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import type { CoverageResult } from '../../src/types.js';
 
 const execFileAsync = promisify(execFile);
-const CLI_PATH = join(import.meta.dirname, '../../src/cli.ts');
+const CLI_PATH = join(import.meta.dirname, '../../dist/esm/cli.js');
 
 function makeResult(overrides: Partial<CoverageResult> = {}): CoverageResult {
   return {
@@ -57,9 +57,9 @@ function makeResult(overrides: Partial<CoverageResult> = {}): CoverageResult {
 async function runCli(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
     const { stdout, stderr } = await execFileAsync(
-      'npx',
-      ['tsx', CLI_PATH, ...args],
-      { cwd: join(import.meta.dirname, '../..') }
+      process.execPath,
+      [CLI_PATH, ...args],
+      { cwd: join(import.meta.dirname, '../..'), timeout: 10_000, env: { ...process.env, GITHUB_ACTIONS: 'false' } }
     );
     return { stdout, stderr, code: 0 };
   } catch (err) {
@@ -79,6 +79,35 @@ afterEach(async () => {
 });
 
 describe('CLI merge command', () => {
+  it('writes compact JSON with --no-pretty', async () => {
+    const file1 = join(tmpDir, 'a.json');
+    const file2 = join(tmpDir, 'b.json');
+    const output = join(tmpDir, 'compact.json');
+    await writeFile(file1, JSON.stringify(makeResult()));
+    await writeFile(file2, JSON.stringify(makeResult()));
+    expect((await runCli(['merge', file1, file2, '--no-pretty', '-o', output])).code).toBe(0);
+    expect(await readFile(output, 'utf8')).not.toContain('\n');
+  });
+
+  it('reports argument errors without an unhandled stack trace', async () => {
+    const result = await runCli(['--unknown-option']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('[playswag]');
+    expect(result.stderr).toContain('usage');
+    expect(result.stderr).not.toContain('node:internal');
+  });
+
+  it('rejects a nested malformed report before creating output', async () => {
+    const file1 = join(tmpDir, 'bad.json');
+    const file2 = join(tmpDir, 'valid.json');
+    const output = join(tmpDir, 'output.json');
+    await writeFile(file1, JSON.stringify({ ...makeResult(), operations: [null] }));
+    await writeFile(file2, JSON.stringify(makeResult()));
+    const result = await runCli(['merge', file1, file2, '-o', output, '--html']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('Invalid playswag coverage report');
+    await expect(readFile(output)).rejects.toThrow(/ENOENT/);
+  });
   it('shows help with --help flag', async () => {
     const { stdout, code } = await runCli(['--help']);
     expect(code).toBe(0);

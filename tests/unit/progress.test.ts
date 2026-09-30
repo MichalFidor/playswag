@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { startProgress } from '../../src/output/progress.js';
 
 describe('startProgress', () => {
@@ -6,7 +6,7 @@ describe('startProgress', () => {
   let originalNoColor: string | undefined;
   let originalForceColor: string | undefined;
   let originalIsTTY: boolean | undefined;
-  let writeSpy: ReturnType<typeof vi.spyOn>;
+  let writeSpy: MockInstance<typeof process.stdout.write>;
 
   beforeEach(() => {
     originalCI = process.env['CI'];

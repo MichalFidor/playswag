@@ -22,7 +22,13 @@ Everything exported from `@michalfidor/playswag`.
 |---|---|---|
 | `mergeCoverageResults(...results)` | function | Merge 2+ `CoverageResult` objects into one. See [CI integration — Merging reports](./ci-integration.md#merging-coverage-reports). |
 | `calculateCoverage(hits, spec, options)` | function | Compute coverage from raw hits + a parsed spec. Useful for custom pipelines that bypass the reporter. |
-| `parseSpecs(sources)` | async function | Parse one or more OpenAPI/Swagger spec files into a `NormalizedSpec`. |
+| `parseSpecs(sources, options?)` | async function | Parse one or more OpenAPI/Swagger spec files into a `NormalizedSpec`. |
+
+`parseSpecs` accepts `ParseSpecOptions` with `allowedSpecHosts`, `allowPrivateHosts`, `specFetchTimeoutMs` and `maxSpecBytes`. Relative OpenAPI server URLs resolve against the remote specification URL; local specs resolve them from an origin root. Operation-level servers override path-level servers, which override document-level servers. An explicit `/` override removes an inherited prefix.
+
+`calculateCoverage` supports `schemaDepth` (default `3`, integer range `1–10`). Array property paths use `[]`, for example `[].id` and `users[].email`; values from all array elements contribute to presence coverage. Schema-defined properties remain in the denominator when the body or all hits are absent. Request-only and response-only fields respect `writeOnly` and `readOnly`. Response properties use the selected documented response key (`200`, `2XX` or `default`) as `statusCode`, matching status coverage.
+
+Both functions throw descriptive errors when schema complexity exceeds the fixed resource limits described in [Configuration](./configuration.md#schema-coverage-and-resource-limits). Custom callers should handle these errors; the reporter applies `failOnSpecError`.
 
 ---
 

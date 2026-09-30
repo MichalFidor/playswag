@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -32,7 +32,8 @@ function makeResult(pct = 80, ts = '2025-01-01T00:00:00.000Z') {
     operations: [],
     uncoveredOperations: [],
     unmatchedHits: [],
-  } as CoverageResult;
+    acknowledgedHits: [],
+  } satisfies CoverageResult;
 }
 
 let tmpDir: string;
@@ -116,6 +117,26 @@ describe('compareCoverage', () => {
 // ─── appendToHistory / loadLastEntry / loadAllEntries ───────────────────────
 
 describe('appendToHistory and loadLastEntry', () => {
+  it('ignores malformed history instead of passing attacker-controlled metrics to renderers', async () => {
+    const malformed = { timestamp: '2025-01-01', specFiles: [], summary: { endpoints: { total: '<img>', covered: 0, percentage: 0 } } };
+    await writeFile(join(tmpDir, 'playswag-history.json'), JSON.stringify([malformed]));
+    expect(await loadAllEntries(tmpDir)).toEqual([]);
+    await appendToHistory(makeResult(80), tmpDir);
+    expect(await loadAllEntries(tmpDir)).toHaveLength(1);
+  });
+
+  it.each([0, -1, 1.5, Infinity, NaN, 10_001])('rejects invalid history limit %s', async (maxEntries) => {
+    await expect(appendToHistory(makeResult(), tmpDir, { maxEntries })).rejects.toThrow(/maxEntries/);
+  });
+
+  it('supports legacy entries without response-property metrics and trims reads', async () => {
+    const { responseProperties: _responseProperties, ...summary } = makeSummary(80);
+    const entry = { timestamp: '2025-01-01', specFiles: [], summary };
+    await writeFile(join(tmpDir, 'playswag-history.json'), JSON.stringify([entry, entry, entry]));
+    const entries = await loadAllEntries(tmpDir, { maxEntries: 2 });
+    expect(entries).toHaveLength(2);
+    expect(entries[0]?.summary.responseProperties).toEqual({ total: 0, covered: 0, percentage: 100 });
+  });
   it('returns null when no history file exists', async () => {
     const entry = await loadLastEntry(tmpDir);
     expect(entry).toBeNull();

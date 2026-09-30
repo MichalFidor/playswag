@@ -116,16 +116,16 @@ interface PlayswagConfiguration {
   /** Allow fetching specs from localhost/private networks. @default false */
   allowPrivateHosts?: boolean;
 
-  /** Remote spec / $ref HTTP timeout in ms. @default 15000 */
+  /** Remote spec / $ref deadline including DNS, redirects and body in ms. @default 15000 */
   specFetchTimeoutMs?: number;
 
-  /** Max bytes per remote spec / $ref response. @default 5242880 */
+  /** Max bytes per remote spec / $ref response, both compressed and decoded. @default 5242880 */
   maxSpecBytes?: number;
 
-  /** Max schema property depth for body/response coverage. @default 3 */
+  /** Max schema property depth, integer 1–10; non-finite values use 3. @default 3 */
   schemaDepth?: number;
 
-  /** Max bytes read per response body in the fixture. @default 262144 */
+  /** Max response body bytes retained for coverage. @default 262144 */
   maxResponseBodyBytes?: number;
 
   /** Header names redacted in recorded hits. */
@@ -138,6 +138,16 @@ interface PlayswagConfiguration {
   maxHitsPerTest?: number;
 }
 ```
+
+## Schema coverage and resource limits
+
+`schemaDepth` counts property nesting: `user` is depth 1 and `user.name` is depth 2. Arrays do not add a property level. An array of users exposes `[].id`; a `users` array inside an object exposes `users[].id`. Each property is covered when it is present in any matching array element, including later elements. Empty arrays and operations with no hits retain their schema properties as uncovered. Request coverage excludes `readOnly` fields; response coverage excludes `writeOnly` fields. Literal property names containing dots or brackets use JSON bracket notation, for example `["user.name"]` and `["items[]"]`, so they remain distinct from nested properties and array items.
+
+Response status and property coverage resolve the same documented response in this order: the exact status (for example `201`), its class (`2XX`), then `default`. A hit covers only the selected definition. An exact response without a schema does not inherit a schema from `2XX` or `default`.
+
+Shared schemas are memoized. Schema normalization permits up to 100,000 visits and 128 structural levels. Property analysis permits 100,000 visits, 128 structural levels and 10,000 unique properties per schema expansion; body inspection permits 1,000,000 visits per analysis. Exceeding a limit reports a spec/coverage error rather than publishing partial coverage. `failOnSpecError` controls whether these errors fail the run (enabled by default when `CI=true`).
+
+For remote specs and HTTP references, `specFetchTimeoutMs` covers DNS resolution, all redirects and reading the response body. `maxSpecBytes` limits both wire bytes and decompressed bytes while streaming. A parser invocation permits at most 1,024 HTTP documents, 64 MiB of decoded HTTP content in total and eight simultaneous HTTP reads. These fixed limits are shared across the entire reference graph; exhausting a budget cancels active downloads and rejects queued references. Local file references do not consume this HTTP budget. Each HTTP reference is checked against `allowedSpecHosts`; references inside remote documents cannot read local files, even when the root spec is local.
 
 ## Disable without config changes
 
@@ -165,6 +175,8 @@ test.use({
   maxHitsPerTest: 500,
 });
 ```
+
+With default redaction, URL credentials/fragments and all query values are removed from recorded hits. Query names and cookie names remain available for coverage; cookie values are hidden. JSON strings/Buffers are decoded before field redaction; opaque payload values are hidden. Request options are not mutated. The fixture retains at most 10 MiB of serialized hits per test (in addition to `maxHitsPerTest`), warning when excess hits are skipped. `maxAttachmentBytes` independently bounds reporter reads.
 
 ## Console output options
 
@@ -217,7 +229,7 @@ badge?: {
 
 ## History options
 
-See [Coverage history](./coverage-history.md) for full details.
+See [Coverage history](./coverage-history.md) for full details. `history.maxEntries` must be an integer from 1 to 10,000. Invalid or oversized history files are rejected with a warning.
 
 ```ts
 history?: {

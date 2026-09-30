@@ -38,6 +38,7 @@ function makeResult(overrides: Partial<CoverageResult> = {}): CoverageResult {
     uncoveredOperations: [],
     unmatchedHits: [],
     tagCoverage: {},
+    acknowledgedHits: [],
     ...overrides,
   };
 }

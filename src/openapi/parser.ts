@@ -10,7 +10,6 @@ import type {
 import { log } from '../log.js';
 import {
   assertRemoteSpecHostsRequired,
-  assertSpecUrlAllowed,
   isRemoteSpecSource,
 } from '../utils/spec-security.js';
 import { buildSecureSwaggerParserOptions } from './swagger-options.js';
@@ -30,45 +29,57 @@ function isV2(doc: OpenAPI.Document): doc is OpenAPIV2.Document {
   return 'swagger' in doc && (doc as OpenAPIV2.Document).swagger?.startsWith('2');
 }
 
-/** Best-effort schema extraction from a possibly-dereferenced schema object. */
-function extractSchema(schema: unknown): NormalizedSchema | undefined {
-  if (!schema || typeof schema !== 'object') return undefined;
-  const s = schema as Record<string, unknown>;
-  const result: NormalizedSchema = {};
+/** Normalize each schema object once, preserving shared references without expanding a DAG. */
+function createSchemaExtractor(): (schema: unknown) => NormalizedSchema | undefined {
+  const memo = new WeakMap<object, NormalizedSchema>();
+  let work = 0;
 
-  if (typeof s['type'] === 'string') result.type = s['type'];
-
-  if (s['properties'] && typeof s['properties'] === 'object') {
-    const props: Record<string, NormalizedSchema> = {};
-    for (const [key, val] of Object.entries(s['properties'] as object)) {
-      const extracted = extractSchema(val);
-      if (extracted) props[key] = extracted;
+  function extract(schema: unknown, depth: number): NormalizedSchema | undefined {
+    if (++work > 100_000 || depth > 128) {
+      throw new Error('OpenAPI schema exceeds normalization complexity limit (100000 visits / 128 levels)');
     }
-    if (Object.keys(props).length > 0) result.properties = props;
-  }
+    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return undefined;
+    const cached = memo.get(schema);
+    if (cached) return cached;
+    const s = schema as Record<string, unknown>;
+    const result: NormalizedSchema = {};
+    // Install the result before visiting children: recursive schemas stay finite graphs.
+    memo.set(schema, result);
 
-  if (Array.isArray(s['required'])) {
-    result.required = s['required'] as string[];
-  }
+    if (typeof s['type'] === 'string') result.type = s['type'];
+    if (typeof s['readOnly'] === 'boolean') result.readOnly = s['readOnly'];
+    if (typeof s['writeOnly'] === 'boolean') result.writeOnly = s['writeOnly'];
 
-  if (s['items']) {
-    const items = extractSchema(s['items']);
-    if (items) result.items = items;
-  }
-
-  for (const combiner of ['allOf', 'anyOf', 'oneOf'] as const) {
-    if (Array.isArray(s[combiner])) {
-      const schemas = (s[combiner] as unknown[]).map(extractSchema).filter(Boolean) as NormalizedSchema[];
-      if (schemas.length > 0) result[combiner] = schemas;
+    if (s['properties'] && typeof s['properties'] === 'object') {
+      const props: Record<string, NormalizedSchema> = Object.create(null);
+      for (const [key, val] of Object.entries(s['properties'])) {
+        const extracted = extract(val, depth + 1);
+        if (extracted) props[key] = extracted;
+      }
+      if (Object.keys(props).length > 0) result.properties = props;
     }
+    if (Array.isArray(s['required'])) {
+      result.required = s['required'].filter((name): name is string => typeof name === 'string');
+    }
+    if (s['items']) result.items = extract(s['items'], depth + 1);
+    for (const combiner of ['allOf', 'anyOf', 'oneOf'] as const) {
+      if (Array.isArray(s[combiner])) {
+        const schemas = s[combiner].map((child) => extract(child, depth + 1))
+          .filter((child): child is NormalizedSchema => child !== undefined);
+        if (schemas.length > 0) result[combiner] = schemas;
+      }
+    }
+    return result;
   }
-
-  return Object.keys(result).length ? result : undefined;
+  return (schema) => extract(schema, 0);
 }
+
+type SchemaExtractor = ReturnType<typeof createSchemaExtractor>;
 
 /** Normalize parameters from either OAS2 or OAS3 operation. */
 function normalizeParameters(
-  params: unknown[] | undefined
+  params: unknown[] | undefined,
+  extractSchema: SchemaExtractor
 ): NormalizedParameter[] {
   if (!params || !Array.isArray(params)) return [];
   const result: NormalizedParameter[] = [];
@@ -97,12 +108,15 @@ function normalizeParameters(
 
 /** Extract responses from an operation, including response body schema. */
 function normalizeResponses(
-  rawResponses: unknown
+  rawResponses: unknown,
+  extractSchema: SchemaExtractor
 ): Record<string, NormalizedResponse> {
   if (!rawResponses || typeof rawResponses !== 'object') return {};
   const result: Record<string, NormalizedResponse> = {};
 
   for (const [code, raw] of Object.entries(rawResponses as object)) {
+    // Specification extensions are allowed here, but are not response denominators.
+    if (!/^(?:[1-5]\d{2}|[1-5]XX|default)$/.test(code)) continue;
     if (!raw || typeof raw !== 'object') continue;
     const r = raw as Record<string, unknown>;
 
@@ -127,7 +141,7 @@ function normalizeResponses(
 }
 
 /** Extract request body schema from an OAS3 requestBody. */
-function extractRequestBodySchema(requestBody: unknown): NormalizedSchema | undefined {
+function extractRequestBodySchema(requestBody: unknown, extractSchema: SchemaExtractor): NormalizedSchema | undefined {
   if (!requestBody || typeof requestBody !== 'object') return undefined;
   const rb = requestBody as Record<string, unknown>;
 
@@ -145,7 +159,7 @@ function extractRequestBodySchema(requestBody: unknown): NormalizedSchema | unde
 }
 
 /** Extract the base path from an OAS3 servers array (first entry only). */
-function extractServerBasePath(servers: unknown): string | undefined {
+function extractServerBasePath(servers: unknown, source?: string): string | undefined {
   if (!Array.isArray(servers) || servers.length === 0) return undefined;
   const first = (servers as Array<Record<string, unknown>>)[0];
   let url = typeof first?.['url'] === 'string' ? first['url'] : undefined;
@@ -157,7 +171,7 @@ function extractServerBasePath(servers: unknown): string | undefined {
     const vars = variables as Record<string, { default?: string }>;
     url = url.replace(/\{([^}]+)\}/g, (_, name: string) => {
       const v = vars[name];
-      if (!v?.default) {
+      if (v?.default === undefined) {
         log.warn(`[playswag] Server URL variable "{${name}}" has no default — using literal placeholder`);
         return `{${name}}`;
       }
@@ -166,7 +180,10 @@ function extractServerBasePath(servers: unknown): string | undefined {
   }
 
   try {
-    const pathname = new URL(url).pathname;
+    // Relative servers resolve against the specification location; local specs use
+    // an origin-only base because their filesystem directory is not an API path.
+    const base = source && isRemoteSpecSource(source) ? source : 'https://playswag.invalid/';
+    const pathname = new URL(url, base).pathname;
     const normalized = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
     return normalized && normalized !== '/' ? normalized : undefined;
   } catch (err) {
@@ -180,21 +197,22 @@ function resolveServerBasePath(
   operation: OpenAPIV3.OperationObject,
   pathItem: OpenAPIV3.PathItemObject,
   docServers: unknown,
-  docDefault?: string
+  source?: string
 ): string | undefined {
   const servers =
     operation.servers ??
     pathItem.servers ??
     docServers;
-  return extractServerBasePath(servers) ?? docDefault;
+  return extractServerBasePath(servers, source);
 }
 
 /** Convert a parsed/dereferenced OAS3 document into NormalizedOperations. */
 function normalizeV3(
-  doc: OpenAPIV3.Document | OpenAPIV3_1.Document
+  doc: OpenAPIV3.Document | OpenAPIV3_1.Document,
+  source: string
 ): NormalizedOperation[] {
   const operations: NormalizedOperation[] = [];
-  const docServerBasePath = extractServerBasePath(doc.servers);
+  const extractSchema = createSchemaExtractor();
 
   for (const [pathTemplate, pathItem] of Object.entries(doc.paths ?? {})) {
     if (!pathItem) continue;
@@ -209,8 +227,8 @@ function normalizeV3(
       if (!op || typeof op !== 'object') continue;
       const operation = op as OpenAPIV3.OperationObject;
 
-      const pathParams = normalizeParameters(pathItemObj.parameters as unknown[] | undefined);
-      const opParams = normalizeParameters(operation.parameters as unknown[] | undefined);
+      const pathParams = normalizeParameters(pathItemObj.parameters as unknown[] | undefined, extractSchema);
+      const opParams = normalizeParameters(operation.parameters as unknown[] | undefined, extractSchema);
       const paramMap = new Map<string, NormalizedParameter>();
       for (const p of [...pathParams, ...opParams]) {
         paramMap.set(`${p.in}:${p.name}`, p);
@@ -223,9 +241,9 @@ function normalizeV3(
         tags: operation.tags,
         deprecated: Boolean(operation.deprecated),
         parameters: Array.from(paramMap.values()),
-        requestBodySchema: extractRequestBodySchema(operation.requestBody),
-        responses: normalizeResponses(operation.responses),
-        serverBasePath: resolveServerBasePath(operation, pathItemObj, doc.servers, docServerBasePath),
+        requestBodySchema: extractRequestBodySchema(operation.requestBody, extractSchema),
+        responses: normalizeResponses(operation.responses, extractSchema),
+        serverBasePath: resolveServerBasePath(operation, pathItemObj, doc.servers, source),
       });
     }
   }
@@ -235,6 +253,7 @@ function normalizeV3(
 
 function normalizeV2(doc: OpenAPIV2.Document): NormalizedOperation[] {
   const operations: NormalizedOperation[] = [];
+  const extractSchema = createSchemaExtractor();
   const methods = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'];
 
   for (const [pathTemplate, pathItem] of Object.entries(doc.paths ?? {})) {
@@ -246,10 +265,10 @@ function normalizeV2(doc: OpenAPIV2.Document): NormalizedOperation[] {
       const operation = op as OpenAPIV2.OperationObject;
 
       const pathParams = normalizeParameters(
-        (pathItem as OpenAPIV2.PathItemObject).parameters as unknown[] | undefined
+        (pathItem as OpenAPIV2.PathItemObject).parameters as unknown[] | undefined, extractSchema
       );
       const allOpParams = normalizeParameters(
-        operation.parameters as unknown[] | undefined
+        operation.parameters as unknown[] | undefined, extractSchema
       );
 
       const bodyParam = (operation.parameters as unknown[] | undefined)?.find(
@@ -270,7 +289,7 @@ function normalizeV2(doc: OpenAPIV2.Document): NormalizedOperation[] {
         deprecated: Boolean((operation as Record<string, unknown>)['deprecated']),
         parameters: Array.from(paramMap.values()),
         requestBodySchema: bodyParam ? extractSchema(bodyParam.schema) : undefined,
-        responses: normalizeResponses(operation.responses),
+        responses: normalizeResponses(operation.responses, extractSchema),
       });
     }
   }
@@ -327,9 +346,6 @@ async function parseOne(source: string, options?: ParseSpecOptions): Promise<Par
     allowPrivateHosts: options?.allowPrivateHosts,
   };
   const remoteRoot = isRemoteSpecSource(resolvedSource);
-  if (remoteRoot) {
-    await assertSpecUrlAllowed(resolvedSource, security);
-  }
   const parserOptions = buildSecureSwaggerParserOptions({
     ...security,
     specFetchTimeoutMs: options?.specFetchTimeoutMs,
@@ -349,11 +365,11 @@ async function parseOne(source: string, options?: ParseSpecOptions): Promise<Par
     return { operations, serverBasePath };
   } else {
     const v3 = doc as OpenAPIV3.Document;
-    const serverBasePath = extractServerBasePath(v3.servers);
+    const serverBasePath = extractServerBasePath(v3.servers, resolvedSource);
     if (process.env['PLAYSWAG_DEBUG']) {
       console.log(`[playswag:debug] parseOne (OAS3) "${source}" -> servers[0].url: ${(v3.servers?.[0] as Record<string, unknown> | undefined)?.['url'] ?? '(none)'}, serverBasePath: ${serverBasePath ?? '(none)'}`);
     }
-    const operations = normalizeV3(v3);
+    const operations = normalizeV3(v3, resolvedSource);
     if (process.env['PLAYSWAG_DEBUG']) {
       const withRespSchema = operations.filter(op => Object.values(op.responses).some(r => r.schema != null)).length;
       const totalRespCodes = operations.reduce((sum, op) => sum + Object.keys(op.responses).length, 0);

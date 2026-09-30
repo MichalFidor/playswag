@@ -23,10 +23,13 @@ Thank you for considering contributing! This document covers everything you need
 git clone https://github.com/MichalFidor/playswag.git
 cd playswag
 
-# Install dependencies
-npm install
+# Use Node 24 for development, then install locked dependencies
+npm ci
 
-# Run unit tests
+# Run the same full validation as CI
+npm run validate
+
+# Or run just unit tests (builds the package first)
 npm test
 
 # Type-check (no emitting)
@@ -68,7 +71,7 @@ The script will:
    ```
 2. Make your changes, keeping the [coding conventions](#code-style--conventions) in mind.
 3. Add or update **unit tests** in `tests/unit/`. Every new exported function must have test coverage.
-4. Ensure `npm test` and `npm run typecheck` both pass with no errors.
+4. Ensure `npm run validate` and `npm audit --audit-level=high` pass. Validation checks source, test and config types, lint, V8 coverage, integration/examples and an isolated npm tarball consumer. CLI tests run the built CLI without downloading a runner.
 5. Open a pull request against `main` with a clear description of *what* changed and *why*.
 
 ---
@@ -143,15 +146,19 @@ A human only needs to:
    git push && git push --tags
    ```
 4. The workflow triggers automatically on any `v*.*.*` tag:
-   - Runs type-check, unit tests, and build.
+   - Reuses the complete CI validation, including the external examples pinned by commit and the Petstore image pinned by digest.
+   - Tests the packed consumer with current and minimum supported Playwright; checks runtime imports on Node 20.0.0, 22 and 24.
    - Verifies that the tag matches `package.json` version.
    - Publishes to [npm](https://www.npmjs.com/package/@michalfidor/playswag) via **trusted publishing** (OIDC + `--provenance`).
-   - Creates a GitHub Release with an auto-generated changelog.
+   - Publishes the exact validated tarball and creates the GitHub Release only after npm publication succeeds. A matching changelog entry is required.
 
 > **Before releasing**, configure npm **Trusted Publisher** for this repo  
-> (`npmjs.com` → package `@michalfidor/playswag` → **Settings → Trusted Publisher** → GitHub Actions, workflow `Release`, environment blank, tag pattern `v*`).  
-> Workflows try OIDC first; `NPMJS_TOKEN` (Automation token) is used as a fallback until trusted publishing is configured.  
-> npm is [deprecating 2FA-bypass GAT direct publishing](https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/) — plan to drop the token fallback once OIDC works.
+> (`npmjs.com` → package `@michalfidor/playswag` → **Settings → Trusted Publisher** → GitHub Actions, workflow filename `release.yml`). Configure `republish-npm.yml` separately if recovery publishing is needed. See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/). There is no automatic token fallback.
+> Run recovery on that same tag, for example `gh workflow run republish-npm.yml --ref vX.Y.Z -f tag=vX.Y.Z`; mismatched dispatch and input refs are rejected so provenance identifies the published source. Recovery validates the selected tag with the same CI workflow and therefore requires that tag to contain the current validation scripts. Older tags fail validation instead of bypassing it.
+
+CI performs the full suite once on Node 24, followed by lightweight runtime checks on Node 20.0.0 and 22. V8 minimums are 85% lines/functions, 80% statements and 75% branches. CLI subprocess tests provide behavioral coverage; their lines are not instrumented by the parent V8 run.
+
+When adopting this workflow, update required branch checks to `Validate package`; old `Test (Node …)` and `Smoke — playswag-examples repo` contexts no longer exist. Keep the separately configured CodeQL check enabled.
 
 ---
 
@@ -189,7 +196,7 @@ src/
   types.ts               – all shared TypeScript interfaces
 
 tests/
-  unit/                  – vitest (no Playwright, no network)
+  unit/                  – vitest, with isolated filesystem and localhost transport regressions
   integration/           – full Playwright tests against a mock HTTP server
 ```
 

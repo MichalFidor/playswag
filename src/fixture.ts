@@ -9,10 +9,12 @@ import {
 } from '@playwright/test';
 import type { AcknowledgedService, EndpointHit, PlayswagFixtureOptions } from './types.js';
 import { ATTACHMENT_NAME } from './constants.js';
-import { safeJsonStringify } from './utils/safe-json.js';
+import { DEFAULT_MAX_JSON_BYTES, isEndpointHit, safeJsonStringify } from './utils/safe-json.js';
 import {
   DEFAULT_REDACT_BODY_FIELDS,
   redactSensitiveFields,
+  redactRequestBody,
+  redactUrl,
 } from './utils/redact-body.js';
 import { isPlayswagDisabled } from './utils/env.js';
 import { log } from './log.js';
@@ -31,6 +33,7 @@ export const DEFAULT_REDACT_HEADERS = [
 
 export const DEFAULT_MAX_RESPONSE_BODY_BYTES = 256 * 1024;
 export const DEFAULT_MAX_HITS_PER_TEST = 500;
+const recordedBytes = new WeakMap<EndpointHit[], number>();
 
 export { DEFAULT_REDACT_BODY_FIELDS, redactSensitiveFields } from './utils/redact-body.js';
 
@@ -57,7 +60,13 @@ export function redactHeaders(
   return Object.fromEntries(
     Object.entries(headers).map(([k, v]) => [
       k,
-      redact.has(k.toLowerCase()) ? '[REDACTED]' : v,
+      redact.has(k.toLowerCase())
+        ? k.toLowerCase() === 'cookie'
+          ? v.split(';').filter((pair) => pair.includes('=')).map((pair) => pair.trim().split('=', 1)[0]!)
+            .filter((name) => /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name))
+            .map((name) => `${name}=[REDACTED]`).join('; ') || '[REDACTED]'
+          : '[REDACTED]'
+        : v,
     ])
   );
 }
@@ -88,6 +97,7 @@ export function buildTrackedRequest<T extends APIRequestContext>(
   const redactBodyFields = options.redactBodyFields ?? DEFAULT_REDACT_BODY_FIELDS;
   const maxHitsPerTest = options.maxHitsPerTest ?? DEFAULT_MAX_HITS_PER_TEST;
   let hitLimitWarned = false;
+  let byteLimitWarned = false;
 
   return new Proxy(original, {
     get(target, prop, receiver) {
@@ -109,6 +119,17 @@ export function buildTrackedRequest<T extends APIRequestContext>(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response: APIResponse = await (target[method] as any).call(target, urlOrRequest, opts);
 
+        if (hits.length >= maxHitsPerTest) {
+          if (!hitLimitWarned) {
+            hitLimitWarned = true;
+            log.warn(
+              `Max hits per test (${maxHitsPerTest}) reached — further API calls in this test are not recorded`,
+              'Raise maxHitsPerTest in test.use() or split the test'
+            );
+          }
+          return response;
+        }
+
         let queryParams: Record<string, string> | undefined;
         const rawParams = opts?.['params'];
         if (rawParams && typeof rawParams === 'object' && !Array.isArray(rawParams)) {
@@ -119,12 +140,15 @@ export function buildTrackedRequest<T extends APIRequestContext>(
         try {
           const urlSearchParams = new URL(response.url()).searchParams;
           if (urlSearchParams.size > 0) {
-            const fromUrl: Record<string, string> = {};
+            const fromUrl: Record<string, string> = Object.create(null);
             urlSearchParams.forEach((value, key) => { fromUrl[key] = value; });
             queryParams = { ...fromUrl, ...queryParams };
           }
         } catch {
           // Invalid URL — skip URL param extraction
+        }
+        if (queryParams) {
+          queryParams = Object.fromEntries(Object.keys(queryParams).map((key) => [key, '[REDACTED]']));
         }
 
         let headers: Record<string, string> | undefined;
@@ -143,7 +167,7 @@ export function buildTrackedRequest<T extends APIRequestContext>(
         let requestBody: unknown =
           opts?.['data'] ?? opts?.['form'] ?? opts?.['multipart'] ?? undefined;
         if (redactBody && requestBody !== undefined) {
-          requestBody = redactSensitiveFields(requestBody, redactBodyFields);
+          requestBody = redactRequestBody(requestBody, redactBodyFields);
         }
 
         let responseBody: unknown | undefined;
@@ -155,7 +179,9 @@ export function buildTrackedRequest<T extends APIRequestContext>(
               if (!contentType || /json|\+json/i.test(contentType)) {
                 responseBody = JSON.parse(raw.toString('utf8'));
                 if (redactBody) {
-                  responseBody = redactSensitiveFields(responseBody, redactBodyFields);
+                  responseBody = responseBody !== null && typeof responseBody === 'object'
+                    ? redactSensitiveFields(responseBody, redactBodyFields)
+                    : responseBody === null ? null : '[REDACTED]';
                 }
               }
             }
@@ -164,20 +190,11 @@ export function buildTrackedRequest<T extends APIRequestContext>(
           }
         }
 
-        if (hits.length >= maxHitsPerTest) {
-          if (!hitLimitWarned) {
-            hitLimitWarned = true;
-            log.warn(
-              `Max hits per test (${maxHitsPerTest}) reached — further API calls in this test are not recorded`,
-              'Raise maxHitsPerTest in test.use() or split the test'
-            );
-          }
-          return response;
-        }
-
-        hits.push({
+        // Other concurrent requests may have completed while the body was read.
+        if (hits.length >= maxHitsPerTest) return response;
+        const hit: EndpointHit = {
           method: httpMethod,
-          url: response.url(),
+          url: redactUrl(response.url()),
           statusCode: response.status(),
           requestBody,
           responseBody,
@@ -185,7 +202,20 @@ export function buildTrackedRequest<T extends APIRequestContext>(
           headers,
           testFile: testInfo.titlePath[0] ?? '',
           testTitle: testInfo.title,
-        });
+        };
+        const serialized = safeJsonStringify(hit);
+        const recorded: unknown = JSON.parse(serialized);
+        const bytes = (recordedBytes.get(hits) ?? 2) + Buffer.byteLength(serialized) + (hits.length > 0 ? 1 : 0);
+        if (bytes > DEFAULT_MAX_JSON_BYTES || !isEndpointHit(recorded)) {
+          if (!byteLimitWarned) {
+            byteLimitWarned = true;
+            log.warn('Hit attachment byte or structure limit reached — this API call was not recorded',
+              'Split the test or reduce the captured request and response bodies');
+          }
+          return response;
+        }
+        recordedBytes.set(hits, bytes);
+        hits.push(recorded);
 
         return response;
       };
@@ -259,7 +289,8 @@ export const test = base.extend<PlayswagOptions & PlayswagFixtures>({
 
     if (hits.length > 0) {
       await testInfo.attach(ATTACHMENT_NAME, {
-        body: Buffer.from(safeJsonStringify(hits), 'utf8'),
+        // Each hit has already been converted to bounded, cycle-free JSON.
+        body: Buffer.from(JSON.stringify(hits), 'utf8'),
         contentType: 'application/json',
       });
     }

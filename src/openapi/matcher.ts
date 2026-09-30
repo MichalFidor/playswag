@@ -1,5 +1,13 @@
 import type { NormalizedOperation } from '../types.js';
 
+function decodeSegment(segment: string): string {
+  try { return decodeURIComponent(segment); } catch { return segment; }
+}
+
+function hasPathPrefix(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
 interface MatchResult {
   operation: NormalizedOperation;
   pathParams: Record<string, string>;
@@ -41,7 +49,7 @@ export function buildOperationIndex(operations: NormalizedOperation[]): Operatio
     const first = segments[0];
     // Use the literal first segment as a narrow bucket key; fall back to '' for
     // parameterised first segments (e.g. "/{id}") or root paths ("/").
-    const key = `${op.method}:${(first && !first.startsWith('{')) ? first.toLowerCase() : ''}`;
+    const key = `${op.method}:${(first && !first.startsWith('{')) ? decodeSegment(first).toLowerCase() : ''}`;
     const bucket = buckets.get(key) ?? [];
     bucket.push(op);
     if (!buckets.has(key)) buckets.set(key, bucket);
@@ -63,39 +71,28 @@ export function stripToPath(url: string, baseURL?: string, serverBasePath?: stri
   let path: string;
 
   try {
-    const parsed = new URL(url);
-    try {
-      path = decodeURIComponent(parsed.pathname);
-    } catch {
-      path = parsed.pathname;
-    }
+    path = new URL(url).pathname;
   } catch {
-    // Not a full URL — treat the input as a raw path (e.g. "/api/users?q=1")
-    path = url.split('?')[0] ?? url;
-    try {
-      path = decodeURIComponent(path);
-    } catch {
-      // Malformed %-encoding — use raw path
-    }
+    path = url.split(/[?#]/)[0] ?? url;
   }
-
+  // Keep segment boundaries encoded until matching; %2F is data inside a segment.
+  let strippedBase = '';
   if (baseURL) {
     let basePath: string;
-    try {
-      basePath = new URL(baseURL).pathname;
-    } catch {
-      // baseURL is already a path-like string
-      basePath = baseURL;
-    }
-    const normBase = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath;
-    if (normBase && path.startsWith(normBase)) {
+    try { basePath = new URL(baseURL).pathname; } catch { basePath = baseURL; }
+    const normBase = basePath.replace(/\/+$/, '');
+    if (normBase && hasPathPrefix(path, normBase)) {
       path = path.slice(normBase.length) || '/';
+      strippedBase = normBase;
     }
   }
-
   if (serverBasePath) {
-    const normServer = serverBasePath.endsWith('/') ? serverBasePath.slice(0, -1) : serverBasePath;
-    if (normServer && path.startsWith(normServer)) {
+    let normServer = serverBasePath.replace(/\/+$/, '');
+    // A baseURL may already contain all or part of the server prefix.
+    if (strippedBase && hasPathPrefix(normServer, strippedBase)) {
+      normServer = normServer.slice(strippedBase.length);
+    }
+    if (normServer && hasPathPrefix(path, normServer)) {
       path = path.slice(normServer.length) || '/';
     }
   }
@@ -130,18 +127,18 @@ export function matchTemplate(
 
   if (recordedSegments.length !== templateSegments.length) return null;
 
-  const pathParams: Record<string, string> = {};
+  const pathParams: Record<string, string> = Object.create(null);
   let score = 0;
 
   for (let i = 0; i < templateSegments.length; i++) {
     const tSeg = templateSegments[i]!;
-    const rSeg = recordedSegments[i]!;
+    const rSeg = decodeSegment(recordedSegments[i]!);
 
     if (tSeg.startsWith('{') && tSeg.endsWith('}')) {
       const paramName = tSeg.slice(1, -1);
       pathParams[paramName] = rSeg;
     } else {
-      if (tSeg.toLowerCase() !== rSeg.toLowerCase()) return null;
+      if (decodeSegment(tSeg).toLowerCase() !== rSeg.toLowerCase()) return null;
       score += 1;
     }
   }
@@ -196,7 +193,7 @@ export function matchOperation(
   const catchAllKey = `${method}:`;
 
   for (const stripped of strippedByBase.values()) {
-    const firstSeg = stripped.split('/').filter(Boolean)[0]?.toLowerCase() ?? '';
+    const firstSeg = decodeSegment(stripped.split('/').filter(Boolean)[0] ?? '').toLowerCase();
     const literalKey = `${method}:${firstSeg}`;
     for (const op of index.buckets.get(literalKey) ?? []) candidates.add(op);
     for (const op of index.buckets.get(catchAllKey) ?? []) candidates.add(op);

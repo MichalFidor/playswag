@@ -59,10 +59,11 @@ config. The run fails at parse time if it is missing.
 |--------|----------|
 | `allowedSpecHosts` | **Required** for any HTTP spec / `$ref` fetch; supports `*.example.com` |
 | Private / loopback | Blocked unless `allowPrivateHosts: true` |
-| DNS rebinding | Hostnames resolved; private IPs rejected even when on allowlist |
+| DNS rebinding | Each connection uses only its validated DNS addresses; Host and TLS SNI retain the original hostname |
 | Redirects | Each hop validated against the same rules |
-| `file://` $refs | Disabled when the root spec is a remote URL |
-| Timeouts / size | `specFetchTimeoutMs` (15s), `maxSpecBytes` (5 MiB) per fetch |
+| Local references | Remote documents cannot reference local files, including in a local → remote → local chain |
+| Timeouts / size | One 15s deadline covers DNS, redirects and body; 5 MiB limits both wire and decompressed bytes while streaming |
+| HTTP reference graph | Per parse: at most 1,024 HTTP documents, 64 MiB decoded bytes in total, and eight concurrent reads; budget exhaustion aborts active reads and rejects queued references |
 
 Local spec files do not require an allowlist until they dereference an external HTTP URL.
 
@@ -87,13 +88,16 @@ Local spec files do not require an allowlist until they dereference an external 
 
 - Recorded hits are held in memory per worker (bounded by `maxHitsPerTest` and attachment size
   limits); extremely large suites may still require tuning those limits.
-- Body redaction uses key-name heuristics, not deep secret scanning — disable body capture if
-  secrets appear in non-standard field names.
+- JSON body redaction uses key-name heuristics, not deep secret scanning. Serialized JSON strings and Buffers are decoded before redaction; opaque payload values are hidden. Disable response capture if secrets appear in non-standard field names.
+- URL userinfo and fragments are removed, and all query values are redacted while parameter names remain available for coverage. Cookie values are hidden while cookie names are retained. API paths and non-sensitive JSON values remain visible.
+- The fixture retains at most 500 hits by default and at most 10 MiB of serialized hits per test. Excess data is skipped with a warning. The reporter independently validates and bounds attachment reads.
+- Schema normalization and analysis have explicit visit/depth/property budgets; a budget failure is a coverage error, governed by `failOnSpecError`. This does not make arbitrary third-party specifications safe to trust.
 
 ## Security Practices
 
 - Dependencies are monitored via [Dependabot](.github/dependabot.yml)
-- CI runs `npm audit --audit-level=high` and CodeQL static analysis
+- CI audits both the repository dependency tree and an isolated packed consumer. CodeQL is enabled separately through GitHub default setup.
+- Release validation reuses CI. Publishing uses the validated tarball, job-scoped permissions and npm OIDC with provenance; failures do not fall back to a long-lived npm token.
 - All PRs require passing CI checks before merge
-- Runtime dependencies are kept minimal and monitored via Dependabot (`@apidevtools/swagger-parser`, `chalk`, `cli-table3`, `openapi-types`, `picomatch`)
+- Runtime dependencies are kept minimal and monitored via Dependabot (`@apidevtools/swagger-parser`, `chalk`, `cli-table3`, `js-yaml`, `openapi-types`, `picomatch`)
 - HTML output is generated with proper escaping to prevent XSS
