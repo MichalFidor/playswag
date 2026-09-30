@@ -7,7 +7,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased]
+## [2.0.0] — 2026-09-30
 
 ### Security
 - Pin spec connections to validated DNS addresses; fail closed on DNS errors and unsafe IPs. Enforce deadlines and byte limits through redirects and decompression.
