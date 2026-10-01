@@ -133,19 +133,26 @@ Breaking change?   → bump MAJOR  e.g. 1.1.0 → 2.0.0
 ## Releasing a new version
 
 Releases are fully automated via the [release workflow](.github/workflows/release.yml).  
-A human only needs to:
-
-The required order is **pull request → review and approval → merge into main → release tag**. Prepare the version and changelog in the pull request. Create the tag on the merged commit; publishing and recovery workflows reject commits that are not ancestors of `main`. A recovery dispatch must run on the same tag it publishes so provenance identifies that source.
+A human only needs to follow the required order: **release preparation pull request → review and approval → merge into main → release tag**. Publishing and recovery workflows reject commits that are not ancestors of `main`. A recovery dispatch must run on the same tag it publishes so provenance identifies that source.
 
 1. **Decide the next version** using the table above.
-2. **Update `package.json`**:
+2. **Prepare the version and changelog in the pull request**, without creating a tag:
    ```bash
-   npm version patch   # or: minor / major
+  npm version X.Y.Z --no-git-tag-version
+  # Add the matching CHANGELOG.md section.
+  git add package.json package-lock.json CHANGELOG.md
+  git commit -m "chore: prepare vX.Y.Z"
+  git push
    ```
-   This bumps `package.json`, creates a git commit, and creates a local tag.
-3. **Push the commit and tag**:
+3. **Merge the pull request after all required checks pass.** Then validate and tag the merged `main` commit:
    ```bash
-   git push && git push --tags
+  git switch main
+  git pull --ff-only origin main
+  npm ci
+  npm run validate
+  npm audit --audit-level=high
+  git tag -a vX.Y.Z -m "vX.Y.Z"
+  git push origin vX.Y.Z
    ```
 4. The workflow triggers automatically on any `v*.*.*` tag:
    - Reuses the complete CI validation, including the external examples pinned by commit and the Petstore image pinned by digest.
