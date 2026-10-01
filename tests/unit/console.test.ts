@@ -32,6 +32,7 @@ function makeResult(
     uncoveredOperations: [],
     unmatchedHits: [],
     acknowledgedHits: [],
+    tagCoverage: {},
   };
 }
 
@@ -189,6 +190,7 @@ describe('printConsoleReport', () => {
           statusCodes: { '200': { covered: true, testRefs: [] } },
           parameters: [],
           bodyProperties: [],
+          responseProperties: [],
           testRefs: [],
         },
       ],

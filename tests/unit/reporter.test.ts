@@ -3,6 +3,16 @@ import PlayswagReporter from '../../src/reporter.js';
 import type { EndpointHit, PlayswagConfig, NormalizedSpec } from '../../src/types.js';
 import { ATTACHMENT_NAME } from '../../src/constants.js';
 
+type ReporterInternals = {
+  onBegin: PlayswagReporter['onBegin'];
+  onTestEnd: PlayswagReporter['onTestEnd'];
+  aggregatedHits: EndpointHit[];
+  config: PlayswagConfig;
+  baseURL?: string;
+  projectOverrides: Map<string, unknown>;
+  totalTestCount: number;
+};
+
 /**
  * Build a minimal Playwright TestCase stub.
  */
@@ -78,25 +88,25 @@ describe('PlayswagReporter', () => {
 
   describe('constructor defaults', () => {
     it('sets default outputDir', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       const config = r['config'] as PlayswagConfig;
       expect(config.outputDir).toBe('./playswag-coverage');
     });
 
     it('sets default outputFormats', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       const config = r['config'] as PlayswagConfig;
       expect(config.outputFormats).toEqual(['console', 'json']);
     });
 
     it('sets default failOnThreshold to false', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       const config = r['config'] as PlayswagConfig;
       expect(config.failOnThreshold).toBe(false);
     });
 
     it('preserves user-supplied outputDir', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml', outputDir: './custom' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml', outputDir: './custom' }) as unknown as ReporterInternals;
       const config = r['config'] as PlayswagConfig;
       expect(config.outputDir).toBe('./custom');
     });
@@ -125,7 +135,7 @@ describe('PlayswagReporter', () => {
 
   describe('onBegin', () => {
     it('extracts baseURL from first project when not configured', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       r['onBegin'](
         makeFullConfig([{ name: 'proj', use: { baseURL: 'http://my-api:8080' } }]),
         makeSuite()
@@ -133,8 +143,30 @@ describe('PlayswagReporter', () => {
       expect(r['baseURL']).toBe('http://my-api:8080');
     });
 
+    it('uses the selected enabled global project baseURL instead of an override or excluded project', () => {
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
+      const selected = [
+        { name: 'disabled', use: { playswagEnabled: false, baseURL: 'http://disabled.invalid' } },
+        { name: 'override', use: { playswagSpecs: './override.yaml', baseURL: 'http://override.invalid' } },
+        { name: 'global', use: { baseURL: 'http://selected.invalid' } },
+      ];
+      r.onBegin(makeFullConfig([{ name: 'excluded', use: { baseURL: 'http://excluded.invalid' } }, ...selected]), {
+        suites: selected.map((project) => ({ project: () => project })),
+      } as never);
+      expect(r.baseURL).toBe('http://selected.invalid');
+    });
+
+    it('does not apply an override baseURL to a global project with no baseURL', () => {
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
+      r.onBegin({ projects: [
+        { name: 'override', use: { playswagSpecs: './override.yaml', baseURL: 'http://override.invalid' } },
+        { name: 'global', use: {} },
+      ] } as never, makeSuite());
+      expect(r.baseURL).toBeUndefined();
+    });
+
     it('prefers config.baseURL over project baseURL', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml', baseURL: 'http://config-url' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml', baseURL: 'http://config-url' }) as unknown as ReporterInternals;
       r['onBegin'](
         makeFullConfig([{ name: 'proj', use: { baseURL: 'http://project-url' } }]),
         makeSuite()
@@ -145,7 +177,7 @@ describe('PlayswagReporter', () => {
 
   describe('onTestEnd', () => {
     it('aggregates hits from test attachments', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       const hits: EndpointHit[] = [
         { method: 'GET', url: 'http://localhost:3456/api/users', statusCode: 200, testFile: '', testTitle: '' },
       ];
@@ -154,7 +186,7 @@ describe('PlayswagReporter', () => {
     });
 
     it('fills testFile and testTitle from test location', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       const hits: EndpointHit[] = [
         { method: 'GET', url: 'http://localhost:3456/api/users', statusCode: 200, testFile: '', testTitle: '' },
       ];
@@ -165,7 +197,7 @@ describe('PlayswagReporter', () => {
     });
 
     it('tags hits with projectName', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       const hits: EndpointHit[] = [
         { method: 'GET', url: 'http://localhost:3456/api/users', statusCode: 200, testFile: '', testTitle: '' },
       ];
@@ -175,7 +207,7 @@ describe('PlayswagReporter', () => {
     });
 
     it('ignores attachments with wrong name', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       r['onTestEnd'](
         makeTestCase(),
         {
@@ -189,7 +221,7 @@ describe('PlayswagReporter', () => {
     });
 
     it('handles malformed JSON in attachment gracefully', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       r['onTestEnd'](
         makeTestCase(),
@@ -205,7 +237,7 @@ describe('PlayswagReporter', () => {
     });
 
     it('records projectOverrides when playswagSpecs is set in project use', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       const hits: EndpointHit[] = [
         { method: 'GET', url: 'http://localhost:3456/api/health', statusCode: 200, testFile: '', testTitle: '' },
       ];
@@ -218,7 +250,7 @@ describe('PlayswagReporter', () => {
     });
 
     it('records playswagAcknowledgedServices in projectOverrides', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       const svc = { pattern: 'https://metrics.internal/**', label: 'metrics' };
       r['onTestEnd'](
         makeTestCase({ projectName: 'svc-b', projectUse: { playswagSpecs: './svc-b.yaml', playswagAcknowledgedServices: [svc] } }),
@@ -229,7 +261,7 @@ describe('PlayswagReporter', () => {
     });
 
     it('increments totalTestCount for each test', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as Record<string, unknown>;
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as ReporterInternals;
       r['onTestEnd'](makeTestCase(), makeTestResult([]));
       r['onTestEnd'](makeTestCase(), makeTestResult([]));
       expect(r['totalTestCount']).toBe(2);
@@ -238,7 +270,7 @@ describe('PlayswagReporter', () => {
 
   describe('filterHits', () => {
     it('passes all hits when no include/exclude patterns set', () => {
-      const r = new PlayswagReporter({ specs: './spec.yaml' }) as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
+      const r = new PlayswagReporter({ specs: './spec.yaml' }) as unknown as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
       const hits: EndpointHit[] = [
         { method: 'GET', url: 'http://localhost/api/users', statusCode: 200, testFile: '', testTitle: '' },
         { method: 'GET', url: 'http://localhost/api/health', statusCode: 200, testFile: '', testTitle: '' },
@@ -250,7 +282,7 @@ describe('PlayswagReporter', () => {
       const r = new PlayswagReporter({
         specs: './spec.yaml',
         includePatterns: ['/api/users/**'],
-      }) as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
+      }) as unknown as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
       const hits: EndpointHit[] = [
         { method: 'GET', url: 'http://localhost/api/users', statusCode: 200, testFile: '', testTitle: '' },
         { method: 'GET', url: 'http://localhost/api/health', statusCode: 200, testFile: '', testTitle: '' },
@@ -264,7 +296,7 @@ describe('PlayswagReporter', () => {
       const r = new PlayswagReporter({
         specs: './spec.yaml',
         excludePatterns: ['/api/health'],
-      }) as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
+      }) as unknown as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
       const hits: EndpointHit[] = [
         { method: 'GET', url: 'http://localhost/api/users', statusCode: 200, testFile: '', testTitle: '' },
         { method: 'GET', url: 'http://localhost/api/health', statusCode: 200, testFile: '', testTitle: '' },
@@ -279,7 +311,7 @@ describe('PlayswagReporter', () => {
         specs: './spec.yaml',
         includePatterns: ['/api/**'],
         excludePatterns: ['/api/health'],
-      }) as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
+      }) as unknown as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
       const hits: EndpointHit[] = [
         { method: 'GET', url: 'http://localhost/api/users', statusCode: 200, testFile: '', testTitle: '' },
         { method: 'GET', url: 'http://localhost/api/health', statusCode: 200, testFile: '', testTitle: '' },
@@ -294,7 +326,7 @@ describe('PlayswagReporter', () => {
       const r = new PlayswagReporter({
         specs: './spec.yaml',
         includePatterns: ['/api/**'],
-      }) as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
+      }) as unknown as { filterHits: (h: EndpointHit[]) => EndpointHit[] };
       const hits: EndpointHit[] = [
         { method: 'GET', url: '/api/users', statusCode: 200, testFile: '', testTitle: '' },
       ];

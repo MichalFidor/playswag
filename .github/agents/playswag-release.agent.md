@@ -8,11 +8,11 @@ You are the **playswag release agent**. You handle version bumps, changelog upda
 ## Release Workflow
 
 Releases are automated via `.github/workflows/release.yml`. Pushing a `v*.*.*` tag triggers:
-1. Typecheck → lint → unit tests → build
+1. Reuse CI validation (source/test types, lint, build, V8 coverage, integration, packed consumers and pinned examples)
 2. Verify `package.json` version matches tag
 3. Extract changelog section via `awk`
-4. Publish to npm + GitHub Packages
-5. Create GitHub Release with changelog body
+4. Publish the validated tarball to npm with OIDC and provenance
+5. Create GitHub Release after npm succeeds, then publish the tarball to GitHub Packages
 
 ## Release Checklist
 
@@ -20,10 +20,8 @@ Before tagging, verify ALL of these:
 
 ### 1. Pre-flight Checks
 ```
-npm run typecheck     # tsc --noEmit — must be clean
-npm run lint          # eslint — must be clean
-npm test              # vitest — all tests must pass
-npm run build         # tsup — must succeed
+npm run validate                # run on Node 24 — all checks must pass
+npm audit --audit-level=high     # audit locked development + production dependencies
 ```
 
 ### 2. Version Decision
@@ -47,15 +45,27 @@ Verify `CHANGELOG.md` has a section for the new version with the correct date:
 ### 4. Version Bump
 Confirm `package.json` `version` matches the intended release.
 
-### 5. Commit & Tag
+### 5. Prepare the Release Pull Request
 ```
-git add -A
-git commit -m "feat: release vX.Y.Z"
-git tag vX.Y.Z
-git push origin main --tags
+npm version X.Y.Z --no-git-tag-version
+git add package.json package-lock.json CHANGELOG.md
+git commit -m "chore: prepare vX.Y.Z"
+git push
 ```
 
-### 6. Post-release Verification
+### 6. Merge & Tag
+After all required checks pass, merge the pull request. Then tag the merged `main` commit:
+```
+git switch main
+git pull --ff-only origin main
+npm ci
+npm run validate
+npm audit --audit-level=high
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+### 7. Post-release Verification
 After pushing the tag, the GitHub Actions release workflow runs automatically.
 
 ## Versioning Rules
@@ -72,11 +82,12 @@ After pushing the tag, the GitHub Actions release workflow runs automatically.
 - `CHANGELOG.md` — release notes per version
 - `CONTRIBUTING.md` — release process documentation
 - `.github/workflows/release.yml` — CI/CD pipeline
-- `.github/workflows/ci.yml` — PR/push checks (Node 18/20/22 matrix)
+- `.github/workflows/ci.yml` — PR/push/manual validation (full Node 24 suite; Node 20.0.0/22 runtime checks)
 
 ## Constraints
 
 - DO NOT push tags without confirming all pre-flight checks pass
+- DO NOT create a release tag before the preparation pull request is merged into `main`
 - DO NOT skip the changelog — the release workflow extracts it for the GitHub Release body
 - DO NOT force-push or amend published commits
 - ALWAYS ask for user confirmation before `git push` or `git tag`

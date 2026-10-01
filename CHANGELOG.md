@@ -7,6 +7,40 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.0.1] — 2026-10-01
+
+### Security
+- Replace trailing-slash regular expressions in OpenAPI path matching with a linear scan to prevent polynomial backtracking.
+- Require release and recovery commits to be merged into `main` before publishing.
+
+### Fixed
+- Publish validated tarballs through an explicit relative path so npm treats them as local packages.
+- Allow the recovery workflow to reuse a retained validated package from a failed release after verifying its run, tag, commit and package version.
+
+---
+
+## [2.0.0] — 2026-09-30
+
+### Security
+- Pin spec connections to validated DNS addresses; fail closed on DNS errors and unsafe IPs. Enforce deadlines and byte limits through redirects and decompression.
+- Prevent remote references from reading local files even through local-root documents; bound schema normalization and traversal.
+- Redact URL credentials/query values, serialized JSON and opaque bodies; preserve cookie names for coverage. Bound and validate attachments, imported reports and history.
+- Validate HTML inputs and method classes; restrict embedded logos. Update vulnerable brace-expansion and fast-uri resolutions.
+- Publish only the CI-validated tarball with npm provenance and job-scoped permissions. Remove automatic token fallback and create GitHub releases after npm succeeds.
+
+### Fixed
+- Include zero-hit projects in threshold checks, reject empty tag selections, and exclude disabled projects.
+- Resolve response coverage by exact status, status class and default; count array properties across all elements, respecting readOnly/writeOnly.
+- Match relative/root OpenAPI servers and encoded path segments correctly.
+- Isolate project/job PR comments, paginate existing comments, verify authors and bound request duration.
+- Support CLI `--no-pretty`; exercise the built CLI without undeclared npx dependencies. Bundle chalk for CommonJS compatibility on Node 20.0.0.
+
+### Changed
+- Require Playwright >=1.56.0, verified using a packed consumer with strict ESM/CJS TypeScript checks. Earlier advertised versions did not support the reporter contract; this tightens the peer range and must be considered when choosing the release version.
+- Run full validation once on Node 24, with runtime compatibility checks on Node 20.0.0 and 22. Add coverage gates, type-check tests/configs, and pin the external examples revision.
+
+---
+
 ## [1.11.0] — 2026-09-09
 
 **Theme:** PR visibility — API coverage in pull request comments.

@@ -3,7 +3,7 @@
  *
  * Key differences from vitest.config.ts (unit tests):
  * - Extended testTimeout to accommodate Playwright sub-process spawns
- * - pool: 'forks' with maxForks: 1 ensures all tests run sequentially,
+ * - pool: 'forks' with maxWorkers: 1 ensures all tests run sequentially,
  *   which is required because each scenario starts a mock HTTP server on
  *   the same port (3457)
  */
@@ -17,12 +17,6 @@ export default defineConfig({
     testTimeout: 90_000,
     hookTimeout: 30_000,
     pool: 'forks',
-    maxForks: 1,
-    minForks: 1,
-  },
-  resolve: {
-    extensionAlias: {
-      '.js': ['.ts', '.js'],
-    },
+    maxWorkers: 1,
   },
 });

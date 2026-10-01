@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,12 +11,13 @@ import type {
   TestCase,
   TestResult,
   FullResult,
+  FullProject,
 } from '@playwright/test/reporter';
 import type { AcknowledgedService, EndpointHit, NormalizedSpec, PlayswagConfig } from './types.js';
 import { ATTACHMENT_NAME } from './constants.js';
 import { log } from './log.js';
 import { validatePlayswagConfig, resolveFailOnSpecError } from './config/validate.js';
-import { parseJsonWithLimit, DEFAULT_MAX_JSON_BYTES } from './utils/safe-json.js';
+import { parseJsonWithLimit, DEFAULT_MAX_JSON_BYTES, isEndpointHits, readJsonFileWithLimitSync } from './utils/safe-json.js';
 import { startProgress } from './output/progress.js';
 import { CoveragePipeline, type RunGroupResult } from './reporter/coverage-pipeline.js';
 import { isPlayswagDisabled } from './utils/env.js';
@@ -54,6 +56,27 @@ function readPlayswagVersion(): string {
   }
 }
 
+/** Keep ordinary project paths stable, while avoiding traversal, platform names and collisions. */
+function projectDirectories(names: string[]): Map<string, string> {
+  const labels = new Map(names.map((name) => [name, name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.+$/, '').slice(0, 100) || 'project']));
+  const counts = new Map<string, number>();
+  for (const label of labels.values()) counts.set(label.toLowerCase(), (counts.get(label.toLowerCase()) ?? 0) + 1);
+  const used = new Set<string>();
+  const result = new Map<string, string>();
+  for (const name of [...names].sort()) {
+    const label = labels.get(name)!;
+    const reserved = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(label);
+    const needsSuffix = name !== label || reserved || counts.get(label.toLowerCase())! > 1;
+    const hash = createHash('sha256').update(name).digest('hex').slice(0, 12);
+    const base = needsSuffix ? `${reserved ? 'project-' : ''}${label}-${hash}` : label;
+    let directory = base;
+    for (let suffix = 1; used.has(directory.toLowerCase()); suffix++) directory = `${base}-${suffix}`;
+    used.add(directory.toLowerCase());
+    result.set(name, directory);
+  }
+  return result;
+}
+
 /**
  * Playwright reporter that aggregates API call data from all workers and
  * computes coverage against the provided OpenAPI/Swagger specification(s).
@@ -68,6 +91,9 @@ class PlayswagReporter implements Reporter {
   private aggregatedHits: EndpointHit[] = [];
   private readonly projectOverrides = new Map<string, { specs: string | string[]; baseURL?: string; acknowledgedServices?: AcknowledgedService[] }>();
   private readonly testCountByProject = new Map<string, number>();
+  private readonly globalProjects = new Set<string>();
+  private readonly disabledProjects = new Set<string>();
+  private inputError = false;
   private baseURL: string | undefined;
   private totalTestCount = 0;
 
@@ -88,21 +114,24 @@ class PlayswagReporter implements Reporter {
   }
 
   onBegin(playwrightConfig: FullConfig, _suite: Suite): void {
-    if (!this.config.baseURL) {
-      for (const project of playwrightConfig.projects) {
-        const base = project.use?.baseURL;
-        if (base) {
-          this.baseURL = base;
-          break;
-        }
-      }
-    } else {
-      this.baseURL = this.config.baseURL;
+    if (isPlayswagDisabled()) return;
+    // The suite contains the projects selected for this run, even before any hits exist.
+    const selectedProjects = _suite.suites?.map((suite) => suite.project()).filter((p): p is FullProject => p !== undefined);
+    const projects = selectedProjects?.length ? selectedProjects : playwrightConfig.projects;
+    for (const project of projects) {
+      this.registerProject(project);
     }
+    const enabledProjects = projects.filter((project) => !this.disabledProjects.has(project.name));
+    const globalProjects = enabledProjects.filter((project) => this.globalProjects.has(project.name));
+    this.baseURL = this.config.baseURL ?? globalProjects.find((project) => project.use.baseURL)?.use.baseURL;
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
     if (isPlayswagDisabled()) return;
+
+    const proj = test.parent.project();
+    if (proj) this.registerProject(proj);
+    if (this.disabledProjects.has(proj?.name ?? 'default')) return;
 
     this.totalTestCount++;
     const projName = test.parent.project()?.name ?? 'default';
@@ -113,36 +142,21 @@ class PlayswagReporter implements Reporter {
     for (const attachment of result.attachments) {
       if (attachment.name !== ATTACHMENT_NAME) continue;
 
-      let raw: string | undefined;
-      if (attachment.body) {
-        raw = attachment.body.toString('utf8');
-      } else if (attachment.path) {
-        try {
-          raw = readFileSync(attachment.path, 'utf8');
-        } catch (err) {
-          log.warn(`Could not read attachment file "${attachment.path}": ${(err as Error).message}`);
-          continue;
-        }
-      }
-
-      if (!raw) continue;
-
       let hits: EndpointHit[];
       try {
-        hits = parseJsonWithLimit<EndpointHit[]>(raw, maxAttachmentBytes);
+        let parsed: unknown;
+        if (attachment.body) {
+          if (attachment.body.length > maxAttachmentBytes) throw new Error('Hits attachment exceeds maxAttachmentBytes');
+          parsed = parseJsonWithLimit<unknown>(attachment.body.toString('utf8'), maxAttachmentBytes);
+        } else if (attachment.path) {
+          parsed = readJsonFileWithLimitSync(attachment.path, maxAttachmentBytes);
+        } else continue;
+        if (!isEndpointHits(parsed)) throw new Error('Invalid hits attachment structure');
+        hits = parsed;
       } catch (err) {
+        this.inputError = true;
         log.warn(`Could not parse hits attachment for test "${test.title}": ${(err as Error).message}`);
         continue;
-      }
-
-      const proj = test.parent.project();
-      const use = proj?.use as Record<string, unknown> | undefined;
-      const projSpecs = use?.['playswagSpecs'] as string | string[] | undefined;
-      const projBaseURL = (use?.['playswagBaseURL'] as string | undefined) ?? proj?.use?.baseURL;
-      const projAcknowledgedServices = use?.['playswagAcknowledgedServices'] as AcknowledgedService[] | undefined;
-
-      if (projSpecs && proj?.name) {
-        this.projectOverrides.set(proj.name, { specs: projSpecs, baseURL: projBaseURL, acknowledgedServices: projAcknowledgedServices });
       }
 
       for (const hit of hits) {
@@ -151,8 +165,24 @@ class PlayswagReporter implements Reporter {
         hit.projectName = proj?.name;
       }
 
-      this.aggregatedHits.push(...hits);
+      for (const hit of hits) this.aggregatedHits.push(hit);
     }
+  }
+
+  private registerProject(project: FullProject): void {
+    const use = project.use as Record<string, unknown>;
+    if (use['playswagEnabled'] === false) {
+      this.disabledProjects.add(project.name);
+      return;
+    }
+    const specs = use['playswagSpecs'] as string | string[] | undefined;
+    if (specs) {
+      this.projectOverrides.set(project.name, {
+        specs,
+        baseURL: (use['playswagBaseURL'] as string | undefined) ?? project.use.baseURL,
+        acknowledgedServices: use['playswagAcknowledgedServices'] as AcknowledgedService[] | undefined,
+      });
+    } else this.globalProjects.add(project.name);
   }
 
   async onEnd(_result: FullResult): Promise<{ status?: FullResult['status'] } | void> {
@@ -163,12 +193,16 @@ class PlayswagReporter implements Reporter {
       return;
     }
 
+    if (this.disabledProjects.size > 0 && this.projectOverrides.size === 0 && this.globalProjects.size === 0) {
+      log.info('Coverage skipped — playswag is disabled in all selected projects.');
+      return;
+    }
+
     const stopProgress = startProgress('Calculating coverage…');
 
     if (this.projectOverrides.size > 0) {
       stopProgress();
       const runResult = await this.runMultiProjectCoverage();
-      await this.releaseHttpConnections();
       log.info('Coverage complete.');
       return runResult;
     }
@@ -188,12 +222,12 @@ class PlayswagReporter implements Reporter {
       undefined,
       this.totalTestCount,
     );
-    await this.releaseHttpConnections();
     log.info('Coverage complete.');
     if (this.shouldFailRun(run)) return { status: 'failed' };
   }
 
   private shouldFailRun(run: RunGroupResult): boolean {
+    if (this.inputError && resolveFailOnSpecError(this.config)) return true;
     if (run.specError && resolveFailOnSpecError(this.config)) return true;
     if (run.outputError && this.config.failOnOutputError) return true;
     return run.thresholdFailed;
@@ -204,7 +238,7 @@ class PlayswagReporter implements Reporter {
     const globalHits: EndpointHit[] = [];
 
     for (const hit of this.aggregatedHits) {
-      if (hit.projectName && this.projectOverrides.has(hit.projectName)) {
+      if (hit.projectName !== undefined && this.projectOverrides.has(hit.projectName)) {
         const arr = hitsByProject.get(hit.projectName) ?? [];
         arr.push(hit);
         hitsByProject.set(hit.projectName, arr);
@@ -219,29 +253,31 @@ class PlayswagReporter implements Reporter {
       outputError: false,
     };
 
+    const directories = projectDirectories([...this.projectOverrides.keys()]);
     for (const [projectName, override] of this.projectOverrides) {
       const run = await this.pipeline.runOutputsForGroup(
         this.filterHits(hitsByProject.get(projectName) ?? []),
         override.specs,
         override.baseURL ?? this.baseURL,
-        join(this.config.outputDir, projectName),
+        join(this.config.outputDir, directories.get(projectName)!),
         [
           ...(this.config.acknowledgedServices ?? []),
           ...(override.acknowledgedServices ?? []),
         ],
         this.testCountByProject.get(projectName) ?? 0,
+        { name: projectName },
       );
       this.mergeRunResult(combined, run);
     }
 
-    if (globalHits.length > 0 && this.config.specs) {
+    if ((this.globalProjects.size > 0 || globalHits.length > 0) && this.config.specs) {
       const run = await this.pipeline.runOutputsForGroup(
         this.filterHits(globalHits),
         this.config.specs,
         this.baseURL,
         this.config.outputDir,
         undefined,
-        this.totalTestCount,
+        [...this.globalProjects].reduce((sum, name) => sum + (this.testCountByProject.get(name) ?? 0), 0),
       );
       this.mergeRunResult(combined, run);
     }
@@ -253,25 +289,6 @@ class PlayswagReporter implements Reporter {
     target.thresholdFailed ||= source.thresholdFailed;
     target.specError ||= source.specError;
     target.outputError ||= source.outputError;
-  }
-
-  private async releaseHttpConnections(): Promise<void> {
-    try {
-      const UNDICI_SYM = 'Symbol(undici.globalDispatcher.1)';
-      const sym = Object.getOwnPropertySymbols(globalThis)
-        .find((s) => s.toString() === UNDICI_SYM);
-      if (!sym) return;
-      const old = (globalThis as Record<symbol, { constructor: new () => unknown; close?: () => Promise<void> }>)[sym];
-      if (!old || typeof old.close !== 'function') return;
-      const fresh = new old.constructor();
-      await old.close();
-      (globalThis as Record<symbol, unknown>)[sym] = fresh;
-      if (process.env['PLAYSWAG_DEBUG']) {
-        console.log('[playswag:debug] releaseHttpConnections: undici keep-alive connections closed');
-      }
-    } catch {
-      // Silently ignore — undici internals differ across Node.js versions
-    }
   }
 
   /** @internal Delegates to {@link CoveragePipeline} — used by unit tests. */

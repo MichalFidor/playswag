@@ -24,7 +24,7 @@ Works with **multiple workers** out of the box — per-worker data is collected 
 npm install --save-dev @michalfidor/playswag
 ```
 
-`@playwright/test >=1.20.0` is a required peer dependency.
+`@playwright/test >=1.56.0` is a required peer dependency. The package supports Node.js >=20.0.0; use Node 24 for development and full validation. ESM and CommonJS entry points are tested, including TypeScript consumers.
 
 ---
 

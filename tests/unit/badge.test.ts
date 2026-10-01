@@ -24,6 +24,8 @@ function makeResult(endpointsPct = 80, overrides: Partial<CoverageResult> = {}):
     operations: [],
     uncoveredOperations: [],
     unmatchedHits: [],
+    tagCoverage: {},
+    acknowledgedHits: [],
     ...overrides,
   };
 }

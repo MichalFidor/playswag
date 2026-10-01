@@ -10,12 +10,12 @@ export default defineConfig({
       reporter: ['text', 'json'],
       include: ['src/**/*.ts'],
       exclude: ['src/index.ts'],
-    },
-  },
-  resolve: {
-    // Allow TypeScript path imports with .js extension (Node16 moduleResolution)
-    extensionAlias: {
-      '.js': ['.ts', '.js'],
+      thresholds: {
+        lines: 85,
+        functions: 85,
+        branches: 75,
+        statements: 80,
+      },
     },
   },
 });

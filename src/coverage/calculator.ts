@@ -11,6 +11,7 @@ import type {
 import { matchOperation, buildOperationIndex } from '../openapi/matcher.js';
 import { analyzeParameters, analyzeBodyProperties, analyzeResponseProperties } from './schema-analyzer.js';
 import { makeSummaryItem, computeTagCoverage } from './summary.js';
+import { resolveResponseKey } from './response-resolver.js';
 import picomatch from 'picomatch';
 
 function testRef(hit: EndpointHit): string {
@@ -128,11 +129,12 @@ export function calculateCoverage(
     const enrichedHit: EndpointHit = { ...hit, pathParams };
 
     const code = String(hit.statusCode);
-    if (cov.statusCodes[code]) {
-      cov.statusCodes[code]!.covered = true;
-      const statusRefSet = new Set(cov.statusCodes[code]!.testRefs);
+    const responseKey = resolveResponseKey(matchedOp.responses, code);
+    if (responseKey !== undefined && cov.statusCodes[responseKey]) {
+      cov.statusCodes[responseKey]!.covered = true;
+      const statusRefSet = new Set(cov.statusCodes[responseKey]!.testRefs);
       if (!statusRefSet.has(ref)) {
-        cov.statusCodes[code]!.testRefs.push(ref);
+        cov.statusCodes[responseKey]!.testRefs.push(ref);
       }
     }
 

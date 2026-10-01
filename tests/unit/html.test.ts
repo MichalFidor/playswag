@@ -30,6 +30,8 @@ function makeResult(overrides: Partial<CoverageResult> = {}): CoverageResult {
     playwrightVersion: '1.40.0',
     playswagVersion: '1.1.0',
     totalTestCount: 8,
+    tagCoverage: {},
+    acknowledgedHits: [],
     summary: {
       endpoints: { total: 4, covered: 3, percentage: 75 },
       statusCodes: { total: 8, covered: 6, percentage: 75 },
@@ -45,6 +47,19 @@ function makeResult(overrides: Partial<CoverageResult> = {}): CoverageResult {
 }
 
 describe('generateHtmlReport', () => {
+  it('uses a fixed CSS class for custom HTTP methods and escapes their labels', () => {
+    const html = generateHtmlReport(makeResult({ operations: [makeOperation({ method: "CUSTOM'VALUE" })] }));
+    expect(html).toContain('class="method m-other"');
+    expect(html).toContain('CUSTOM&#39;VALUE');
+    expect(html).not.toContain("m-custom'value");
+  });
+
+  it('rejects malformed report attributes and ignores unsafe logo URLs', () => {
+    const result = makeResult({ operations: [makeOperation({ method: 'GET" onclick="alert(1)' })] });
+    expect(() => generateHtmlReport(result)).toThrow(/Invalid playswag/);
+    const html = generateHtmlReport(makeResult(), {}, 'x" onerror="alert(1)');
+    expect(html).not.toContain('onerror=');
+  });
   it('returns a string starting with <!DOCTYPE html', () => {
     const html = generateHtmlReport(makeResult());
     expect(html.trimStart()).toMatch(/^<!DOCTYPE html/i);
@@ -325,8 +340,8 @@ describe('generateHtmlReport', () => {
 
   it('renders sparkline SVG polylines when history entries are provided', () => {
     const history: HistoryEntry[] = [
-      { timestamp: '2025-05-01T00:00:00.000Z', summary: { endpoints: { total: 4, covered: 2, percentage: 50 }, statusCodes: { total: 8, covered: 4, percentage: 50 }, parameters: { total: 4, covered: 1, percentage: 25 }, bodyProperties: { total: 2, covered: 1, percentage: 50 }, responseProperties: { total: 2, covered: 0, percentage: 0 } } },
-      { timestamp: '2025-06-01T00:00:00.000Z', summary: { endpoints: { total: 4, covered: 3, percentage: 75 }, statusCodes: { total: 8, covered: 6, percentage: 75 }, parameters: { total: 4, covered: 2, percentage: 50 }, bodyProperties: { total: 2, covered: 2, percentage: 100 }, responseProperties: { total: 2, covered: 1, percentage: 50 } } },
+      { specFiles: [], timestamp: '2025-05-01T00:00:00.000Z', summary: { endpoints: { total: 4, covered: 2, percentage: 50 }, statusCodes: { total: 8, covered: 4, percentage: 50 }, parameters: { total: 4, covered: 1, percentage: 25 }, bodyProperties: { total: 2, covered: 1, percentage: 50 }, responseProperties: { total: 2, covered: 0, percentage: 0 } } },
+      { specFiles: [], timestamp: '2025-06-01T00:00:00.000Z', summary: { endpoints: { total: 4, covered: 3, percentage: 75 }, statusCodes: { total: 8, covered: 6, percentage: 75 }, parameters: { total: 4, covered: 2, percentage: 50 }, bodyProperties: { total: 2, covered: 2, percentage: 100 }, responseProperties: { total: 2, covered: 1, percentage: 50 } } },
     ];
     const html = generateHtmlReport(makeResult(), {}, '', history);
     expect(html).toContain('<polyline');

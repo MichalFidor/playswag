@@ -75,6 +75,7 @@ export class CoveragePipeline {
     outputDir: string,
     acknowledgedServices?: AcknowledgedService[],
     totalTestCount = 0,
+    project?: { name: string },
   ): Promise<RunGroupResult> {
     const result: RunGroupResult = {
       thresholdFailed: false,
@@ -103,20 +104,28 @@ export class CoveragePipeline {
     }
 
     spec = this.filterOperationsByTags(spec);
+    if (spec.operations.length === 0) {
+      log.error('No operations remain after filtering tags. Check includeTags/excludeTags.');
+      result.specError = true;
+      return result;
+    }
 
-    const schemaDepth = this.config.schemaDepth != null
-      ? Math.min(10, Math.max(1, this.config.schemaDepth))
-      : undefined;
-
-    const coverageResult = calculateCoverage(filteredHits, spec, {
-      baseURL,
-      playwrightVersion: this.deps.tryReadVersion('@playwright/test'),
-      playswagVersion: this.deps.readPlayswagVersion(),
-      totalTestCount,
-      requiredParamsOnly: this.config.requiredParamsOnly,
-      acknowledgedServices: acknowledgedServices ?? this.config.acknowledgedServices,
-      schemaDepth,
-    });
+    let coverageResult: CoverageResult;
+    try {
+      coverageResult = calculateCoverage(filteredHits, spec, {
+        baseURL,
+        playwrightVersion: this.deps.tryReadVersion('@playwright/test'),
+        playswagVersion: this.deps.readPlayswagVersion(),
+        totalTestCount,
+        requiredParamsOnly: this.config.requiredParamsOnly,
+        acknowledgedServices: acknowledgedServices ?? this.config.acknowledgedServices,
+        schemaDepth: this.config.schemaDepth,
+      });
+    } catch (err) {
+      log.error(`Could not calculate coverage: ${(err as Error).message}`);
+      result.specError = true;
+      return result;
+    }
 
     const historyConfig = this.config.history ? { enabled: true, ...this.config.history } : undefined;
     const historyEnabled = historyConfig?.enabled !== false;
@@ -165,7 +174,14 @@ export class CoveragePipeline {
 
     if (isGitHubActions()) {
       if (violations.length > 0) emitAnnotations(violations);
-      const ghConfig = this.config.githubActionsOutput ?? {};
+      const ghConfig = {
+        ...this.config.githubActionsOutput,
+        commentKey: JSON.stringify([
+          this.config.githubActionsOutput?.commentKey ?? [process.env['GITHUB_WORKFLOW'] ?? '', process.env['GITHUB_JOB'] ?? 'coverage'],
+          project ? ['project', project.name] : ['global'],
+        ]),
+        reportName: project ? project.name || 'default' : this.config.githubActionsOutput?.reportName,
+      };
       try {
         await writeStepSummary(
           coverageResult,

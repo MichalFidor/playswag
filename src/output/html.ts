@@ -2,8 +2,9 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CoverageResult, HtmlOutputConfig, OperationCoverage, CoverageDimension } from '../types.js';
-import type { HistoryEntry } from './history.js';
+import { isHistoryEntry, type HistoryEntry } from './history.js';
 import { log } from '../log.js';
+import { normalizeCoverageResult } from '../utils/safe-json.js';
 
 async function loadLogoDataUrl(): Promise<string> {
   try {
@@ -23,6 +24,12 @@ function esc(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function methodClass(method: string): string {
+  const normalized = method.toLowerCase();
+  return ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'trace', 'connect'].includes(normalized)
+    ? `m-${normalized}` : 'm-other';
 }
 
 function sparklineSvg(values: number[], cls: string): string {
@@ -121,9 +128,9 @@ function operationBlock(op: OperationCoverage, i: number, gid: number, respWeigh
   const covPct = operationCoveragePct(op, respWeight);
 
   return `<div class="op-block${op.deprecated ? ' deprecated' : ''}" data-covered="${op.covered}" data-tags="${esc(tags)}" data-idx="${i}" data-gid="${gid}">
-      <div class="op-row m-${op.method.toLowerCase()}">
+      <div class="op-row ${methodClass(op.method)}">
         <div class="op-row-left">
-          <span class="method m-${op.method.toLowerCase()}">${esc(op.method)}</span>
+          <span class="method ${methodClass(op.method)}">${esc(op.method)}</span>
           <span class="op-path${op.deprecated ? ' op-path-deprecated' : ''}">${esc(op.path)}</span>
           ${op.deprecated ? '<span class="deprecated-badge">deprecated</span>' : ''}
           ${op.operationId ? `<span class="opid">${esc(op.operationId)}</span>` : ''}
@@ -227,7 +234,7 @@ function unmatchedSection(result: CoverageResult): string {
   if (result.unmatchedHits.length === 0) return '';
   const rows = result.unmatchedHits.map((h) =>
     `<tr>
-      <td class="td-method"><span class="method m-${h.method.toLowerCase()}">${esc(h.method)}</span></td>
+      <td class="td-method"><span class="method ${methodClass(h.method)}">${esc(h.method)}</span></td>
       <td class="td-mono">${esc(h.url)}</td>
       <td class="td-center"><span class="status-code">${h.statusCode}</span></td>
       <td class="td-test">${esc(h.testTitle)}</td>
@@ -265,6 +272,9 @@ export function generateHtmlReport(
   responsePropertiesWeight = 0.5,
   excludeDimensions?: CoverageDimension[]
 ): string {
+  result = normalizeCoverageResult(result);
+  historyEntries = historyEntries.filter(isHistoryEntry).slice(-10_000);
+  if (!/^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/]*={0,2}$/.test(logoDataUrl)) logoDataUrl = '';
   const title = config.title ?? 'API Coverage Report';
   const d = new Date(result.timestamp);
   const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });

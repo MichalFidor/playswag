@@ -1,80 +1,128 @@
 import type { NormalizedOperation, NormalizedSchema, ParamCoverage, BodyPropertyCoverage, ResponsePropertyCoverage } from '../types.js';
 import { log } from '../log.js';
+import { resolveResponseKey } from './response-resolver.js';
 
-/**
- * Recursively collect all property paths from a schema up to `maxDepth` levels deep.
- * Returns a Map of dot-notation path → required flag.
- * e.g. `{ address: { street: {} } }` at depth ≤ 3 yields `address` and `address.street`.
- */
-function collectProperties(
-  schema: NormalizedSchema | undefined,
-  prefix: string,
-  depth: number,
-  maxDepth: number
-): Map<string, boolean> {
-  const props = new Map<string, boolean>();
-  if (!schema || depth >= maxDepth) return props;
+// null denotes an array item; string tokens preserve literal property names (including dots).
+type PropertyToken = string | null;
+interface SchemaProperty {
+  name: string;
+  required: boolean;
+  path: PropertyToken[];
+}
+const schemaPropertyCache = new WeakMap<NormalizedSchema, Map<string, SchemaProperty[]>>();
+const DEFAULT_SCHEMA_DEPTH = 3;
 
-  const required = new Set(schema.required ?? []);
+function normalizeDepth(value: number): number {
+  return Number.isFinite(value) ? Math.min(10, Math.max(1, Math.floor(value))) : DEFAULT_SCHEMA_DEPTH;
+}
 
-  if (schema.properties) {
-    for (const [name, childSchema] of Object.entries(schema.properties)) {
-      const fullName = prefix ? `${prefix}.${name}` : name;
-      props.set(fullName, required.has(name));
-      // Recurse into nested objects
-      if (childSchema.type === 'object' || childSchema.properties) {
-        for (const [k, v] of collectProperties(childSchema, fullName, depth + 1, maxDepth)) {
-          if (!props.has(k)) props.set(k, v);
+function propertyName(path: PropertyToken[]): string {
+  return path.reduce<string>((name, token) => {
+    if (token === null) return `${name}[]`;
+    // Quote literal separators so e.g. an 'a.b' field cannot collide with nested a.b.
+    if (token.length === 0 || /[.[\]\\"]/.test(token)) return `${name}[${JSON.stringify(token)}]`;
+    return `${name}${name ? '.' : ''}${token}`;
+  }, '');
+}
+
+/** Collect a bounded set of paths; memoization keeps shared allOf/anyOf DAGs linear. */
+function collectProperties(schema: NormalizedSchema, maxDepth: number, mode: 'request' | 'response'): SchemaProperty[] {
+  const cacheKey = `${mode}:${maxDepth}`;
+  const cached = schemaPropertyCache.get(schema)?.get(cacheKey);
+  if (cached) return cached;
+  const memo = new WeakMap<NormalizedSchema, Map<number, SchemaProperty[]>>();
+  const active = new WeakMap<NormalizedSchema, Set<number>>();
+  let work = 0;
+  let cycleCuts = 0;
+  function consume(): void {
+    if (++work > 100_000) throw new Error('OpenAPI schema exceeds property analysis complexity limit (100000 visits)');
+  }
+  function visit(node: NormalizedSchema, remaining: number, level: number): SchemaProperty[] {
+    consume();
+    if (level > 128) throw new Error('OpenAPI schema exceeds property analysis depth limit (128 levels)');
+    if (remaining <= 0 || (mode === 'request' ? node.readOnly : node.writeOnly)) return [];
+    const known = memo.get(node)?.get(remaining);
+    if (known) return known;
+    if (active.get(node)?.has(remaining)) {
+      cycleCuts++;
+      return [];
+    }
+    const cutsBefore = cycleCuts;
+    const activeDepths = active.get(node) ?? new Set<number>();
+    activeDepths.add(remaining);
+    active.set(node, activeDepths);
+    const props = new Map<string, SchemaProperty>();
+    function add(path: PropertyToken[], required: boolean): void {
+      consume();
+      const key = JSON.stringify(path);
+      const existing = props.get(key);
+      if (existing) existing.required ||= required;
+      else props.set(key, { name: propertyName(path), path, required });
+      if (props.size > 10_000) throw new Error('OpenAPI schema exceeds property count limit (10000 properties)');
+    }
+    const required = new Set(node.required ?? []);
+    for (const [name, child] of Object.entries(node.properties ?? {})) {
+      if (mode === 'request' ? child.readOnly : child.writeOnly) continue;
+      add([name], required.has(name));
+      for (const property of visit(child, remaining - 1, level + 1)) {
+        add([name, ...property.path], property.required);
+      }
+    }
+    if (node.items) {
+      for (const property of visit(node.items, remaining, level + 1)) {
+        add([null, ...property.path], property.required);
+      }
+    }
+    for (const combiner of ['allOf', 'anyOf', 'oneOf'] as const) {
+      for (const child of node[combiner] ?? []) {
+        for (const property of visit(child, remaining, level + 1)) {
+          add(property.path, property.required);
         }
       }
     }
-  }
-
-  for (const combiner of ['allOf', 'anyOf', 'oneOf'] as const) {
-    const schemas = schema[combiner];
-    if (!schemas) continue;
-    for (const sub of schemas) {
-      for (const [name, req] of collectProperties(sub, prefix, depth, maxDepth)) {
-        if (!props.has(name)) props.set(name, req);
-      }
+    activeDepths.delete(remaining);
+    const byDepth = memo.get(node) ?? new Map<number, SchemaProperty[]>();
+    const result = [...props.values()];
+    // A cycle-pruned result depends on its ancestors. Reusing it under another
+    // property prefix would silently omit the ancestors' fields from coverage.
+    if (cutsBefore === cycleCuts) {
+      byDepth.set(remaining, result);
+      memo.set(node, byDepth);
     }
+    return result;
   }
-
-  return props;
+  const result = visit(schema, maxDepth, 0);
+  const cachedDepths = schemaPropertyCache.get(schema) ?? new Map<string, SchemaProperty[]>();
+  cachedDepths.set(cacheKey, result);
+  schemaPropertyCache.set(schema, cachedDepths);
+  return result;
 }
 
-/** Normalize a response body to an object for property inspection. */
-function responseBodyToObject(responseBody: unknown): Record<string, unknown> | null {
-  if (responseBody && typeof responseBody === 'object' && !Array.isArray(responseBody)) {
-    return responseBody as Record<string, unknown>;
+function parseBody(body: unknown, warning: string): unknown {
+  if (typeof body !== 'string') return body;
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    if (body.length > 0) log.warn(warning);
+    return undefined;
   }
-  if (Array.isArray(responseBody) && responseBody.length > 0) {
-    const first = responseBody[0];
-    if (first && typeof first === 'object' && !Array.isArray(first)) {
-      return first as Record<string, unknown>;
-    }
-  }
-  if (typeof responseBody === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(responseBody);
-      return responseBodyToObject(parsed);
-    } catch {
-      return null;
-    }
-  }
-  return null;
 }
 
-/** Traverse a nested object following a dot-notation path. */
-function hasNestedProperty(obj: Record<string, unknown>, dottedPath: string): boolean {
-  const parts = dottedPath.split('.');
-  let current: unknown = obj;
-  for (const part of parts) {
-    if (current == null || typeof current !== 'object' || Array.isArray(current)) return false;
-    if (!(part in (current as Record<string, unknown>))) return false;
-    current = (current as Record<string, unknown>)[part];
+/** Inspect all array elements, following schema paths rather than flattening object bodies. */
+function inspectProperties(properties: SchemaProperty[], body: unknown): BodyPropertyCoverage[] {
+  let work = 0;
+  function hasPath(value: unknown, path: PropertyToken[], index: number): boolean {
+    if (++work > 1_000_000) throw new Error('Body exceeds property inspection complexity limit (1000000 visits)');
+    if (index === path.length) return true;
+    const token = path[index]!;
+    if (token === null) {
+      return Array.isArray(value) && value.some((item) => hasPath(item, path, index + 1));
+    }
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+      && Object.hasOwn(value, token)
+      && hasPath((value as Record<string, unknown>)[token], path, index + 1);
   }
-  return true;
+  return properties.map(({ name, path, required }) => ({ name, required, covered: hasPath(body, path, 0) }));
 }
 
 /**
@@ -91,10 +139,10 @@ export function analyzeParameters(
 
     switch (param.in) {
       case 'query':
-        covered = queryParams != null && param.name in queryParams;
+        covered = queryParams != null && Object.hasOwn(queryParams, param.name);
         break;
       case 'path':
-        covered = pathParams != null && param.name in pathParams;
+        covered = pathParams != null && Object.hasOwn(pathParams, param.name);
         break;
       case 'header': {
         const lowerName = param.name.toLowerCase();
@@ -128,47 +176,22 @@ export function analyzeParameters(
   });
 }
 
-/**
- * Analyze which top-level response body properties were present in a recorded response.
- */
-const DEFAULT_SCHEMA_DEPTH = 3;
-
+/** Analyze response properties using the same exact/range/default key as status coverage. */
 export function analyzeResponseProperties(
   operation: NormalizedOperation,
   statusCode: string,
   responseBody: unknown,
   schemaDepth = DEFAULT_SCHEMA_DEPTH
 ): ResponsePropertyCoverage[] {
-  const schema = operation.responses[statusCode]?.schema;
-  if (!schema) return [];
-
-  const depth = Math.min(10, Math.max(1, schemaDepth));
-  const props = collectProperties(schema, '', 0, depth);
-  if (props.size === 0) return [];
-
-  const bodyObj = responseBodyToObject(responseBody);
-  if (typeof responseBody === 'string' && bodyObj === null && responseBody.length > 0) {
-    log.warn(`Could not parse response body as JSON for ${operation.method}:${operation.pathTemplate} (status ${statusCode})`);
-  }
-
-  const results = Array.from(props.entries()).map(([name, required]) => ({
-    statusCode,
-    name,
-    required,
-    covered: bodyObj != null && hasNestedProperty(bodyObj, name),
-  }));
-
-  if (process.env['PLAYSWAG_DEBUG'] && responseBody !== undefined) {
-    const covCount = results.filter((r) => r.covered).length;
-    console.log(`[playswag:debug] resp analysis  op=${operation.method}:${operation.pathTemplate} code=${statusCode} schema_props=${results.length} covered=${covCount} body_type=${Array.isArray(responseBody) ? 'array' : typeof responseBody}`);
-  }
-
-  return results;
+  const responseKey = resolveResponseKey(operation.responses, statusCode);
+  const schema = responseKey === undefined ? undefined : operation.responses[responseKey]?.schema;
+  if (!schema || responseKey === undefined) return [];
+  const props = collectProperties(schema, normalizeDepth(schemaDepth), 'response');
+  const body = parseBody(responseBody, `Could not parse response body as JSON for ${operation.method}:${operation.pathTemplate} (status ${statusCode})`);
+  return inspectProperties(props, body).map((property) => ({ statusCode: responseKey, ...property }));
 }
 
-/**
- * Analyze which top-level request body properties were actually supplied.
- */
+/** Analyze request properties, including objects nested inside arrays. */
 export function analyzeBodyProperties(
   operation: NormalizedOperation,
   requestBody: unknown,
@@ -176,28 +199,7 @@ export function analyzeBodyProperties(
 ): BodyPropertyCoverage[] {
   const schema = operation.requestBodySchema;
   if (!schema) return [];
-
-  const depth = Math.min(10, Math.max(1, schemaDepth));
-  const props = collectProperties(schema, '', 0, depth);
-  if (props.size === 0) return [];
-
-  let bodyObj: Record<string, unknown> | null = null;
-  if (requestBody && typeof requestBody === 'object' && !Array.isArray(requestBody)) {
-    bodyObj = requestBody as Record<string, unknown>;
-  } else if (typeof requestBody === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(requestBody);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        bodyObj = parsed as Record<string, unknown>;
-      }
-    } catch {
-      log.warn(`Could not parse request body as JSON for ${operation.method}:${operation.pathTemplate}`);
-    }
-  }
-
-  return Array.from(props.entries()).map(([name, required]) => ({
-    name,
-    required,
-    covered: bodyObj != null && hasNestedProperty(bodyObj, name),
-  }));
+  const props = collectProperties(schema, normalizeDepth(schemaDepth), 'request');
+  const body = parseBody(requestBody, `Could not parse request body as JSON for ${operation.method}:${operation.pathTemplate}`);
+  return inspectProperties(props, body);
 }

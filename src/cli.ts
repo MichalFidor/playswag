@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { mergeCoverageResults } from './merge.js';
 import type { CoverageResult } from './types.js';
-import { isCoverageResult, parseJsonWithLimit } from './utils/safe-json.js';
+import { normalizeCoverageResult, readJsonFileWithLimit } from './utils/safe-json.js';
 
 const HELP = `Usage: playswag merge <file1.json> <file2.json> [...] [options]
 
@@ -27,99 +27,100 @@ Example:
   playswag merge reports/*.json --console --html -o combined.json
   npx @michalfidor/playswag merge reports/*.json`;
 
-const { values, positionals } = parseArgs({
-  allowPositionals: true,
-  options: {
-    output: { type: 'string', short: 'o', default: 'merged-coverage.json' },
-    pretty: { type: 'boolean', default: true },
-    console: { type: 'boolean', default: false },
-    html: { type: 'boolean', default: false },
-    badge: { type: 'boolean', default: false },
-    markdown: { type: 'boolean', default: false },
-    help: { type: 'boolean', short: 'h', default: false },
-  },
-});
+async function main(): Promise<void> {
+  const { values, positionals } = parseArgs({
+    allowPositionals: true,
+    options: {
+      output: { type: 'string', short: 'o', default: 'merged-coverage.json' },
+      pretty: { type: 'boolean', default: true },
+      'no-pretty': { type: 'boolean', default: false },
+      console: { type: 'boolean', default: false },
+      html: { type: 'boolean', default: false },
+      badge: { type: 'boolean', default: false },
+      markdown: { type: 'boolean', default: false },
+      help: { type: 'boolean', short: 'h', default: false },
+    },
+  });
 
-if (values.help || positionals.length === 0) {
-   
-  console.log(HELP);
-  process.exit(0);
-}
+  if (values.help || positionals.length === 0) {
 
-const command = positionals[0];
+    console.log(HELP);
+    process.exit(0);
+  }
 
-if (command !== 'merge') {
-  console.error(`[playswag] Unknown command: ${command}\nRun "playswag --help" for usage.`);
-  process.exit(1);
-}
+  const command = positionals[0];
 
-const files = positionals.slice(1);
+  if (command !== 'merge') {
+    console.error(`[playswag] Unknown command: ${command}\nRun "playswag --help" for usage.`);
+    process.exit(1);
+  }
 
-if (files.length < 2) {
-  console.error('[playswag] merge requires at least 2 JSON report files');
-  process.exit(1);
-}
+  const files = positionals.slice(1);
 
-const results: CoverageResult[] = [];
+  if (files.length < 2) {
+    console.error('[playswag] merge requires at least 2 JSON report files');
+    process.exit(1);
+  }
 
-for (const file of files) {
-  try {
-    const raw = await readFile(file, 'utf8');
-    const parsed = parseJsonWithLimit<unknown>(raw);
-    if (!isCoverageResult(parsed)) {
-      console.error(`[playswag] ${file} is not a valid playswag coverage report`);
+  const results: CoverageResult[] = [];
+
+  for (const file of files) {
+    try {
+      results.push(normalizeCoverageResult(await readJsonFileWithLimit<unknown>(file)));
+    } catch (err) {
+      console.error(`[playswag] Failed to read ${file}: ${(err as Error).message}`);
       process.exit(1);
     }
-    results.push(parsed);
-  } catch (err) {
-    console.error(`[playswag] Failed to read ${file}: ${(err as Error).message}`);
-    process.exit(1);
+  }
+
+  const merged = mergeCoverageResults(...results);
+  const output = values.output!;
+  const outputDir = dirname(resolve(output));
+
+  await mkdir(outputDir, { recursive: true });
+  const content = values.pretty && !values['no-pretty'] ? JSON.stringify(merged, null, 2) : JSON.stringify(merged);
+  await writeFile(output, content, 'utf8');
+
+
+  console.log(`[playswag] Merged ${files.length} reports → ${output}`);
+
+  if (values.console) {
+    const { printConsoleReport } = await import('./output/console.js');
+    await printConsoleReport(merged);
+  }
+
+  if (values.html) {
+    const { writeHtmlReport } = await import('./output/html.js');
+    const path = await writeHtmlReport(merged, outputDir);
+
+    console.log(`[playswag] HTML report → ${path}`);
+  }
+
+  if (values.badge) {
+    const { writeBadge } = await import('./output/badge.js');
+    const path = await writeBadge(merged, outputDir);
+
+    console.log(`[playswag] Badge → ${path}`);
+  }
+
+  if (values.markdown) {
+    const { writeMarkdownReport } = await import('./output/markdown.js');
+    const path = await writeMarkdownReport(merged, outputDir);
+
+    console.log(`[playswag] Markdown report → ${path}`);
+  }
+
+  // GitHub Actions: auto-write step summary + optional PR comment
+  const { isGitHubActions } = await import('./output/github-actions.js');
+  if (isGitHubActions()) {
+    const { writeStepSummary, writePullRequestComment } = await import('./output/github-actions.js');
+    await writeStepSummary(merged, []);
+    await writePullRequestComment(merged, []);
+    console.log('[playswag] GitHub Actions step summary written');
   }
 }
 
-const merged = mergeCoverageResults(...results);
-const output = values.output!;
-const outputDir = dirname(resolve(output));
-
-await mkdir(outputDir, { recursive: true });
-const content = values.pretty ? JSON.stringify(merged, null, 2) : JSON.stringify(merged);
-await writeFile(output, content, 'utf8');
-
- 
-console.log(`[playswag] Merged ${files.length} reports → ${output}`);
-
-if (values.console) {
-  const { printConsoleReport } = await import('./output/console.js');
-  await printConsoleReport(merged);
-}
-
-if (values.html) {
-  const { writeHtmlReport } = await import('./output/html.js');
-  const path = await writeHtmlReport(merged, outputDir);
-   
-  console.log(`[playswag] HTML report → ${path}`);
-}
-
-if (values.badge) {
-  const { writeBadge } = await import('./output/badge.js');
-  const path = await writeBadge(merged, outputDir);
-   
-  console.log(`[playswag] Badge → ${path}`);
-}
-
-if (values.markdown) {
-  const { writeMarkdownReport } = await import('./output/markdown.js');
-  const path = await writeMarkdownReport(merged, outputDir);
-   
-  console.log(`[playswag] Markdown report → ${path}`);
-}
-
-// GitHub Actions: auto-write step summary + optional PR comment
-const { isGitHubActions } = await import('./output/github-actions.js');
-if (isGitHubActions()) {
-  const { writeStepSummary, writePullRequestComment } = await import('./output/github-actions.js');
-  await writeStepSummary(merged, []);
-  await writePullRequestComment(merged, []);
-  console.log('[playswag] GitHub Actions step summary written');
-}
-
+main().catch((err: unknown) => {
+  console.error(`[playswag] ${err instanceof Error ? err.message : String(err)}\nRun "playswag --help" for usage.`);
+  process.exitCode = 1;
+});

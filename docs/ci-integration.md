@@ -26,7 +26,7 @@ permissions:
 
 ### Spec errors fail the run in CI
 
-By default, when `CI=true`, playswag sets `failOnSpecError` to **true**: a missing/invalid OpenAPI spec or a spec with zero operations will fail the Playwright run (not only log an error). Override with `failOnSpecError: false` in reporter config.
+By default, when `CI=true`, playswag sets `failOnSpecError` to **true**: a missing/invalid OpenAPI spec or a spec with zero operations (including after tag filtering), invalid hit attachments or exhausted schema-analysis budgets will fail the Playwright run (not only log an error). Override with `failOnSpecError: false` in reporter config.
 
 ### Remote specs (SSRF)
 
@@ -40,7 +40,7 @@ const playswagConfig = {
 };
 ```
 
-Private/loopback hosts are blocked unless `allowPrivateHosts: true`. DNS is checked so allowlisted hostnames cannot resolve to private IPs. Redirects are validated on each hop.
+Private/loopback hosts are blocked unless `allowPrivateHosts: true`. Each connection uses only its validated DNS addresses, preventing a second DNS lookup from changing the destination. Redirects are validated on each hop. The timeout spans DNS, redirects and the body; size limits apply during streaming, including decompression. Remote references cannot access local files, even from a local root spec.
 
 For local files, `allowedSpecHosts` is not required; HTTP `$ref` pointers still go through the same SSRF checks.
 
@@ -51,10 +51,17 @@ githubActionsOutput: {
   postPullRequestComment: true,     // @default true on pull_request events
   showUncoveredOperations: true,    // collapsible section listing uncovered operations
   showUnmatchedHits: true,          // collapsible section listing unmatched API calls
+  commentKey: process.env.COVERAGE_JOB_KEY, // distinct stable key per matrix/shard job
+  commentAuthor: 'github-actions[bot]',  // expected author when updating an existing comment
+  timeoutMs: 15_000,                // deadline across listing and updating comments
 },
 ```
 
 ---
+
+Coverage comments are separated by job and project. `GITHUB_WORKFLOW` and `GITHUB_JOB` form the default job identity; matrix jobs share that value, so pass a stable `commentKey` that includes the matrix/shard values. Existing comments are updated only when both the marker and expected author match. Listing is paginated, request duration is bounded, and large comments are truncated within GitHub limits. For a custom token, set `commentAuthor` to that account’s login.
+
+Projects with configured specs remain in coverage even when they record no hits, so their endpoint coverage is 0%. Projects with `playswagEnabled: false` are excluded.
 
 ## Merging coverage reports
 

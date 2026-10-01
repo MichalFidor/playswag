@@ -11,7 +11,7 @@
  *   ✓ users-service report contains 4 operations (no /api/health)
  *   ✓ health-service report contains 1 operation (/api/health only)
  */
-import { defineConfig } from '@playwright/test';
+import { defineConfig } from '../../../src/index.js';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 

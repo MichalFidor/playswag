@@ -16,8 +16,8 @@ export function validatePlayswagConfig(config: PlayswagConfig): void {
     }
   }
 
-  if (config.schemaDepth != null && (config.schemaDepth < 1 || config.schemaDepth > 10)) {
-    log.warn(`schemaDepth ${config.schemaDepth} is out of range — using clamped value`);
+  if (config.schemaDepth != null && (!Number.isInteger(config.schemaDepth) || config.schemaDepth < 1 || config.schemaDepth > 10)) {
+    log.warn(`schemaDepth ${config.schemaDepth} is invalid — using an integer from 1 to 10, or the default for non-finite values`);
   }
 
   if (config.maxResponseBodyBytes != null && config.maxResponseBodyBytes < 0) {
