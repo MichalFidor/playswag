@@ -120,8 +120,7 @@ jobs:
           test "$(jq -r .conclusion "$RUNNER_TEMP/run.json")" = failure
           VERSION="${RELEASE_TAG#v}"
           test "$(node -p "require('./package.json').version")" = "$VERSION"
-          awk -v version="$VERSION" 'index($0, "## [" version "]") == 1 { found=1; next } found && /^## \[/ { exit } found { print }' CHANGELOG.md > "$RUNNER_TEMP/changelog.md"
-          test -s "$RUNNER_TEMP/changelog.md"
+          node scripts/extract-release-notes.mjs "$VERSION" "$RUNNER_TEMP/changelog.md"
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: validated-package

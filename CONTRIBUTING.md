@@ -128,6 +128,27 @@ New feature?       → bump MINOR  e.g. 1.0.1 → 1.1.0
 Breaking change?   → bump MAJOR  e.g. 1.1.0 → 2.0.0
 ```
 
+### Choosing MAJOR vs MINOR (playswag)
+
+Use semver literally — do **not** jump to MAJOR just because a release is large or security-focused.
+
+| Bump | Typical triggers in this repo |
+|------|------------------------------|
+| **PATCH** | Correctness fixes, dependency patches with no contract change, stricter validation that only rejects invalid or abusive input while valid configs behave the same. |
+| **MINOR** | New backward-compatible config, output format, or export; security hardening that does not change supported Playwright/Node ranges or documented defaults for valid setups. |
+| **MAJOR** | Any **breaking change** below — even if the rest of the release is fixes or security work. |
+
+Treat these as **always breaking** for `@michalfidor/playswag`:
+
+- **`peerDependencies` range narrowed** (e.g. `@playwright/test` minimum raised) — MAJOR. Documenting “we test on 1.56+” in README without changing `peerDependencies` is docs-only (no semver bump by itself).
+- **Removed, renamed, or incompatible change** to public exports, config fields, CLI flags, or merge/report JSON shape consumers rely on.
+- **Default or output behaviour** that can fail CI or remove data users previously saw (e.g. always redacting values that appeared in reports before).
+- **Commit convention** — a PR with `feat!` / `fix!` or a `BREAKING CHANGE:` footer must ship as **MAJOR** (or the footer must be removed before merge).
+
+**Split large work when possible.** A security audit can ship as **1.x PATCH/MINOR** if it does not include the breaking items above. Put breaking peer/API changes in a **separate PR or commit** with an explicit major bump so users are not forced from `1.11.0` → `2.0.0` for fixes they could have taken as `1.11.1`.
+
+Before tagging, confirm the version matches the **highest** semver impact in the release (breaking beats feature beats fix).
+
 ---
 
 ## Releasing a new version
@@ -139,11 +160,22 @@ A human only needs to follow the required order: **release preparation pull requ
 2. **Prepare the version and changelog in the pull request**, without creating a tag:
    ```bash
   npm version X.Y.Z --no-git-tag-version
-  # Add the matching CHANGELOG.md section.
+  # Add the matching CHANGELOG.md section (see checklist below).
+  npm run validate:changelog
   git add package.json package-lock.json CHANGELOG.md
   git commit -m "chore: prepare vX.Y.Z"
   git push
    ```
+
+   **Release notes checklist** (the release workflow publishes this block to GitHub Releases):
+
+   - Add `## [X.Y.Z] — YYYY-MM-DD` at the top of `CHANGELOG.md` (below the intro).
+   - Include a one-line **`**Theme:**`** summary when the release is user-facing.
+   - Document changes under `### Added`, `### Changed`, `### Fixed`, `### Security`, etc. as appropriate — at least one bullet outside `### Documentation`.
+   - **MAJOR releases (`x.0.0`):** include **`### Breaking changes`** with every incompatible change (peer deps, output shape, defaults). Do not hide breaking items only under `### Changed`.
+   - **Required:** a `### Documentation` section with one or more bullets linking to pages you updated. Use full GitHub URLs (`https://github.com/MichalFidor/playswag/blob/main/docs/...`, or `.../blob/vX.Y.Z/...` when backfilling an already tagged release) so links work from the Releases page.
+   - Do not end the section with a `---` separator (the extractor strips it, but omit it in new entries).
+   - Run `npm run validate:changelog` before merging; CI `validate` runs the same check on `package.json` version.
 3. **Merge the pull request after all required checks pass.** Then validate and tag the merged `main` commit:
    ```bash
   git switch main

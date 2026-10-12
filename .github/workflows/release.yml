@@ -44,11 +44,7 @@ jobs:
           test "$(node -p "require('./package.json').version")" = "$VERSION"
           tar -xOf release-package/*.tgz package/package.json > "$RUNNER_TEMP/package.json"
           test "$(node -p "require(process.env.RUNNER_TEMP + '/package.json').version")" = "$VERSION"
-          awk -v version="$VERSION" 'index($0, "## [" version "]") == 1 { found=1; next } found && /^## \[/ { exit } found { print }' CHANGELOG.md > "$RUNNER_TEMP/changelog.md"
-          if [ ! -s "$RUNNER_TEMP/changelog.md" ]; then
-            echo "::error::Add a changelog entry for $VERSION before releasing."
-            exit 1
-          fi
+          node scripts/extract-release-notes.mjs "$VERSION" "$RUNNER_TEMP/changelog.md"
       - name: Publish to npm with provenance
         run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
       - name: Verify npm publication
