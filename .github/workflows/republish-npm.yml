@@ -64,7 +64,7 @@ jobs:
         with:
           name: validated-package
           path: release-package
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24.x
           registry-url: https://registry.npmjs.org
@@ -136,7 +136,7 @@ jobs:
           tar -xOf release-package/*.tgz package/package.json > "$RUNNER_TEMP/package.json"
           test "$(node -p "require(process.env.RUNNER_TEMP + '/package.json').version")" = "${RELEASE_TAG#v}"
       - name: Set up npm registry
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24.x
           registry-url: https://registry.npmjs.org
@@ -150,7 +150,7 @@ jobs:
           npm view "@michalfidor/playswag@${RELEASE_TAG#v}" version
           gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/changelog.md"
       - name: Set up GitHub Packages registry
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24.x
           registry-url: https://npm.pkg.github.com
