@@ -9,6 +9,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [2.0.1] — 2026-10-01
 
+**Theme:** Patch release — safer OpenAPI path matching and stricter publish gates.
+
 ### Security
 - Replace trailing-slash regular expressions in OpenAPI path matching with a linear scan to prevent polynomial backtracking.
 - Require release and recovery commits to be merged into `main` before publishing.
@@ -17,9 +19,21 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Publish validated tarballs through an explicit relative path so npm treats them as local packages.
 - Allow the recovery workflow to reuse a retained validated package from a failed release after verifying its run, tag, commit and package version.
 
+### Documentation
+- **[Releasing a new version](https://github.com/MichalFidor/playswag/blob/main/CONTRIBUTING.md#releasing-a-new-version)** — merge-into-`main` requirement before tags, trusted publishing, and recovery when npm publish fails.
+- **[Configuration](https://github.com/MichalFidor/playswag/blob/main/docs/configuration.md)** — reporter security options (`allowedSpecHosts`, fetch limits, redaction) carried forward from 2.x.
+- **[SECURITY.md](https://github.com/MichalFidor/playswag/blob/main/SECURITY.md)** — how to report vulnerabilities.
+
 ---
 
 ## [2.0.0] — 2026-09-30
+
+**Theme:** Major security and correctness release — hardened spec fetching, stricter validation, verified package consumers.
+
+### Breaking changes
+
+- **`@playwright/test` peer dependency** — minimum raised from `>=1.20.0` to **`>=1.56.0`**, matching the reporter contract verified in packed ESM/CJS consumer tests. Upgrade Playwright before upgrading playswag.
+- **Recorded query values** — query parameter **values** in stored hits are always redacted (names remain for coverage). Reports and merged JSON no longer expose raw query values.
 
 ### Security
 - Pin spec connections to validated DNS addresses; fail closed on DNS errors and unsafe IPs. Enforce deadlines and byte limits through redirects and decompression.
@@ -36,8 +50,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Support CLI `--no-pretty`; exercise the built CLI without undeclared npx dependencies. Bundle chalk for CommonJS compatibility on Node 20.0.0.
 
 ### Changed
-- Require Playwright >=1.56.0, verified using a packed consumer with strict ESM/CJS TypeScript checks. Earlier advertised versions did not support the reporter contract; this tightens the peer range and must be considered when choosing the release version.
 - Run full validation once on Node 24, with runtime compatibility checks on Node 20.0.0 and 22. Add coverage gates, type-check tests/configs, and pin the external examples revision.
+
+### Documentation
+- **[README](https://github.com/MichalFidor/playswag/blob/v2.0.0/README.md)** — Playwright `>=1.56.0` peer requirement and Node support.
+- **[Configuration](https://github.com/MichalFidor/playswag/blob/v2.0.0/docs/configuration.md)** — security-related reporter options (`allowedSpecHosts`, fetch limits, redaction, attachments).
+- **[CI integration](https://github.com/MichalFidor/playswag/blob/v2.0.0/docs/ci-integration.md)** — remote specs, SSRF controls, and GitHub Actions output.
+- **[API reference](https://github.com/MichalFidor/playswag/blob/v2.0.0/docs/api-reference.md)** — public exports updated for 2.x.
+- **[SECURITY.md](https://github.com/MichalFidor/playswag/blob/v2.0.0/SECURITY.md)** — supported versions and reporting.
+- **[Releasing](https://github.com/MichalFidor/playswag/blob/v2.0.0/CONTRIBUTING.md#releasing-a-new-version)** — trusted publishing and validated tarball workflow.
 
 ---
 
@@ -47,6 +68,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - **`githubActionsOutput.postPullRequestComment`** — on `pull_request` workflow events, posts (or updates) a Markdown coverage table as a PR comment. Reuses the step-summary format; includes a link to the workflow run. Requires `pull-requests: write` on `GITHUB_TOKEN`. Defaults to `true` on pull requests; set to `false` to disable.
+
+### Documentation
+- **[CI integration](https://github.com/MichalFidor/playswag/blob/main/docs/ci-integration.md)** — PR comments, workflow permissions (`pull-requests: write`), and disabling comments per job.
+- **[Configuration](https://github.com/MichalFidor/playswag/blob/main/docs/configuration.md)** — `githubActionsOutput.postPullRequestComment` and related GitHub Actions output options.
 
 ---
 
