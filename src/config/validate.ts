@@ -6,6 +6,7 @@ import {
 } from '../utils/spec-security.js';
 
 const VALID_FORMATS = new Set(['console', 'json', 'html', 'badge', 'junit', 'markdown']);
+const STATUS_CODE_KEY = /^([1-5](\d\d|XX)|default)$/i;
 
 export function validatePlayswagConfig(config: PlayswagConfig): void {
   if (config.outputFormats) {
@@ -18,6 +19,12 @@ export function validatePlayswagConfig(config: PlayswagConfig): void {
 
   if (config.schemaDepth != null && (!Number.isInteger(config.schemaDepth) || config.schemaDepth < 1 || config.schemaDepth > 10)) {
     log.warn(`schemaDepth ${config.schemaDepth} is invalid — using an integer from 1 to 10, or the default for non-finite values`);
+  }
+
+  for (const code of config.excludeStatusCodes ?? []) {
+    if (!STATUS_CODE_KEY.test(String(code))) {
+      log.warn(`excludeStatusCodes entry "${code}" is not a response key — use a code such as 500, a range such as "5XX", or "default"`);
+    }
   }
 
   if (config.maxResponseBodyBytes != null && config.maxResponseBodyBytes < 0) {

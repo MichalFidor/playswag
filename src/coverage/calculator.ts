@@ -31,10 +31,14 @@ export function calculateCoverage(
     playswagVersion?: string;
     totalTestCount?: number;
     requiredParamsOnly?: boolean;
+    excludeStatusCodes?: Array<string | number>;
     acknowledgedServices?: AcknowledgedService[];
     schemaDepth?: number;
   } = {}
 ): CoverageResult {
+  const excludedCodes = new Set((options.excludeStatusCodes ?? []).map((c) => String(c).toUpperCase()));
+  const isTrackedCode = (code: string) => !excludedCodes.has(code.toUpperCase());
+
   if (process.env['PLAYSWAG_DEBUG']) {
     console.log('[playswag:debug] calculateCoverage called');
     console.log('[playswag:debug]   hits.length      :', hits.length);
@@ -52,8 +56,9 @@ export function calculateCoverage(
   for (const op of spec.operations) {
     const key = `${op.method}:${op.pathTemplate}`;
 
+    const trackedCodes = Object.keys(op.responses).filter(isTrackedCode);
     const statusCodes: Record<string, StatusCodeCoverage> = {};
-    for (const code of Object.keys(op.responses)) {
+    for (const code of trackedCodes) {
       statusCodes[code] = { covered: false, testRefs: [] };
     }
 
@@ -71,7 +76,7 @@ export function calculateCoverage(
     const bodyProperties = analyzeBodyProperties(op, null, options.schemaDepth);
 
     // Pre-seed response properties for all response codes that have schemas
-    const responseProperties = Object.keys(op.responses).flatMap((code) =>
+    const responseProperties = trackedCodes.flatMap((code) =>
       analyzeResponseProperties(op, code, undefined, options.schemaDepth)
     );
 

@@ -258,6 +258,51 @@ describe('calculateCoverage', () => {
     expect(result.summary.parameters.total).toBe(3);
   });
 
+  describe('excludeStatusCodes', () => {
+    it('drops excluded codes from every operation and the summary', () => {
+      const result = calculateCoverage([], spec, { baseURL, excludeStatusCodes: [422, '204'] });
+      const post = result.operations.find((o) => o.path === '/api/users' && o.method === 'POST');
+      const del = result.operations.find((o) => o.path === '/api/users/{id}' && o.method === 'DELETE');
+      expect(Object.keys(post!.statusCodes)).toEqual(['201', '400']);
+      expect(Object.keys(del!.statusCodes)).toEqual(['404']);
+      expect(result.summary.statusCodes.total).toBe(7);
+    });
+
+    it('still counts a hit with an excluded code towards endpoint coverage', () => {
+      const result = calculateCoverage(
+        [hit({ method: 'DELETE', url: 'https://api.example.com/api/users/1', statusCode: 204 })],
+        spec,
+        { baseURL, excludeStatusCodes: [204] }
+      );
+      const del = result.operations.find((o) => o.path === '/api/users/{id}' && o.method === 'DELETE');
+      expect(del?.covered).toBe(true);
+      expect(del?.statusCodes['404']?.covered).toBe(false);
+      expect(result.summary.statusCodes.covered).toBe(0);
+    });
+
+    it('matches range and default keys case-insensitively and skips their response properties', () => {
+      const op = {
+        pathTemplate: '/items',
+        method: 'GET' as const,
+        parameters: [],
+        responses: {
+          '200': { schema: { type: 'object', properties: { id: { type: 'string' } } } },
+          '5XX': { schema: { type: 'object', properties: { error: { type: 'string' } } } },
+          default: { schema: { type: 'object', properties: { message: { type: 'string' } } } },
+        },
+      };
+      const result = calculateCoverage(
+        [hit({ method: 'GET', url: '/items', statusCode: 503, responseBody: { error: 'down' } })],
+        { sources: [], operations: [op] },
+        { excludeStatusCodes: ['5xx', 'DEFAULT'] }
+      );
+      const coverage = result.operations[0]!;
+      expect(Object.keys(coverage.statusCodes)).toEqual(['200']);
+      expect(coverage.responseProperties.map((p) => p.statusCode)).toEqual(['200']);
+      expect(coverage.covered).toBe(true);
+    });
+  });
+
   describe('acknowledgedServices', () => {
     const baseURL = 'https://api.example.com';
 
