@@ -44,6 +44,8 @@ Private/loopback hosts are blocked unless `allowPrivateHosts: true`. Each connec
 
 For local files, `allowedSpecHosts` is not required; HTTP `$ref` pointers still go through the same SSRF checks.
 
+Spec requests identify themselves with `User-Agent: playswag (+https://github.com/MichalFidor/playswag)`. If a gateway still rejects them, the reporter logs the HTTP status, for example `[playswag] Failed to parse OpenAPI spec from "...": Error reading file "...": HTTP 403 while fetching spec URL "..."`. With `failOnSpecError: false`, that spec is skipped and the step summary has no coverage for it, so check the job log for this line when a summary is missing.
+
 ### Step summary extras
 
 ```ts

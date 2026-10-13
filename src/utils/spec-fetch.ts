@@ -7,6 +7,8 @@ import { resolveSpecUrl, type SpecSecurityOptions } from './spec-security.js';
 
 export const DEFAULT_SPEC_FETCH_TIMEOUT_MS = 15_000;
 export const DEFAULT_MAX_SPEC_BYTES = 5 * 1024 * 1024;
+/** Gateways and WAFs commonly reject requests without a User-Agent; node:http does not send one by default. */
+export const SPEC_FETCH_USER_AGENT = 'playswag (+https://github.com/MichalFidor/playswag)';
 
 export interface SpecFetchOptions extends SpecSecurityOptions {
   timeoutMs?: number;
@@ -53,6 +55,7 @@ async function fetchHop(
       headers: {
         Accept: 'application/json, application/yaml, text/yaml, */*',
         'Accept-Encoding': 'gzip, deflate, br',
+        'User-Agent': SPEC_FETCH_USER_AGENT,
       },
     });
     let responseStream: IncomingMessage | undefined;

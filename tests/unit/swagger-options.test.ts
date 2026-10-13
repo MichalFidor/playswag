@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createServer, type Server, type RequestListener } from 'node:http';
 import { once } from 'node:events';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { buildSecureSwaggerParserOptions } from '../../src/openapi/swagger-options.js';
+import { parseSpecs } from '../../src/openapi/parser.js';
 
 const servers: Server[] = [];
 const directories: string[] = [];
@@ -38,6 +39,38 @@ afterEach(async () => {
     server.closeAllConnections(); server.close(() => resolve());
   })));
   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+});
+
+describe('secured Swagger resolver error reporting', () => {
+  it('passes the original fetch error to onRemoteError while ref-parser reports a generic one', async () => {
+    const base = await serve((_req, res) => { res.statusCode = 403; res.end(); });
+    const errors: Error[] = [];
+    const parserOptions = buildSecureSwaggerParserOptions({
+      allowedSpecHosts: ['127.0.0.1'], allowPrivateHosts: true, onRemoteError: (error) => errors.push(error),
+    });
+    await expect(SwaggerParser.dereference(`${base}/spec.json`, parserOptions)).rejects.toThrow(/Error reading file/);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.message).toMatch(/HTTP 403 while fetching spec URL/);
+  });
+
+  it('does not call onRemoteError when the remote document loads', async () => {
+    const base = await serve((_req, res) => {
+      res.end(JSON.stringify({ openapi: '3.0.0', info: { title: 'Remote', version: '1' }, paths: {} }));
+    });
+    const onRemoteError = vi.fn();
+    const parserOptions = buildSecureSwaggerParserOptions({
+      allowedSpecHosts: ['127.0.0.1'], allowPrivateHosts: true, onRemoteError,
+    });
+    await expect(SwaggerParser.dereference(`${base}/spec.json`, parserOptions)).resolves.toBeDefined();
+    expect(onRemoteError).not.toHaveBeenCalled();
+  });
+
+  it('reports the HTTP status of a failing remote $ref in parseSpecs errors', async () => {
+    const base = await serve((_req, res) => { res.statusCode = 401; res.end(); });
+    const root = await localRoot({ $ref: `${base}/schema.json` });
+    await expect(parseSpecs(root, { allowedSpecHosts: ['127.0.0.1'], allowPrivateHosts: true }))
+      .rejects.toThrow(/Failed to parse OpenAPI spec .*Error reading file .*: HTTP 401 while fetching spec URL/);
+  });
 });
 
 describe('secured Swagger resolver document provenance', () => {

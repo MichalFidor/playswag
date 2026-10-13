@@ -346,13 +346,24 @@ async function parseOne(source: string, options?: ParseSpecOptions): Promise<Par
     allowPrivateHosts: options?.allowPrivateHosts,
   };
   const remoteRoot = isRemoteSpecSource(resolvedSource);
+  let remoteError: Error | undefined;
   const parserOptions = buildSecureSwaggerParserOptions({
     ...security,
     specFetchTimeoutMs: options?.specFetchTimeoutMs,
     maxSpecBytes: options?.maxSpecBytes,
     disableFileResolver: remoteRoot,
+    onRemoteError: (error) => { remoteError ??= error; },
   });
-  const doc = await SwaggerParser.dereference(resolvedSource, parserOptions) as OpenAPI.Document;
+  let doc: OpenAPI.Document;
+  try {
+    doc = await SwaggerParser.dereference(resolvedSource, parserOptions) as OpenAPI.Document;
+  } catch (err) {
+    const message = (err as Error).message;
+    if (remoteError && !message.includes(remoteError.message)) {
+      throw new Error(`${message}: ${remoteError.message}`, { cause: err });
+    }
+    throw err;
+  }
 
   if (isV2(doc)) {
     const v2 = doc as OpenAPIV2.Document;

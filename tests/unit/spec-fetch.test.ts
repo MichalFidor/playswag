@@ -6,6 +6,7 @@ import { once } from 'node:events';
 import { gzipSync } from 'node:zlib';
 import { fetchSpecContent } from '../../src/utils/spec-fetch.js';
 import { createBudgetedSpecReader } from '../../src/openapi/spec-resource-budget.js';
+import { parseSpecs } from '../../src/openapi/parser.js';
 
 vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }));
 const lookupAll = vi.mocked(lookup as (hostname: string, options: { all: true }) => Promise<LookupAddress[]>);
@@ -42,6 +43,21 @@ describe('fetchSpecContent', () => {
     expect(body.toString()).toContain('openapi');
     expect(host).toBe(new URL(url).host);
     expect(lookup).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a User-Agent so gateways that reject anonymous clients serve the spec', async () => {
+    const base = await serve((req, res) => {
+      if (!req.headers['user-agent']) { res.statusCode = 403; res.end(); return; }
+      res.end('{"openapi":"3.0.0"}');
+    });
+    const body = await fetchSpecContent(`${base}/spec.json`, localOptions);
+    expect(body.toString()).toContain('openapi');
+  });
+
+  it('surfaces the HTTP status in parseSpecs errors instead of a generic read failure', async () => {
+    const base = await serve((_req, res) => { res.statusCode = 403; res.end(); });
+    await expect(parseSpecs(`${base}/forbidden.json`, localOptions))
+      .rejects.toThrow(/Error reading file .*: HTTP 403/);
   });
 
   it('rejects private DNS results before starting an HTTP request', async () => {

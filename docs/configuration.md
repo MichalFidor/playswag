@@ -149,6 +149,8 @@ Shared schemas are memoized. Schema normalization permits up to 100,000 visits a
 
 For remote specs and HTTP references, `specFetchTimeoutMs` covers DNS resolution, all redirects and reading the response body. `maxSpecBytes` limits both wire bytes and decompressed bytes while streaming. A parser invocation permits at most 1,024 HTTP documents, 64 MiB of decoded HTTP content in total and eight simultaneous HTTP reads. These fixed limits are shared across the entire reference graph; exhausting a budget cancels active downloads and rejects queued references. Local file references do not consume this HTTP budget. Each HTTP reference is checked against `allowedSpecHosts`; references inside remote documents cannot read local files, even when the root spec is local.
 
+Spec requests send `User-Agent: playswag (+https://github.com/MichalFidor/playswag)`, because API gateways and WAFs often reject requests without one. When a download fails, the parse error includes the underlying cause (for example `HTTP 403 while fetching spec URL ...`) after the parser's generic `Error reading file` message.
+
 ## Disable without config changes
 
 Set the environment variable **`PLAYSWAG_DISABLED=1`** (also `true`, `yes`, or `on`) to skip API hit tracking and coverage reporting for that Playwright run. The reporter entry in `playwright.config.ts` can stay registered.

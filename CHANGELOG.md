@@ -7,6 +7,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.0.2] — 2026-10-13
+
+**Theme:** Patch release — remote specs load again behind gateways that require a User-Agent.
+
+### Fixed
+- Send a `User-Agent` header when fetching remote specs and `$ref` documents. Since 2.0.0 the `node:http` client sent none, so gateways and WAFs that block anonymous clients answered `403` and the reporter skipped coverage (1.x sent `User-Agent: node` through `fetch`).
+- Include the underlying fetch error (for example `HTTP 403 while fetching spec URL ...`) in `Failed to parse OpenAPI spec` messages instead of only the generic `Error reading file`.
+
+### Documentation
+- **[Configuration](https://github.com/MichalFidor/playswag/blob/main/docs/configuration.md)** — User-Agent sent for remote specs and the error detail reported when a download fails.
+- **[CI integration — Remote specs](https://github.com/MichalFidor/playswag/blob/main/docs/ci-integration.md#remote-specs-ssrf)** — diagnosing a missing step summary when a gateway rejects the spec request.
+
+---
+
 ## [2.0.1] — 2026-10-01
 
 **Theme:** Patch release — safer OpenAPI path matching and stricter publish gates.

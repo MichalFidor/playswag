@@ -13,6 +13,8 @@ export interface SecureSwaggerOptions extends SpecSecurityOptions {
   maxSpecBytes?: number;
   /** When true, block file:// and local path $refs (remote root specs). */
   disableFileResolver?: boolean;
+  /** Receives the original fetch error, which ref-parser replaces with a generic "Error reading file" message. */
+  onRemoteError?: (error: Error) => void;
 }
 
 interface RefFileInfo {
@@ -78,8 +80,13 @@ export function buildSecureSwaggerParserOptions(options: SecureSwaggerOptions = 
           return typeof file.url === 'string' && /^https?:\/\//i.test(file.url);
         },
         async read(file: RefFileInfo) {
-          const content = await readRemote(file.url);
-          return parseRemoteDocument(content, file.url);
+          try {
+            const content = await readRemote(file.url);
+            return parseRemoteDocument(content, file.url);
+          } catch (error) {
+            options.onRemoteError?.(error instanceof Error ? error : new Error(String(error)));
+            throw error;
+          }
         },
       },
     },
