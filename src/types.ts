@@ -638,6 +638,18 @@ export interface PlayswagConfig {
   requiredParamsOnly?: boolean;
 
   /**
+   * Response codes to leave out of the status-codes and response-properties
+   * dimensions. Matches spec response keys case-insensitively, e.g. `500`,
+   * `'4XX'` or `'default'`. Hits that return an excluded code still count
+   * towards endpoint and parameter coverage.
+   *
+   * @example
+   * // Ignore codes a framework adds to every operation:
+   * excludeStatusCodes: [204, 422, 500]
+   */
+  excludeStatusCodes?: Array<string | number>;
+
+  /**
    * Weight applied to the response-properties dimension when computing per-operation
    * coverage percentages in the HTML report. A value of `1.0` treats response
    * properties the same as request body properties; `0` excludes them from the

@@ -7,6 +7,19 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.1.0] — 2026-10-13
+
+**Theme:** Minor release — exclude framework-generated response codes from coverage.
+
+### Added
+- `excludeStatusCodes` option (for example `[204, 422, 500]`, `'4XX'` or `'default'`) removes response keys from the status-codes and response-properties dimensions. Hits that return an excluded code still count towards endpoint and parameter coverage.
+- Config validation warns about `excludeStatusCodes` entries that are not response keys.
+
+### Documentation
+- **[Configuration](https://github.com/MichalFidor/playswag/blob/main/docs/configuration.md#schema-coverage-and-resource-limits)** — `excludeStatusCodes` reference and when to use it.
+
+---
+
 ## [2.0.2] — 2026-10-13
 
 **Theme:** Patch release — remote specs load again behind gateways that require a User-Agent.

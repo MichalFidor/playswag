@@ -74,6 +74,13 @@ interface PlayswagConfiguration {
   requiredParamsOnly?: boolean;
 
   /**
+   * Response codes left out of the status-codes and response-properties dimensions,
+   * e.g. [204, 422, 500], '4XX' or 'default'. Matched case-insensitively against spec
+   * response keys. Hits with an excluded code still count towards endpoint coverage.
+   */
+  excludeStatusCodes?: Array<string | number>;
+
+  /**
    * Suppress specific coverage dimensions from the console output, thresholds, and step summary.
    * Useful when a dimension is not applicable to your API (e.g. no request bodies).
    */
@@ -144,6 +151,8 @@ interface PlayswagConfiguration {
 `schemaDepth` counts property nesting: `user` is depth 1 and `user.name` is depth 2. Arrays do not add a property level. An array of users exposes `[].id`; a `users` array inside an object exposes `users[].id`. Each property is covered when it is present in any matching array element, including later elements. Empty arrays and operations with no hits retain their schema properties as uncovered. Request coverage excludes `readOnly` fields; response coverage excludes `writeOnly` fields. Literal property names containing dots or brackets use JSON bracket notation, for example `["user.name"]` and `["items[]"]`, so they remain distinct from nested properties and array items.
 
 Response status and property coverage resolve the same documented response in this order: the exact status (for example `201`), its class (`2XX`), then `default`. A hit covers only the selected definition. An exact response without a schema does not inherit a schema from `2XX` or `default`.
+
+`excludeStatusCodes` removes response keys from the status-codes and response-properties dimensions before coverage is counted. Use it for codes a framework documents on every operation, such as springdoc's `204`, `422` and `500`, which would otherwise cap status-code coverage well below any realistic threshold. Entries match spec keys exactly (case-insensitive), so excluding `500` does not remove a documented `5XX`. A hit that returns an excluded code still marks the operation and its parameters as covered.
 
 Shared schemas are memoized. Schema normalization permits up to 100,000 visits and 128 structural levels. Property analysis permits 100,000 visits, 128 structural levels and 10,000 unique properties per schema expansion; body inspection permits 1,000,000 visits per analysis. Exceeding a limit reports a spec/coverage error rather than publishing partial coverage. `failOnSpecError` controls whether these errors fail the run (enabled by default when `CI=true`).
 

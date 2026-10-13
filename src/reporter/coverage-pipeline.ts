@@ -118,6 +118,7 @@ export class CoveragePipeline {
         playswagVersion: this.deps.readPlayswagVersion(),
         totalTestCount,
         requiredParamsOnly: this.config.requiredParamsOnly,
+        excludeStatusCodes: this.config.excludeStatusCodes,
         acknowledgedServices: acknowledgedServices ?? this.config.acknowledgedServices,
         schemaDepth: this.config.schemaDepth,
       });
