@@ -95,7 +95,7 @@
   },
   "dependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
-    "chalk": "^5.4.1",
+    "chalk": "^6.0.1",
     "cli-table3": "^0.6.5",
     "js-yaml": "4.3.2",
     "openapi-types": "^12.1.3",
