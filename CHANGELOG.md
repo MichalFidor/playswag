@@ -17,6 +17,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Documentation
 - **[Configuration](https://github.com/MichalFidor/playswag/blob/main/docs/configuration.md)** — User-Agent sent for remote specs and the error detail reported when a download fails.
+- **[CI integration — Remote specs](https://github.com/MichalFidor/playswag/blob/main/docs/ci-integration.md#remote-specs-ssrf)** — diagnosing a missing step summary when a gateway rejects the spec request.
 
 ---
 
