@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node 24
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24.x
           cache: npm
@@ -95,13 +95,13 @@ jobs:
       # Build once on the development runtime; verify published imports and CLI
       # on the minimum and next supported runtime without reinstalling tooling.
       - name: Set up minimum Node 20
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 20.0.0
       - name: Runtime compatibility — Node 20
         run: node scripts/verify-package.mjs --runtime-only
       - name: Set up Node 22
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.x
       - name: Runtime compatibility — Node 22
