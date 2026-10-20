@@ -15,7 +15,7 @@ jobs:
   publish:
     name: Publish validated package
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     needs: verify
     permissions:
       contents: write
@@ -65,7 +65,7 @@ jobs:
           fi
           npm publish ./release-package/*.tgz --ignore-scripts --access public
       - name: Verify npm publication
-        run: npm view "@michalfidor/playswag@${GITHUB_REF_NAME#v}" version
+        run: ./scripts/wait-npm-version.sh "@michalfidor/playswag" "${GITHUB_REF_NAME#v}"
       - name: Create GitHub Release after npm publication
         env:
           GH_TOKEN: ${{ github.token }}

@@ -55,11 +55,14 @@ jobs:
     name: Publish validated package to npm
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: validated-package
@@ -97,13 +100,13 @@ jobs:
       - name: Verify npm publication
         env:
           RELEASE_TAG: ${{ inputs.tag }}
-        run: npm view "@michalfidor/playswag@${RELEASE_TAG#v}" version
+        run: ./scripts/wait-npm-version.sh "@michalfidor/playswag" "${RELEASE_TAG#v}"
 
   recover-publish:
     if: inputs.validated_run_id != ''
     name: Publish artifact from validated Release run
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: write
@@ -183,7 +186,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          npm view "@michalfidor/playswag@${RELEASE_TAG#v}" version
+          ./scripts/wait-npm-version.sh "@michalfidor/playswag" "${RELEASE_TAG#v}"
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/changelog.md"
           else
