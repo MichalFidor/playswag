@@ -19,7 +19,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Closes Dependabot PRs **#70–#73** (merged here). Still deferred: **#58** lint-staged 17, **#60** vitest 5, **#61** `@types/node` 26, **#62** swagger-parser 13, **#68** chalk 6, **#77** js-yaml 5 (override stays on 4.3.2 until a dedicated migration).
 
 ### Documentation
-- **[Releasing](https://github.com/MichalFidor/playswag/blob/main/CONTRIBUTING.md#releasing-a-new-version)** — single maintenance PR workflow for Dependabot noise.
+- **[CI integration](https://github.com/MichalFidor/playswag/blob/main/docs/ci-integration.md)** — no consumer workflow changes; this release only updates maintainer GitHub Actions pins (artifacts, setup-node).
+- **[Releasing](https://github.com/MichalFidor/playswag/blob/main/CONTRIBUTING.md#releasing-a-new-version)** — consolidate Dependabot into one PR; `npm run validate:changelog` before tagging.
 
 ---
 
