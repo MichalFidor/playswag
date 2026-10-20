@@ -74,8 +74,20 @@ jobs:
         run: |
           tar -xOf release-package/*.tgz package/package.json > "$RUNNER_TEMP/package.json"
           test "$(node -p "require(process.env.RUNNER_TEMP + '/package.json').version")" = "${RELEASE_TAG#v}"
-      - name: Publish with provenance
+      - name: Publish with provenance (OIDC)
+        id: npm_oidc
+        continue-on-error: true
         run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
+      - name: Publish (token fallback)
+        if: steps.npm_oidc.outcome == 'failure'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::npm OIDC publish failed and NPMJS_TOKEN is not set."
+            exit 1
+          fi
+          npm publish ./release-package/*.tgz --ignore-scripts --access public
       - name: Verify npm publication
         env:
           RELEASE_TAG: ${{ inputs.tag }}
@@ -140,15 +152,31 @@ jobs:
         with:
           node-version: 24.x
           registry-url: https://registry.npmjs.org
-      - name: Publish exact validated tarball to npm with provenance
+      - name: Publish exact validated tarball to npm with provenance (OIDC)
+        id: npm_oidc
+        continue-on-error: true
         run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
+      - name: Publish exact validated tarball (token fallback)
+        if: steps.npm_oidc.outcome == 'failure'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::npm OIDC publish failed and NPMJS_TOKEN is not set."
+            exit 1
+          fi
+          npm publish ./release-package/*.tgz --ignore-scripts --access public
       - name: Verify npm publication and create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           npm view "@michalfidor/playswag@${RELEASE_TAG#v}" version
-          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/changelog.md"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/changelog.md"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/changelog.md"
+          fi
       - name: Set up GitHub Packages registry
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

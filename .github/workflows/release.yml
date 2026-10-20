@@ -45,8 +45,20 @@ jobs:
           tar -xOf release-package/*.tgz package/package.json > "$RUNNER_TEMP/package.json"
           test "$(node -p "require(process.env.RUNNER_TEMP + '/package.json').version")" = "$VERSION"
           node scripts/extract-release-notes.mjs "$VERSION" "$RUNNER_TEMP/changelog.md"
-      - name: Publish to npm with provenance
+      - name: Publish to npm with provenance (OIDC)
+        id: npm_oidc
+        continue-on-error: true
         run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
+      - name: Publish to npm (token fallback)
+        if: steps.npm_oidc.outcome == 'failure'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::npm OIDC publish failed and NPMJS_TOKEN is not set. Configure Trusted Publisher or add NPMJS_TOKEN."
+            exit 1
+          fi
+          npm publish ./release-package/*.tgz --ignore-scripts --access public
       - name: Verify npm publication
         run: npm view "@michalfidor/playswag@${GITHUB_REF_NAME#v}" version
       - name: Create GitHub Release after npm publication
