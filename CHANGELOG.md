@@ -7,6 +7,23 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.1.2] — 2026-10-20
+
+**Theme:** Dependency maintenance — close remaining safe Dependabot PRs; keep Node 20 support.
+
+### Changed
+- **`chalk`** 5.x → **6.x** (bundled in published builds; no consumer API change).
+- **Dev tooling:** `vitest` / `@vitest/coverage-v8` **5.0.x**, `lint-staged` **17.x**, `@types/node` **26.x**.
+
+### Notes
+- Closes Dependabot **#58**, **#60**, **#61**, **#68**. Still deferred: **#62** swagger-parser 13 and **#77** js-yaml 5 — `@apidevtools/swagger-parser@13` requires **Node ≥22.19.0**; playswag stays on swagger-parser 12 + js-yaml 4.3.2 while `engines` remains `>=20.0.0`.
+
+### Documentation
+- **[Releasing](https://github.com/MichalFidor/playswag/blob/main/CONTRIBUTING.md#releasing-a-new-version)** — when to defer major transitive deps (Node engine floor).
+- **[Configuration](https://github.com/MichalFidor/playswag/blob/main/docs/configuration.md)** — unchanged; this release is tooling and bundled chalk only.
+
+---
+
 ## [2.1.1] — 2026-10-20
 
 **Theme:** Dependency and CI maintenance — consolidate open Dependabot updates.
