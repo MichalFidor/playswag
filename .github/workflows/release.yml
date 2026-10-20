@@ -50,10 +50,15 @@ jobs:
         continue-on-error: true
         run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
       - name: Publish to npm (token fallback)
-        if: steps.npm_oidc.outcome == 'failure'
+        if: steps.npm_oidc.outcome != 'success'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view "@michalfidor/playswag@${VERSION}" version >/dev/null 2>&1; then
+            echo "Already published ${VERSION} (OIDC succeeded)."
+            exit 0
+          fi
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "::error::npm OIDC publish failed and NPMJS_TOKEN is not set. Configure Trusted Publisher or add NPMJS_TOKEN."
             exit 1
@@ -64,7 +69,12 @@ jobs:
       - name: Create GitHub Release after npm publication
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/changelog.md"
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/changelog.md"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/changelog.md"
+          fi
       - name: Set up GitHub Packages registry
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

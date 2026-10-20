@@ -79,10 +79,16 @@ jobs:
         continue-on-error: true
         run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
       - name: Publish (token fallback)
-        if: steps.npm_oidc.outcome == 'failure'
+        if: steps.npm_oidc.outcome != 'success'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
+          VERSION="${RELEASE_TAG#v}"
+          if npm view "@michalfidor/playswag@${VERSION}" version >/dev/null 2>&1; then
+            echo "Already published ${VERSION} (OIDC succeeded)."
+            exit 0
+          fi
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "::error::npm OIDC publish failed and NPMJS_TOKEN is not set."
             exit 1
@@ -157,10 +163,16 @@ jobs:
         continue-on-error: true
         run: npm publish ./release-package/*.tgz --ignore-scripts --provenance --access public
       - name: Publish exact validated tarball (token fallback)
-        if: steps.npm_oidc.outcome == 'failure'
+        if: steps.npm_oidc.outcome != 'success'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
+          VERSION="${RELEASE_TAG#v}"
+          if npm view "@michalfidor/playswag@${VERSION}" version >/dev/null 2>&1; then
+            echo "Already published ${VERSION} (OIDC succeeded)."
+            exit 0
+          fi
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "::error::npm OIDC publish failed and NPMJS_TOKEN is not set."
             exit 1
