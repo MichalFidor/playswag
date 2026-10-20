@@ -7,6 +7,22 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.1.1] — 2026-10-20
+
+**Theme:** Dependency and CI maintenance — consolidate open Dependabot updates.
+
+### Changed
+- **Dev tooling:** `@playwright/test` 1.63.0 → **1.64.1**, `eslint` ^10.13.0, `typescript-eslint` ^8.72.0, `vitest` / `@vitest/coverage-v8` ~4.1.12, `@types/node` ^25.9.9.
+- **CI:** `actions/setup-node` v7.1.0, `actions/upload-artifact` v7.0.2, `actions/download-artifact` v8.0.2 (pinned SHAs).
+
+### Notes
+- Closes Dependabot PRs **#70–#73** (merged here). Still deferred: **#58** lint-staged 17, **#60** vitest 5, **#61** `@types/node` 26, **#62** swagger-parser 13, **#68** chalk 6, **#77** js-yaml 5 (override stays on 4.3.2 until a dedicated migration).
+
+### Documentation
+- **[Releasing](https://github.com/MichalFidor/playswag/blob/main/CONTRIBUTING.md#releasing-a-new-version)** — single maintenance PR workflow for Dependabot noise.
+
+---
+
 ## [2.1.0] — 2026-10-13
 
 **Theme:** Minor release — exclude framework-generated response codes from coverage.
